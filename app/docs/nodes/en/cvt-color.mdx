@@ -1,1 +1,14 @@
-# CVT EN
+# Color palette
+
+<DemoNode type="cvt_color"/>
+
+## What does it do?
+Converts an image from one color space to another.
+
+## Why is it needed?
+For B/W images there is no point in storing color data, which is why, when converted to grayscale, the files become smaller in size.
+
+## Parameters
+* <code><T k="nodes.cvt.cvt-type"/></code> — the choice of conversion method:
+    1. `RGB2Gray`, `RGB2Gray709`, `RGB2Gray2020` — conversion from RGB mode to grayscale. The most accurate is `RGB2Gray2020`;
+    2. `Gray2RGB` — conversion from grayscale to RGB.

@@ -1,1 +1,40 @@
-# SHARP EN
+# Sharp
+
+<DemoNode type="sharp"/>
+
+## What does it do?
+Makes lines sharper to prepare them for processing with the <NodeRef type="screentone"/> node.
+
+## Why is it needed?
+Due to the specifics of the algorithm used in the <NodeRef type="screentone"/> node, the outlines develop jagged edges, since small gray pixels turn into screentone. This node lets you make the outlines solid black.
+<br/>The image below shows an example of the original scan, and screentone applied with and without preprocessing via the <NodeRef type="sharp"/> node.
+<DocImage src="/docs/saw.webp" alt="saw pattern" caption="Original vs With sharpness (no jaggies) vs Without sharpness (jaggies present)" />
+
+<br/>Also, most models for the <NodeRef type="upscale"/> node slightly shift colors, creating a barely discernible pattern (brightness 1/255) that is easily fixed with the <NodeRef type="level"/> node, or right here, in the <code><T k="nodes.sharp.high-input"/></code> parameter (the value `253` is enough for almost everything).
+<DocImage src="/docs/nasral.webp" alt="upscale artifacts" caption="Example of a color shift after upscaling (black level cranked up for clarity)" />
+
+## Parameters
+* <code><T k="nodes.sharp.low-input"/></code> — enhances dark tones (dark becomes darker);
+* <code><T k="nodes.sharp.high-input"/></code> — enhances light tones (light becomes lighter);
+* <code><T k="nodes.sharp.gamma"/></code> — shifts midtones;
+* <code><T k="nodes.sharp.diapason-white"/></code> — turns all lighter colors into white;
+* <code><T k="nodes.sharp.diapason-black"/></code> — (deprecated, recommended to disable by setting the value to -1) everything darker becomes black and slightly wider. It used to be needed to fix jaggies on the edges when applying screentone, but now <code><T k="nodes.sharp.canny"/></code> handles this task perfectly;
+* <code><T k="nodes.sharp.canny"/></code> — enables the Canny algorithm to apply sharpness on the edges, helps get rid of jaggies when reapplying screentone;
+* <code><T k="nodes.sharp.canny-type"/></code> — the choice of Canny type:
+    * <code><T k="nodes.sharp.canny-type-options.normal"/></code> — (deprecated) applies a black 1-bit line over the edges, making them thicker;
+    * <code><T k="nodes.sharp.canny-type-options.invert"/></code> — (deprecated) applies a white 1-bit line over the edges, burning them out;
+    * <code><T k="nodes.sharp.canny-type-options.unsharp"/></code> — the magic of a bunch of mask transformations, resulting in sharp lines of the same width;
+
+<DocImage src="/docs/sharp.webp" alt="canny comparison" caption="Original vs Unsharp vs Normal vs Inverted" />
+<DocImageCompare
+    images={[
+        { src: "/docs/comparison/canny/raw.webp", label: "Original" },
+        { src: "/docs/comparison/canny/unsharp.webp", label: "Unsharp" },
+        { src: "/docs/comparison/canny/normal.webp", label: "Normal" },
+        { src: "/docs/comparison/canny/invert.webp", label: "Inverted" }
+    ]}
+    alt="canny comparison 2"
+    caption="Comparison of Canny types using frame corners"
+    previewMode="switch"
+    pixelated
+/>

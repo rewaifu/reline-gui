@@ -1,1 +1,16 @@
-# GRAY BASE EN
+# Grayscale Manga Upscaling Basics
+
+The choice of approach depends on your input:
+* For grayscale scans without screentone, everything is relatively simple — you can use either general models for color, or, for sharper lines, one of the DS models (which may have a detrimental effect on various textures), or `4x_eula_digimanga_MiA_65k`.
+* With scans that have screentone, things are a bit more complicated.
+
+## There are several paradigms for upscaling scans with screentone:
+
+### 1. MangaScale
+
+The most primitive in essence, since we only need to use the <NodeRef type="upscale" /> node, but&nbsp;it only applies to sources with a sufficiently well-visible screentone.
+<br/>More in <ArticleRef slug="mangascale" />
+
+### 2. Screentone reapplication
+A more complex algorithm that converts the original screentone into shades of gray and then reapplies it.
+<br/>More in <ArticleRef slug="rescreentone" />

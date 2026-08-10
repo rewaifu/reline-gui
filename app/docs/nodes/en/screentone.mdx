@@ -1,1 +1,21 @@
-# SCREENTONE EN
+# Halftone
+
+<DemoNode type="screentone"/>
+
+## What does it do?
+Applies a halftone pattern using a regular algorithm, turning plain gradients into dots.
+
+<DocImage src="/docs/screentone.webp" alt="screentone example" caption="A plain gradient and its screentone equivalent" />
+
+## Parameters
+* <code><T k="nodes.screentone.halftone-mode"/></code> — selects the halftone application mode (<a href="https://slow.pics/c/FV7Ecy0C" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400  underline">mode comparison</a>):
+    * <code><T k="nodes.screentone.halftone-mode-options.gray"/></code> — regular screentone, converts shades of gray into dots of different sizes;
+    * <code><T k="nodes.screentone.halftone-mode-options.rgb"/></code> — also screentone, but you can configure its parameters for all three channels at once;
+    * <code><T k="nodes.screentone.halftone-mode-options.cmyk"/></code> — converts the image to CMYK and lets you adjust the brightness of all four channels as dots (the process is similar to color printing);
+    * <code><T k="nodes.screentone.halftone-mode-options.hsv"/></code> — preserves the image colors, converting only the brightness into dots;
+* <code><T k="nodes.screentone.dot-type"/></code> — the pattern used for the dithering algorithm;
+* <code><T k="nodes.screentone.angle"/></code> — the angle at which the dot grid is built;
+* <code><T k="nodes.screentone.dot-size"/></code> — the maximum dot diameter in pixels;
+* <code><T k="nodes.screentone.ssaa-scale"/></code> — the screentone smoothing method, the larger the value, the more accurate the smoothing (a value above 4 is almost always excessive, more in <ArticleRef slug="rescreentone"/>). When enabled, an approximate value of the applied dot appears to the right of <code><T k="nodes.screentone.dot-size"/></code>;
+* <code><T k="nodes.screentone.ssaa-filter"/></code> — the interpolation filter used when downscaling the image to its original size (more about the types in <NodeRef type="resize"/>);
+* <code><T k="nodes.screentone.disable-auto-dot"/></code> — lets you disable the <code><T k="nodes.screentone.dot-size"/></code> calculation with SSAA enabled using the formula <code><T k="nodes.screentone.dot-size"/></code> * <code><T k="nodes.screentone.ssaa-scale"/></code>, and use <code><T k="nodes.screentone.dot-size"/></code> directly.

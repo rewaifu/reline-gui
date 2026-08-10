@@ -1,1 +1,31 @@
-# GETTING STARTED EN
+# Introduction
+
+Reline is an image processing library written in Python and Rust. It is operated via JSON configs that represent an algorithm made of nodes with a set of specific actions. Each node takes the processing result of the previous one and&nbsp;prepares data for&nbsp;the next step.
+
+## Application interface
+
+<DocImage src="/docs/main.webp" alt="main screen" caption="PC interface" />
+* **At the top** there are customization options: language and theme switching.
+* **On the left (the "Nodes" card)** is a visual editor where you can add, reorder and edit the contents of nodes.
+* **On the right (the "Code" card)** the created config is displayed as JSON code. In the dropdown menu you can select one of the ready-made presets, and there are also buttons for importing and exporting configs.
+* **At the bottom** there are links to resources where you can use the created config.
+
+## Basic pipeline
+
+1. <NodeRef type="folder_reader" /> — reads source images from&nbsp;a folder.
+2. All the other logic.
+3. <NodeRef type="folder_writer" /> — saves the result to&nbsp;the selected folder.
+
+## Brief overview of processing node functionality
+
+* <NodeRef type="upscale" /> — processes the image using&nbsp;machine&nbsp;learning models;
+* <NodeRef type="sharp" /> — used to correct lines after DS models<br/>(more in <ArticleRef slug="rescreentone" />);
+* <NodeRef type="screentone" /> — reapplies screentone using&nbsp;a deterministic algorithm;
+* <NodeRef type="level" /> — shifts highlights and shadows, an analogue of levels in&nbsp;Photoshop;
+* <NodeRef type="resize" /> — resizes images;
+* <NodeRef type="cvt_color" /> — converts to&nbsp;a specific color space.
+
+## Next
+
+* Working with color — <T k="docs.sections.color-scale" /> / <ArticleRef slug="color-base" />
+* Working with B/W — <T k="docs.sections.bw-scale" /> / <ArticleRef slug="bw-base" />
