@@ -94,6 +94,7 @@ export const UiCombobox: Component<UiComboboxProps> = (props) => {
       open={open()}
       onOpenChange={setOpen}
       value={props.value}
+      onChange={(value) => value !== null && props.onChange(value)}
       triggerMode={props.triggerMode ?? "focus"}
       options={props.items as string[]}
       placeholder={props.placeholder ?? "Select…"}

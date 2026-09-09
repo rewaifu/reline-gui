@@ -36,11 +36,11 @@
     border-color var(--transition-fast);
 
   &:hover:not(.active) {
-    border-color: var(--color-text-muted);
+    border-color: var(--color-primary);
   }
 
   &.active {
-    border-color: var(--color-text);
+    border-color: var(--color-success);
   }
 
   &.dragging {
