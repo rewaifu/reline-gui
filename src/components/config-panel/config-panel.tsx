@@ -141,7 +141,7 @@ const CodeTab: Component = () => {
     setPresetName(name);
     dispatch({
       type: NodesActionType.IMPORT,
-      payload: preset.nodes.map((n) => ({ ...n })),
+      payload: preset.nodes.map((n) => structuredClone(n)),
     });
     setStatus({ ok: true, text: `Пресет «${preset.name}» применён` });
   };

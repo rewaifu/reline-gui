@@ -1,7 +1,7 @@
 /** Remote model database (mdb.yor.ovh): the non-own-model picker completes
  * against these entries; the download link goes into the Download
  * preprocessor, the upscale keeps only the bare name. */
-const ENDPOINT = "https://mdb.yor.ovh/v1/files";
+const ENDPOINT = "https://cdn.animeai.ovh/wtp_forover/files.json";
 
 export interface MdbModel {
   name: string;

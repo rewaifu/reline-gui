@@ -45,6 +45,7 @@ const writer = (): StackNode => ({
 
 const upscale = (
   model: string,
+  model_url: string,
   dtype: DType = DType.F32,
   size = 896
 ): StackNode => ({
@@ -57,7 +58,9 @@ const upscale = (
     tiler: TilerType.EXACT,
     exact_tiler_size: size,
     allow_cpu_upscale: false,
+    model_url:model_url
   },
+  
   collapsed: true,
 });
 
@@ -128,7 +131,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     id: "default",
     name: "Default",
     description: "Standard pipeline with all steps",
-    nodes: DEFAULT_NODES,
+    nodes: structuredClone(DEFAULT_NODES),
   },
   {
     id: "mangascale",
@@ -137,7 +140,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       "Config for mangascale models, such as MangaJanai family and wtp_MangaScale_GfisrV2",
     nodes: [
       reader(ReaderNodeMode.GRAY),
-      upscale("4x_wtp_MangaScale_GfisrV2"),
+      upscale("4x_wtp_MangaScale_GfisrV2","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz"),
       level(),
       resize(FilterType.SHAMMING4),
       gray2020(),
@@ -150,7 +153,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     description: "4x_dwtp_ds_atdl3 + Dot 7 SSAA 2",
     nodes: [
       reader(ReaderNodeMode.GRAY),
-      upscale("4x_dwtp_ds_atdl3", DType.F32, 700),
+      upscale("4x_dwtp_ds_atdl3","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz", DType.F32, 768),
       sharpUnsharp(),
       screentone(),
       resize(FilterType.SHAMMING4),
@@ -164,7 +167,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     description: "4x_dwtp_ds_moesr_v2 + Dot 7 SSAA 2",
     nodes: [
       reader(ReaderNodeMode.GRAY),
-      upscale("4x_dwtp_ds_moesr_v2"),
+      upscale("4x_dwtp_ds_moesr_v2","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz"),
       sharpUnsharp(),
       screentone(),
       resize(FilterType.SHAMMING4),
@@ -178,7 +181,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     description: "Color preset with umzi_digital_art_mosr_l model",
     nodes: [
       reader(ReaderNodeMode.RGB),
-      upscale("4x_umzi_digital_art_mosr_l"),
+      upscale("4x_umzi_digital_art_mosr_l","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz"),
       level(),
       resize(FilterType.DPID1),
       writer(),
@@ -190,7 +193,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     description: "Color preset with IllustrationJanaiV3 model",
     nodes: [
       reader(ReaderNodeMode.RGB),
-      upscale("4x_IllustrationJaNai_V3detail_DAT2_28k_bf16", DType.BF16, 600),
+      upscale("4x_IllustrationJaNai_V3detail_DAT2_28k_bf16","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz", DType.BF16, 600),
       level(),
       resize(FilterType.DPID1),
       writer(),

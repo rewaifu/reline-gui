@@ -36,7 +36,8 @@ export const DEFAULT_NODE_OPTIONS = {
   } satisfies NodeOptions,
   upscale: {
     model: "4x_dwtp_ds_atdl3",
-    is_own_model: true,
+    model_url:"https://bucket.yor.ovh/torch_models/4x_dwtp_ds_atdl3.tar.xz",
+    is_own_model: false,
     dtype: DType.F32,
     tiler: TilerType.EXACT,
     exact_tiler_size: 800,
