@@ -6,20 +6,22 @@ import {
   WriterNodeFormat,
   DType,
   TilerType,
-  CannyType,
-  HalftoneMode,
-  DotType,
   FilterType,
   ResizeType,
   CvtType,
 } from "~/types/enums";
 import { createDefaultNodes } from "~/constants";
+import type { LocalText } from "~/lib/i18n";
 import { newUid } from "~/lib/uid";
 
 export interface ConfigPreset {
   id: string;
+  /** Shown as-is: stock presets carry proper names ("Mangascale"), so there is
+   * nothing to translate. */
   name: string;
-  description: string;
+  /** A dictionary key, or plain text for a preset saved before i18n: render it
+   * with `render` from `~/lib/i18n`, which leaves an unknown string alone. */
+  description: LocalText;
   nodes: StackNode[];
 }
 const reader = (mode: ReaderNodeMode): StackNode => ({
@@ -46,52 +48,25 @@ const writer = (): StackNode => ({
 
 const MODEL_BASE = "https://bucket.yor.ovh/torch_models";
 
-// The url is derivable from the model name — never pass it by hand, a
-// wrong-but-plausible url downloads the wrong weights under the right name.
+/** The url is derived from the model name and only overridden when the model is
+ * published as a bare file: a wrong-but-plausible url downloads the wrong
+ * weights under the right name, so it is never passed by hand for a `.tar.xz`. */
 const upscale = (
   model: string,
   dtype: DType = DType.F32,
   size = 896,
+  url?: string,
 ): StackNode => ({
   uid: newUid(),
   type: NodeType.UPSCALE,
   options: {
     is_own_model: false,
     model,
-    model_url: `${MODEL_BASE}/${model}.tar.xz`,
+    model_url: url ?? `${MODEL_BASE}/${model}.tar.xz`,
     dtype,
     tiler: TilerType.EXACT,
     exact_tiler_size: size,
     allow_cpu_upscale: false,
-  },
-  collapsed: true,
-});
-
-const sharpUnsharp = (): StackNode => ({
-  uid: newUid(),
-  type: NodeType.SHARP,
-  options: {
-    low_input: 2,
-    high_input: 252,
-    gamma: 1,
-    diapason_white: 2,
-    diapason_black: -1,
-    canny: true,
-    canny_type: CannyType.UNSHARP,
-  },
-  collapsed: true,
-});
-
-const screentone = (): StackNode => ({
-  uid: newUid(),
-  type: NodeType.SCREENTONE,
-  options: {
-    halftone_mode: HalftoneMode.GRAY,
-    dot_size: 7,
-    angle: 0,
-    dot_type: DotType.CIRCLE,
-    ssaa_filter: FilterType.SHAMMING4,
-    ssaa_scale: 2,
   },
   collapsed: true,
 });
@@ -133,14 +108,13 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   {
     id: "default",
     name: "Default",
-    description: "Стандартный конвейер со всеми шагами",
+    description: "panel.presets.description.default",
     nodes: createDefaultNodes(),
   },
   {
     id: "mangascale",
     name: "Mangascale",
-    description:
-      "Конфиг для mangascale-моделей: семейство MangaJanai и wtp_MangaScale_GfisrV2",
+    description: "panel.presets.description.mangascale",
     nodes: [
       reader(ReaderNodeMode.GRAY),
       upscale("4x_wtp_MangaScale_GfisrV2"),
@@ -151,62 +125,34 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     ],
   },
   {
-    id: "atdl3-ssaa",
-    name: "ATDL3 + SSAA",
-    description: "4x_dwtp_ds_atdl3 + Dot 7 SSAA 2",
-    nodes: [
-      reader(ReaderNodeMode.GRAY),
-      upscale("4x_dwtp_ds_atdl3", DType.F32, 768),
-      sharpUnsharp(),
-      screentone(),
-      resize(FilterType.SHAMMING4),
-      gray2020(),
-      writer(),
-    ],
-  },
-  {
-    id: "moesrv2-ssaa",
-    name: "MOESRv2 + SSAA",
-    description: "4x_dwtp_ds_moesr_v2 + Dot 7 SSAA 2",
-    nodes: [
-      reader(ReaderNodeMode.GRAY),
-      upscale("4x_dwtp_ds_moesr_v2"),
-      sharpUnsharp(),
-      screentone(),
-      resize(FilterType.SHAMMING4),
-      gray2020(),
-      writer(),
-    ],
-  },
-  {
     id: "color-mosrl",
     name: "Default color",
-    description: "Цветной пресет с моделью umzi_digital_art_mosr_l",
+    description: "panel.presets.description.color-mosrl",
     nodes: [
       reader(ReaderNodeMode.RGB),
-      upscale("4x_umzi_digital_art_mosr_l"),
+      // published as a bare .safetensors, not as the usual .tar.xz
+      upscale(
+        "2x_enhancr_da_smosr_v1",
+        DType.F32,
+        896,
+        `${MODEL_BASE}/2x_enhancr_da_smosr_v1.safetensors`,
+      ),
       level(),
-      resize(FilterType.DPID1),
+      resize(FilterType.ICATMULLROM),
       writer(),
     ],
   },
   {
     id: "color-heavy",
     name: "Heavy color",
-    description: "Цветной пресет с моделью IllustrationJanaiV3",
+    description: "panel.presets.description.color-heavy",
     nodes: [
       reader(ReaderNodeMode.RGB),
       upscale("4x_IllustrationJaNai_V3detail_DAT2_28k_bf16", DType.BF16, 600),
       level(),
-      resize(FilterType.DPID1),
+      resize(FilterType.ICATMULLROM),
       writer(),
     ],
-  },
-  {
-    id: "psd-to-png",
-    name: "PSD to PNG",
-    description: "Конвертирует PSD в PNG",
-    nodes: [reader(ReaderNodeMode.RGB), writer()],
   },
 ];
 
@@ -262,7 +208,7 @@ export const saveUserPreset = (
   const preset: ConfigPreset = {
     id: `user-${Date.now()}`,
     name,
-    description: "Пользовательский пресет",
+    description: "panel.presets.description.user",
     // JSON round-trip: store items are Solid proxies — structuredClone throws on them
     nodes: JSON.parse(JSON.stringify([...nodes])),
   };

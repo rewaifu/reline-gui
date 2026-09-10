@@ -3,6 +3,7 @@ import { type Component } from "solid-js";
 import { WriterNodeFormat } from "~/types/enums";
 import { useNodeForm, PathRow, SelectRow } from "./shared";
 import type { FolderWriterNodeOptions } from "~/types/options";
+import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -13,16 +14,16 @@ export const FolderWriterForm: Component<FormProps> = (props) => {
   return (
     <div class={styles.form}>
       <PathRow
-        label="Path to folder"
+        label={t("form.folder_writer.path")}
         placeholder="/content/drive/MyDrive/output"
         value={options().path}
         onInput={(path) => form.set({ path })}
         source="dirs"
       />
       <SelectRow
-        label="Format"
+        label={t("form.folder_writer.format")}
         value={options().format}
-        items={[WriterNodeFormat.PNG, WriterNodeFormat.JPEG]}
+        items={Object.values(WriterNodeFormat)}
         onChange={(format) => form.set({ format: format as WriterNodeFormat })}
       />
     </div>

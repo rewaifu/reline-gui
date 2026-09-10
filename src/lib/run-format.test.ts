@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { flush } from "solid-js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setLocale, type Locale } from "~/lib/i18n";
 import type { RunProgress } from "~/lib/run-client";
 import {
   describeStage,
@@ -19,6 +21,17 @@ const frame = (fields: Partial<RunProgress>): RunProgress => ({
 
 const MEGABYTE = 1024 * 1024;
 
+/** Solid 2 defers a signal write to the next flush: switching the language and
+ * formatting in the same tick without flushing would use the old one. */
+const use = (next: Locale) => {
+  setLocale(next);
+  flush();
+};
+
+// jsdom reports an English browser, so the Russian expectations below state
+// their language instead of inheriting one.
+beforeEach(() => use("ru"));
+
 describe("stage line", () => {
   it("names the stage and the model it is fetching", () => {
     expect(describeStage(frame({ stage: "download", label: "4x_a" }))).toBe(
@@ -28,15 +41,15 @@ describe("stage line", () => {
 
   it("shows a node under the editor's name, not the runner's", () => {
     // the runner auto-labels its halftone step "Halftone"; the editor calls
-    // that node "Screentone"
+    // that node «Скринтон»
     expect(describeStage(frame({ stage: "process", node: "halftone" }))).toBe(
-      "Обработка изображений · Screentone",
+      "Обработка изображений · Скринтон",
     );
     expect(
       describeStage(
         frame({ stage: "process", node: "sharp", label: "Gaussian Blur" }),
       ),
-    ).toBe("Обработка изображений · Sharp");
+    ).toBe("Обработка изображений · Резкость");
   });
 
   it("keeps the runner's label for steps without a node", () => {
@@ -87,10 +100,10 @@ describe("counters", () => {
 describe("rate", () => {
   it("counts images per second on the image stages", () => {
     expect(formatRate(frame({ stage: "process", rate: 8.4 }))).toBe(
-      "8.4 img/s",
+      "8.4 изобр./с",
     );
     expect(formatRate(frame({ stage: "process", rate: 123.4 }))).toBe(
-      "123 img/s",
+      "123 изобр./с",
     );
   });
 
@@ -187,5 +200,37 @@ describe("download progress", () => {
   it("stays hidden until bytes arrive", () => {
     expect(formatDownloadProgress(frame({ bytesTotal: 1024 }))).toBeUndefined();
     expect(formatDownloadProgress(frame({}))).toBeUndefined();
+  });
+});
+
+describe("English output", () => {
+  beforeEach(() => use("en"));
+
+  it("names the stage, the node and the model", () => {
+    expect(describeStage(frame({ stage: "download", label: "4x_a" }))).toBe(
+      "Downloading models · 4x_a",
+    );
+    expect(describeStage(frame({ stage: "process", node: "halftone" }))).toBe(
+      "Processing images · Halftone",
+    );
+    expect(describeStage(frame({ stage: "process", node: "sharp" }))).toBe(
+      "Processing images · Sharp",
+    );
+    expect(describeStage(frame({}))).toBe("Preparing…");
+  });
+
+  it("formats durations, bytes and rates in English units", () => {
+    expect(formatDuration(80)).toBe("1 min 20 s");
+    expect(formatDuration(3600)).toBe("1 h");
+    expect(formatBytes(123 * MEGABYTE)).toBe("123 MB");
+    expect(formatBytes(840 * 1024)).toBe("840 KB");
+    expect(formatEta(frame({ eta: 80 }))).toBe("1 min 20 s left");
+    expect(formatElapsed(frame({ elapsed: 12 }))).toBe("12 s elapsed");
+    expect(formatRate(frame({ stage: "process", rate: 8.4 }))).toBe(
+      "8.4 img/s",
+    );
+    expect(formatRate(frame({ stage: "download", rate: 5.4 * MEGABYTE }))).toBe(
+      "5.4 MB/s",
+    );
   });
 });

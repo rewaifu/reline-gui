@@ -7,6 +7,7 @@ import {
   ReaderNodeMode,
   TilerType,
 } from "~/types/enums";
+import type { PureConfig } from "~/types/node";
 
 const upscaleStack = (
   model: string,
@@ -200,5 +201,71 @@ describe("meta round-trip", () => {
       preprocess: [],
     });
     expect(stack[0]).toMatchObject({ name: "Апскейл", enabled: false });
+  });
+});
+
+/** Config from a field report: "nothing appears in the output folder, it just
+ * does not work". The wire side was fine (the same config writes its files),
+ * so this pins the editor's half: the stack it builds from those bytes runs
+ * enabled, with both paths untouched. */
+describe("a config from a report", () => {
+  const REPORT = {
+    nodes: [
+      {
+        type: "folder_reader",
+        options: {
+          path: "/content/drive/MyDrive/porno_test_3/",
+          mode: "rgb",
+          recursive: true,
+        },
+      },
+      {
+        type: "level",
+        options: {
+          low_input: 0,
+          high_input: 253,
+          low_output: 0,
+          high_output: 255,
+          gamma: 0.3,
+        },
+      },
+      {
+        type: PureNodeType.FOLDER_WRITER,
+        options: { path: "porno_test_3/output/", format: "png" },
+      },
+    ],
+    preprocess: [],
+  } as unknown as PureConfig;
+
+  it("imports enabled and exports unchanged", () => {
+    const migrated: unknown[] = [];
+    const stack = convertToStack(REPORT, {
+      onLegacy: (migration) => migrated.push(migration),
+    });
+    expect(stack.map((node) => node.type)).toEqual([
+      NodeType.FOLDER_READER,
+      NodeType.LEVEL,
+      NodeType.FOLDER_WRITER,
+    ]);
+    expect(migrated).toEqual([]);
+    // a disabled node is dropped by the runner: a stack that looks right and
+    // writes nothing is exactly this bug's shape
+    expect(stack.map((node) => node.enabled)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+
+    const back = convertToPure(stack);
+    expect(back.nodes[0].options).toMatchObject({
+      path: "/content/drive/MyDrive/porno_test_3/",
+      mode: "rgb",
+      recursive: true,
+    });
+    expect(back.nodes[2].options).toEqual({
+      path: "porno_test_3/output/",
+      format: "png",
+    });
+    expect(back.preprocess).toEqual([]);
   });
 });

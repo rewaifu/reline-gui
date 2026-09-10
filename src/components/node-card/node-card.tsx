@@ -19,10 +19,11 @@ import {
   useAddNode,
   useToggleEnabled,
 } from "~/instructions/hooks/use-node-actions";
-import { NODE_DEFS } from "~/components/nodes/registry";
+import { nodeLabel } from "~/components/nodes/registry";
 import { NodeOptionsForm } from "~/components/nodes/node-options-form";
 import { AddNodeMenu } from "~/components/nodes-list/add-node-menu";
 import { Icon, UiSwitch } from "~/components/ui";
+import { t } from "~/lib/i18n";
 import styles from "./node-card.module.scss";
 
 interface NodeCardProps {
@@ -114,8 +115,8 @@ const NodeCard: Component<NodeCardProps> = (props) => {
             class={styles.dragHandle}
             role="button"
             tabindex="0"
-            aria-label="Изменить порядок ноды"
-            title="Перетащите или нажмите ↑ / ↓"
+            aria-label={t("chrome.reorder")}
+            title={t("chrome.reorderTitle")}
             {...props.handlers(props.index)}
           >
             <Icon name="drag-drop" size={18} />
@@ -123,8 +124,8 @@ const NodeCard: Component<NodeCardProps> = (props) => {
           <button
             type="button"
             class={styles.iconBtn}
-            aria-label="Переименовать ноду"
-            title="Переименовать ноду"
+            aria-label={t("chrome.rename")}
+            title={t("chrome.rename")}
             onClick={(e) => {
               e.stopPropagation();
               startRename();
@@ -136,8 +137,8 @@ const NodeCard: Component<NodeCardProps> = (props) => {
             <button
               type="button"
               class={styles.iconBtn}
-              aria-label="Удалить ноду"
-              title="Удалить ноду"
+              aria-label={t("chrome.remove")}
+              title={t("chrome.remove")}
               onClick={(e) => {
                 e.stopPropagation();
                 dispatch({ type: NodesActionType.DELETE, payload: node().uid });
@@ -157,9 +158,9 @@ const NodeCard: Component<NodeCardProps> = (props) => {
               <UiSwitch
                 checked={node().enabled !== false}
                 onChange={(enabled) => toggleEnabled(node(), enabled)}
-                ariaLabel={`Включить ${
-                  node().name ?? NODE_DEFS[node().type].label
-                }`}
+                ariaLabel={t("chrome.enable", {
+                  name: node().name ?? nodeLabel(node().type),
+                })}
               />
             </span>
           </Show>
@@ -170,8 +171,8 @@ const NodeCard: Component<NodeCardProps> = (props) => {
                 ref={(el) => (renameInput = el)}
                 class={styles.renameInput}
                 value={draft()}
-                placeholder={node().name ?? NODE_DEFS[node().type].label}
-                aria-label="Имя ноды"
+                placeholder={node().name ?? nodeLabel(node().type)}
+                aria-label={t("chrome.nodeName")}
                 onClick={(e) => e.stopPropagation()}
                 onInput={(e) => setDraft(e.currentTarget.value)}
                 onBlur={commitRename}
@@ -189,22 +190,20 @@ const NodeCard: Component<NodeCardProps> = (props) => {
                 props.onSelect(node().uid);
               }}
               onDblClick={startRename}
-              title="Двойной клик — переименовать"
+              title={t("chrome.renameHint")}
             >
               <span class={styles.titleText}>
-                {node().name ?? NODE_DEFS[node().type].label}
+                {node().name ?? nodeLabel(node().type)}
               </span>
               <Show when={node().name}>
-                <span class={styles.typeHint}>
-                  {NODE_DEFS[node().type].label}
-                </span>
+                <span class={styles.typeHint}>{nodeLabel(node().type)}</span>
               </Show>
             </span>
           </Show>
           <button
             type="button"
             class={styles.chevron}
-            aria-label="Свернуть ноду"
+            aria-label={t("chrome.collapse")}
             aria-expanded={node().collapsed === false ? "true" : "false"}
             onClick={(e) => {
               e.stopPropagation();
@@ -229,7 +228,7 @@ const NodeCard: Component<NodeCardProps> = (props) => {
               <button
                 type="button"
                 class={styles.deleteBtn}
-                aria-label="Удалить ноду"
+                aria-label={t("chrome.remove")}
                 onClick={(e) => {
                   e.stopPropagation();
                   dispatch({
@@ -239,7 +238,7 @@ const NodeCard: Component<NodeCardProps> = (props) => {
                 }}
               >
                 <Icon name="trash" size={16} />
-                Удалить ноду
+                {t("chrome.remove")}
               </button>
             </div>
           </Show>

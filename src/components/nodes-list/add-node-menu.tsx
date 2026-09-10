@@ -1,33 +1,37 @@
 import type { Component } from "solid-js";
-import { NODE_DEFS, NODE_ORDER } from "~/components/nodes/registry";
+import { NODE_ORDER, nodeLabel } from "~/components/nodes/registry";
+import type { NodeType } from "~/types/enums";
 import { UiCombobox } from "~/components/ui";
+import { t } from "~/lib/i18n";
 import styles from "./nodes-list.module.scss";
 
 export interface AddNodeMenuProps {
-  onAdd: (label: string) => void;
+  onAdd: (type: NodeType) => void;
 }
-
-// static by construction: the registry never changes at runtime, and a plain
-// array (not a memo) keeps Kobalte's component body from reading a signal
-// where it cannot track one
-const ITEM_LABELS: readonly string[] = NODE_ORDER.map(
-  (type) => NODE_DEFS[type].label,
-);
 
 /** Searchable add-node field: type to filter the node registry, Enter or
  * click adds the highlighted node. */
 export const AddNodeMenu: Component<AddNodeMenuProps> = (props) => {
+  // The field deals in displayed text and hands back what was picked; the
+  // wire type comes from the same registry order the labels were built off.
+  const add = (label: string) => {
+    const type = NODE_ORDER.find((candidate) => nodeLabel(candidate) === label);
+    if (type !== undefined) props.onAdd(type);
+  };
+
   return (
     <div class={styles.addNode}>
       <UiCombobox
         class={styles.addCombo}
         value=""
-        placeholder="Добавить ноду"
-        ariaLabel="Добавить ноду"
-        items={ITEM_LABELS}
+        placeholder={t("chrome.addNode")}
+        ariaLabel={t("chrome.addNode")}
+        // formatted where it renders, never hoisted: a module-level list
+        // would freeze the language the app started in
+        items={NODE_ORDER.map(nodeLabel)}
         placement="top-start"
-        onChange={(label) => ITEM_LABELS.includes(label) && props.onAdd(label)}
-        onEnterMatch={(label) => props.onAdd(label)}
+        onChange={add}
+        onEnterMatch={add}
       />
     </div>
   );

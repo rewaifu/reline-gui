@@ -3,6 +3,7 @@ import { Select } from "@kobalte/core/select";
 import { Icon } from "../icon";
 import styles from "./select.module.scss";
 import { createDismissOnOutside } from "../create-dismiss-on-outside";
+import { t } from "~/lib/i18n";
 
 export interface UiSelectProps {
   value: string | null;
@@ -40,7 +41,10 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
       value={props.value}
       onChange={(value) => value !== null && props.onChange(value)}
       options={props.items as string[]}
-      placeholder={props.placeholder ?? "Select…"}
+      placeholder={props.placeholder ?? t("ui.select")}
+      // options are the raw wire values (`no_tiling`, `slinear4`): the same
+      // strings the runner parses, as the original editor showed them, so the
+      // list never mixes a translated word with a library name
       itemComponent={(item) => (
         <Select.Item item={item.item} class={styles.item}>
           {item.item.rawValue}

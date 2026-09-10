@@ -3,6 +3,7 @@ import { type Component } from "solid-js";
 import { CvtType } from "~/types/enums";
 import { useNodeForm, SelectRow } from "./shared";
 import type { CvtColorNodeOptions } from "~/types/options";
+import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -13,14 +14,9 @@ export const CvtColorForm: Component<FormProps> = (props) => {
   return (
     <div class={styles.form}>
       <SelectRow
-        label="Conversion"
+        label={t("form.cvt_color.conversion")}
         value={options().cvt_type}
-        items={[
-          CvtType.RGB2Gray,
-          CvtType.RGB2Gray709,
-          CvtType.RGB2Gray2020,
-          CvtType.Gray2RGB,
-        ]}
+        items={Object.values(CvtType)}
         onChange={(cvt_type) => form.set({ cvt_type: cvt_type as CvtType })}
       />
     </div>

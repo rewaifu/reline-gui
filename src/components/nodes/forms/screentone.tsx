@@ -10,17 +10,14 @@ import {
   ComboboxRow,
 } from "./shared";
 import type { ScreentoneNodeOptions } from "~/types/options";
+import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
 
-const DOT_TYPES = [
-  DotType.CIRCLE,
-  DotType.LINE,
-  DotType.ELLIPSE,
-  DotType.CROSS,
-  DotType.INVLINE,
-] as const;
+/** Shapes offered per channel. Derived from the enum: a new member appears on
+ * its own, and its order in the enum is the order in the menu. */
+const DOT_TYPES = Object.values(DotType);
 
 /** Channels per halftone mode: gray drives one dot grid, the color modes
  * drive one grid per channel. */
@@ -145,14 +142,9 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
   return (
     <div class={styles.form}>
       <SelectRow
-        label="Halftone mode"
+        label={t("form.screentone.halftoneMode")}
         value={options().halftone_mode}
-        items={[
-          HalftoneMode.GRAY,
-          HalftoneMode.RGB,
-          HalftoneMode.HSV,
-          HalftoneMode.CMYK,
-        ]}
+        items={Object.values(HalftoneMode)}
         onChange={(value) => changeMode(value as HalftoneMode)}
       />
       <div class={styles.channels}>
@@ -160,12 +152,12 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
           {(channel, i) => (
             <div class={styles.group}>
               <p class={styles.groupTitle}>
-                <Show when={multi()} fallback="Channel">
+                <Show when={multi()} fallback={t("form.screentone.channel")}>
                   {channel}
                 </Show>
               </p>
               <SliderRow
-                label="Dot size"
+                label={t("form.screentone.dotSize")}
                 value={num("dot_size", i())}
                 min={1}
                 max={128}
@@ -173,7 +165,7 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
                 onInput={(value) => setNum("dot_size", i(), value)}
               />
               <SliderRow
-                label="Angle"
+                label={t("form.screentone.angle")}
                 value={num("angle", i())}
                 min={0}
                 max={180}
@@ -181,9 +173,9 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
                 onInput={(value) => setNum("angle", i(), value)}
               />
               <ComboboxRow
-                label="Dot type"
+                label={t("form.screentone.dotType")}
                 value={dtypeAt(i())}
-                items={DOT_TYPES as unknown as readonly string[]}
+                items={DOT_TYPES}
                 onChange={(value) => setDtype(i(), value as DotType)}
               />
             </div>
@@ -191,12 +183,12 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
         </For>
       </div>
       <CheckRow
-        label="Disable auto dot"
+        label={t("form.screentone.disableAutoDot")}
         checked={options().disable_auto_dot ?? false}
         onChange={(disable_auto_dot) => form.set({ disable_auto_dot })}
       />
       <NumberRow
-        label="SSAA scale"
+        label={t("form.screentone.ssaaScale")}
         value={options().ssaa_scale}
         min={1}
         step={1}

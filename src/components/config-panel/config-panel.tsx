@@ -28,6 +28,13 @@ import { modelUrl, preloadModelNames, resolveModelName } from "~/lib/model-db";
 import { convertToPure, type LegacyMigration } from "~/lib/convert";
 import { NodeType } from "~/types/enums";
 import { NODE_DEFS } from "~/components/nodes/registry";
+import {
+  locale,
+  message,
+  render as localText,
+  t,
+  type LocalText,
+} from "~/lib/i18n";
 import { Icon, UiTabs, UiSelect } from "~/components/ui";
 import {
   createRunClient,
@@ -42,29 +49,35 @@ import {
   formatEta,
   formatProgressCounters,
   formatRate,
-  PREPARING_TEXT,
 } from "~/lib/run-format";
 import styles from "./config-panel.module.scss";
 
 const TABS = [
-  { value: "instructions", label: "Инструкции" },
-  { value: "code", label: "Код" },
-  { value: "presets", label: "Пресеты" },
-  { value: "run", label: "Запуск" },
+  { value: "instructions", labelKey: "panel.tabs.instructions" },
+  { value: "code", labelKey: "panel.tabs.code" },
+  { value: "presets", labelKey: "panel.tabs.presets" },
+  { value: "run", labelKey: "panel.tabs.run" },
 ] as const;
 
 export interface ConfigPanelProps {
   selectedUid: () => string | null;
 }
-/** Per-node instructions, authored as Markdown in src/instructions. */
+/** Per-node instructions, authored as Markdown in src/instructions/<locale>/.
+ * Keyed "locale/type", so the rendered document follows the switcher. */
 const INSTRUCTION_DOCS: Record<string, string> = Object.fromEntries(
   Object.entries(
-    import.meta.glob("../../instructions/*.md", {
+    import.meta.glob("../../instructions/*/*.md", {
       query: "?raw",
       import: "default",
       eager: true,
     }),
-  ).map(([path, src]) => [path.match(/([^/]+)\.md$/)![1], src as string]),
+  ).map(([path, src]) => [
+    path
+      .match(/instructions\/([^/]+)\/([^/]+)\.md$/)!
+      .slice(1)
+      .join("/"),
+    src as string,
+  ]),
 );
 
 const InstructionsTab: Component<ConfigPanelProps> = (props) => {
@@ -75,7 +88,7 @@ const InstructionsTab: Component<ConfigPanelProps> = (props) => {
   };
   const docHtml = createMemo(() => {
     const d = def();
-    const md = d ? INSTRUCTION_DOCS[d.type] : undefined;
+    const md = d ? INSTRUCTION_DOCS[`${locale()}/${d.type}`] : undefined;
     return md ? marked.parse(md, { async: false }) : "";
   });
 
@@ -83,12 +96,7 @@ const InstructionsTab: Component<ConfigPanelProps> = (props) => {
     <div class={styles.instructions}>
       <Show
         when={def()}
-        fallback={
-          <p class={styles.empty}>
-            Выберите ноду, чтобы увидеть её инструкцию. Ноды обрабатываются
-            сверху вниз: чтение → обработка → запись.
-          </p>
-        }
+        fallback={<p class={styles.empty}>{t("panel.instructions.empty")}</p>}
       >
         {
           // Instructions are trusted local files authored by the user, so
@@ -144,22 +152,28 @@ const CodeEditor: Component<{
         value={props.value}
         onInput={(e) => props.onInput(e.currentTarget.value)}
         spellcheck={false}
-        aria-label="Конфиг JSON"
+        aria-label={t("panel.code.json")}
       />
     </div>
   );
 };
 
-/** What a legacy import rewrote, for the status line (empty when the config
- * was already current). */
-const legacyNotice = (migration: LegacyMigration | undefined): string => {
-  if (migration === undefined) return "";
+/** What a legacy import rewrote, for the status line (nothing when the config
+ * was already current).
+ *
+ * The details are joined into the message when the import finishes: they
+ * describe one past action, and the line they appear on is replaced by the
+ * next action — unlike a journal line, which stays readable for the session. */
+const legacyNotice = (
+  migration: LegacyMigration | undefined,
+): LocalText | undefined => {
+  if (migration === undefined) return undefined;
   const parts: string[] = [];
   if (migration.models.length > 0) {
     parts.push(
-      `старый формат: модель ${migration.models
-        .map((m) => `${m.to}`)
-        .join(", ")} переведена на имя вместо пути`,
+      t("panel.legacy.models", {
+        names: migration.models.map((m) => `${m.to}`).join(", "),
+      }),
     );
   }
   if (migration.downloads.length > 0) {
@@ -168,17 +182,21 @@ const legacyNotice = (migration: LegacyMigration | undefined): string => {
       (n) => modelUrl(n) === undefined,
     );
     if (urls.length > 0) {
-      parts.push(`ссылки из базы: ${urls.join(", ")}`);
+      parts.push(t("panel.legacy.urls", { names: urls.join(", ") }));
     }
     if (missing.length > 0) {
-      parts.push(`ссылка не найдена: ${missing.join(", ")}`);
+      parts.push(t("panel.legacy.missing", { names: missing.join(", ") }));
     }
   }
   if (migration.unarchives.length > 0) {
-    parts.push(`распаковка: ${migration.unarchives.join(", ")}`);
+    parts.push(
+      t("panel.legacy.unarchives", {
+        names: migration.unarchives.join(", "),
+      }),
+    );
   }
-  if (parts.length === 0) return "";
-  return `конфиг старого формата перенесён — ${parts.join("; ")}`;
+  if (parts.length === 0) return undefined;
+  return message("panel.legacy.notice", { details: parts.join("; ") });
 };
 
 const CodeTab: Component = () => {
@@ -191,7 +209,12 @@ const CodeTab: Component = () => {
   const [copied, setCopied] = createSignal(false);
   const [editing, setEditing] = createSignal(false);
   const [draft, setDraft] = createSignal("");
-  const [status, setStatus] = createSignal<{ ok: boolean; text: string }>();
+  // parts, not a string: the line re-renders in the current language, and an
+  // import can produce two of them (what happened — what it rewrote)
+  const [status, setStatus] = createSignal<{
+    ok: boolean;
+    parts: LocalText[];
+  }>();
 
   const code = createMemo(() => nodesToString([...nodes]));
 
@@ -203,7 +226,10 @@ const CodeTab: Component = () => {
       type: NodesActionType.IMPORT,
       payload: preset.nodes.map((n) => structuredClone(n)),
     });
-    setStatus({ ok: true, text: `Пресет «${preset.name}» применён` });
+    setStatus({
+      ok: true,
+      parts: [message("panel.status.presetApplied", { name: preset.name })],
+    });
   };
 
   /** Parses and dispatches a config, migrating the pre-preprocess format on
@@ -213,7 +239,7 @@ const CodeTab: Component = () => {
    * preload, and instant while the localStorage copy is fresh). */
   const importConfig = async (
     text: string,
-    success: (migration: LegacyMigration | undefined) => string,
+    success: (migration: LegacyMigration | undefined) => LocalText[],
   ) => {
     try {
       await preloadModelNames();
@@ -226,13 +252,15 @@ const CodeTab: Component = () => {
       });
       dispatch({ type: NodesActionType.IMPORT, payload: parsed });
       setEditing(false);
-      setStatus({ ok: true, text: success(migration) });
+      setStatus({ ok: true, parts: success(migration) });
     } catch (err) {
       setStatus({
         ok: false,
-        text: `Некорректный JSON: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        parts: [
+          message("panel.status.invalidJson", {
+            detail: err instanceof Error ? err.message : String(err),
+          }),
+        ],
       });
     }
   };
@@ -243,16 +271,26 @@ const CodeTab: Component = () => {
     setEditing(true);
   };
 
+  /** The status line: what happened, then what the import rewrote. */
+  const statusParts = (
+    head: LocalText,
+    migration: LegacyMigration | undefined,
+  ): LocalText[] => {
+    const notice = legacyNotice(migration);
+    return notice === undefined ? [head] : [head, notice];
+  };
+
   const applyDraft = () =>
     importConfig(draft(), (migration) =>
-      ["Конфиг применён", legacyNotice(migration)].filter(Boolean).join(" — "),
+      statusParts("panel.status.applied", migration),
     );
 
   const importFile = async (file: File) =>
     importConfig(await file.text(), (migration) =>
-      [`Импортирован файл «${file.name}»`, legacyNotice(migration)]
-        .filter(Boolean)
-        .join(" — "),
+      statusParts(
+        message("panel.status.imported", { name: file.name }),
+        migration,
+      ),
     );
 
   const copyCode = () => {
@@ -279,10 +317,10 @@ const CodeTab: Component = () => {
     <div class={styles.code}>
       <div class={styles.codeHeader}>
         <div class={styles.presetSelect}>
-          <span class={styles.presetLabel}>Пресеты:</span>
+          <span class={styles.presetLabel}>{t("panel.presets.label")}</span>
           <UiSelect
             class={styles.presetTrigger}
-            ariaLabel="Пресет"
+            ariaLabel={t("panel.presets.aria")}
             value={presetName()}
             items={allPresets().map((p) => p.name)}
             onChange={applyPreset}
@@ -296,8 +334,8 @@ const CodeTab: Component = () => {
                 <button
                   type="button"
                   class={styles.action}
-                  aria-label="Применить правку кода"
-                  title="Применить правку"
+                  aria-label={t("panel.code.apply")}
+                  title={t("panel.code.apply")}
                   onClick={applyDraft}
                 >
                   <Icon name="check" size={16} />
@@ -305,8 +343,8 @@ const CodeTab: Component = () => {
                 <button
                   type="button"
                   class={styles.action}
-                  aria-label="Отменить правку"
-                  title="Отменить правку"
+                  aria-label={t("panel.code.cancel")}
+                  title={t("panel.code.cancel")}
                   onClick={() => setEditing(false)}
                 >
                   <Icon name="x" size={16} />
@@ -317,8 +355,8 @@ const CodeTab: Component = () => {
             <button
               type="button"
               class={styles.action}
-              aria-label="Править код"
-              title="Править код"
+              aria-label={t("panel.code.edit")}
+              title={t("panel.code.edit")}
               onClick={startEdit}
             >
               <Icon name="pencil" size={16} />
@@ -326,8 +364,8 @@ const CodeTab: Component = () => {
           </Show>
           <label
             class={styles.action}
-            aria-label="Импортировать конфиг"
-            title="Импортировать конфиг из файла"
+            aria-label={t("panel.code.import")}
+            title={t("panel.code.importTitle")}
           >
             <Icon name="upload" size={16} />
             <input
@@ -344,8 +382,8 @@ const CodeTab: Component = () => {
           <button
             type="button"
             class={styles.action}
-            aria-label="Скопировать код"
-            title="Скопировать код"
+            aria-label={t("panel.code.copy")}
+            title={t("panel.code.copy")}
             onClick={copyCode}
           >
             {copied() ? (
@@ -357,8 +395,8 @@ const CodeTab: Component = () => {
           <button
             type="button"
             class={styles.action}
-            aria-label="Скачать конфиг"
-            title="Скачать конфиг файлом"
+            aria-label={t("panel.code.download")}
+            title={t("panel.code.downloadTitle")}
             onClick={downloadCode}
           >
             <Icon name="download" size={16} />
@@ -386,7 +424,7 @@ const CodeTab: Component = () => {
               [styles.err]: !s().ok,
             }}
           >
-            {s().text}
+            {s().parts.map(localText).join(" — ")}
           </p>
         )}
       </Show>
@@ -423,7 +461,7 @@ const PresetsTab: Component = () => {
       <div class={styles.presetSave}>
         <input
           class={styles.presetNameInput}
-          placeholder="Название пресета"
+          placeholder={t("panel.presets.namePlaceholder")}
           value={name()}
           onInput={(e) => setName(e.currentTarget.value)}
           onKeyDown={(e) => e.key === "Enter" && saveCurrent()}
@@ -434,7 +472,7 @@ const PresetsTab: Component = () => {
           disabled={!name().trim()}
           onClick={saveCurrent}
         >
-          Сохранить
+          {t("panel.presets.save")}
         </button>
       </div>
       <For each={allPresets()}>
@@ -451,17 +489,21 @@ const PresetsTab: Component = () => {
               onClick={() => applyPreset(preset.id)}
             >
               <span class={styles.presetName}>{preset.name}</span>
-              <span class={styles.presetDesc}>{preset.description}</span>
+              <span class={styles.presetDesc}>
+                {localText(preset.description)}
+              </span>
             </button>
             <button
               type="button"
               class={styles.presetDelete}
-              aria-label={`Удалить пресет ${preset.name}`}
-              title={
+              aria-label={t("panel.presets.removeNamed", {
+                name: preset.name,
+              })}
+              title={t(
                 preset.id.startsWith("user-")
-                  ? "Удалить"
-                  : "Скрыть стоковый пресет"
-              }
+                  ? "panel.presets.remove"
+                  : "panel.presets.hide",
+              )}
               onClick={() => deletePreset(preset.id)}
             >
               <Icon name="x" size={13} />
@@ -475,7 +517,7 @@ const PresetsTab: Component = () => {
           class={styles.presetRestore}
           onClick={restoreStockPresets}
         >
-          Вернуть стоковые ({hiddenStockCount()})
+          {t("panel.presets.restore", { count: hiddenStockCount() })}
         </button>
       </Show>
     </div>
@@ -549,7 +591,7 @@ const RunTab: Component = () => {
     phase() === "connecting" || phase() === "running" || phase() === "stopping";
   const stageText = () => {
     const current = run.progress();
-    return current === undefined ? PREPARING_TEXT : describeStage(current);
+    return current === undefined ? t("run.preparing") : describeStage(current);
   };
   // a bar with neither a percent nor a stage yet is "working, size unknown":
   // a strip frozen at 0 % would read as "stuck"
@@ -577,7 +619,7 @@ const RunTab: Component = () => {
   return (
     <div class={styles.run}>
       <label class={styles.runLabel} for="run-endpoint">
-        Адрес запуска
+        {t("panel.run.address")}
       </label>
       <input
         id="run-endpoint"
@@ -593,7 +635,9 @@ const RunTab: Component = () => {
           disabled={busy() || !endpoint().trim()}
           onClick={connect}
         >
-          {phase() === "connecting" ? "Подключение…" : "▶ Запустить"}
+          {phase() === "connecting"
+            ? t("panel.run.connecting")
+            : t("panel.run.start")}
         </button>
         <button
           type="button"
@@ -601,7 +645,7 @@ const RunTab: Component = () => {
           disabled={!busy() || phase() === "stopping"}
           onClick={() => run.stop()}
         >
-          ■ Стоп
+          {t("panel.run.stop")}
         </button>
       </div>
       <Show when={busy()}>
@@ -633,11 +677,11 @@ const RunTab: Component = () => {
       <Show when={run.messages().length > 0}>
         <div class={styles.runLogBox}>
           <div class={styles.runLogHead}>
-            <span class={styles.runLogTitle}>Журнал запуска</span>
+            <span class={styles.runLogTitle}>{t("panel.run.journal")}</span>
             <button
               type="button"
               class={styles.runLogClear}
-              aria-label="Очистить журнал"
+              aria-label={t("panel.run.clearJournal")}
               onClick={() => run.clearMessages()}
             >
               <Icon name="x" size={13} />
@@ -648,9 +692,11 @@ const RunTab: Component = () => {
               {(message) => (
                 <p class={[styles.runLogLine, LOG_LINE_CLASS[message.kind]]}>
                   <span class={styles.runLogTime}>
-                    {new Date(message.at).toLocaleTimeString("ru-RU")}
+                    {new Date(message.at).toLocaleTimeString(
+                      locale() === "ru" ? "ru-RU" : "en-GB",
+                    )}
                   </span>
-                  {message.text}
+                  {localText(message.text)}
                 </p>
               )}
             </For>

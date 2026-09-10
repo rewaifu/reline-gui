@@ -19,6 +19,7 @@ import {
   UiSelect,
   UiSlider,
 } from "~/components/ui";
+import { t } from "~/lib/i18n";
 import { lsClient } from "~/lib/ls-client";
 import {
   modelNames,
@@ -154,7 +155,7 @@ export const NumberRow: Component<NumberRowProps> = (props) => {
             type="button"
             class={styles.stepBtn}
             tabindex="-1"
-            aria-label={`Increase ${props.label}`}
+            aria-label={t("ui.increase", { label: props.label })}
             onClick={() => step(1)}
           >
             <Icon name="chevron-up" size={12} />
@@ -163,7 +164,7 @@ export const NumberRow: Component<NumberRowProps> = (props) => {
             type="button"
             class={styles.stepBtn}
             tabindex="-1"
-            aria-label={`Decrease ${props.label}`}
+            aria-label={t("ui.decrease", { label: props.label })}
             onClick={() => step(-1)}
           >
             <Icon name="chevron-down" size={12} />
@@ -354,7 +355,7 @@ export const NumberOrListRow: Component<NumberOrListRowProps> = (props) => {
       >
         {props.label}
         <button type="button" class={styles.modeToggle} onClick={toggleMode}>
-          {isList() ? "list" : "single"}
+          {t(isList() ? "ui.list" : "ui.single")}
         </button>
       </Label>
       <Show

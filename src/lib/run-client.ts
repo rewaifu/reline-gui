@@ -1,5 +1,6 @@
 import { encode, decode } from "notepack.io";
 import { createSignal, type Accessor } from "solid-js";
+import { message, raw, type LocalText } from "~/lib/i18n";
 import type { PureConfig } from "~/types/node";
 import {
   ECHO_INTERVAL_MS,
@@ -37,7 +38,9 @@ export interface RunProgress {
 export interface RunMessage {
   at: number;
   kind: "info" | "ok" | "error";
-  text: string;
+  /** A key, not formatted text: the journal outlives the run, so its lines
+   * follow the language the user is reading right now. */
+  text: LocalText;
 }
 
 interface Envelope {
@@ -126,11 +129,13 @@ export interface RunClient {
 }
 
 /** Render an unknown server payload (MessagePack `error`/`message`) for a
- * user-facing message without falling back to `[object Object]`. */
-const describePayload = (value: unknown): string => {
-  if (typeof value === "string") return value;
-  if (value === undefined || value === null) return "неизвестно";
-  return JSON.stringify(value) ?? "неизвестно";
+ * user-facing message without falling back to `[object Object]`. Server text
+ * stays verbatim — only the "nothing at all" case has a translation. */
+const describePayload = (value: unknown): LocalText => {
+  if (typeof value === "string") return raw(value);
+  if (value === undefined || value === null) return "run.unknown";
+  const json = JSON.stringify(value);
+  return json === undefined ? "run.unknown" : raw(json);
 };
 
 /** The stages this UI can name (WS_API.md). Frames naming anything else are
@@ -176,20 +181,23 @@ const readProgress = (d: Record<string, unknown>): RunProgress => {
 
 /** The journal line for a `done` payload. Cancellation is tested first: a run
  * stopped by the user reports `ok: false, cancelled: true` (WS_API.md), and
- * "Остановлено" is not an error. */
+ * "stopped" is not an error. */
 const doneMessage = (d: Record<string, unknown>): Omit<RunMessage, "at"> => {
-  if (d.cancelled === true) return { kind: "ok", text: "Остановлено" };
+  if (d.cancelled === true) return { kind: "ok", text: "run.stopped" };
   if (d.ok === true) {
     const output = readText(d.output);
     return {
       kind: "ok",
       text:
         output === undefined
-          ? "Готово"
-          : `Готово: ${output.slice(0, MAX_OUTPUT)}`,
+          ? "run.done"
+          : message("run.doneOutput", { output: output.slice(0, MAX_OUTPUT) }),
     };
   }
-  return { kind: "error", text: `Ошибка: ${describePayload(d.error)}` };
+  return {
+    kind: "error",
+    text: message("run.error", { detail: describePayload(d.error) }),
+  };
 };
 
 export const createRunClient = (): RunClient => {
@@ -206,7 +214,7 @@ export const createRunClient = (): RunClient => {
    * ever removes lines: everything else that happens to a run — an `error`
    * frame, a dead socket, an unconfirmed stop — has to stay readable after the
    * run goes idle, which is when the user looks. */
-  const log = (kind: RunMessage["kind"], text: string) => {
+  const log = (kind: RunMessage["kind"], text: LocalText) => {
     setMessages((prev) =>
       [...prev, { at: Date.now(), kind, text }].slice(-MAX_MESSAGES),
     );
@@ -229,7 +237,7 @@ export const createRunClient = (): RunClient => {
 
   /** End the run: drop the socket and the watchdog, and leave one journal line
    * that outlives the busy phase. */
-  const finish = (kind: RunMessage["kind"], text: string) => {
+  const finish = (kind: RunMessage["kind"], text: LocalText) => {
     closeSocket();
     window.clearTimeout(stopWatchdog);
     setPhase("idle");
@@ -241,7 +249,7 @@ export const createRunClient = (): RunClient => {
     window.clearInterval(echoTimer);
     echoTimer = window.setInterval(() => {
       if (Date.now() - lastEcho > ECHO_TIMEOUT_MS) {
-        finish("error", "Соединение потеряно: нет ответа на echo");
+        finish("error", "run.echoLost");
         return;
       }
       send("echo", { t: Date.now() });
@@ -267,9 +275,9 @@ export const createRunClient = (): RunClient => {
       setPhase("idle");
       log(
         "error",
-        `Некорректный адрес: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        message("run.badAddress", {
+          detail: err instanceof Error ? err.message : String(err),
+        }),
       );
       return;
     }
@@ -287,14 +295,11 @@ export const createRunClient = (): RunClient => {
       window.clearInterval(echoTimer);
       if (phase() === "idle") return;
       setPhase("idle");
-      log("error", `Соединение закрыто сервером · ${url}`);
+      log("error", message("run.closedByServer", { url }));
     };
     socket.onerror = () => {
       if (ws === socket && phase() === "connecting")
-        finish(
-          "error",
-          `Не удалось подключиться · ${url} — раннер не ответил. Проверьте, что он запущен: GET /health на том же хосте должен вернуть 200`,
-        );
+        finish("error", message("run.unreachable", { url }));
     };
     socket.onmessage = (ev: MessageEvent) => {
       if (ws !== socket) return;
@@ -302,7 +307,7 @@ export const createRunClient = (): RunClient => {
       try {
         msg = decode(new Uint8Array(ev.data)) as Envelope;
       } catch {
-        finish("error", "Некорректный кадр (не MessagePack)");
+        finish("error", "run.badFrame");
         return;
       }
       if (typeof msg?.m !== "string") return;
@@ -312,7 +317,7 @@ export const createRunClient = (): RunClient => {
           lastEcho = Date.now();
           break;
         case "accepted":
-          log("info", "Запуск принят сервером");
+          log("info", "run.accepted");
           break;
         case "progress":
           setProgress(readProgress(d));
@@ -323,7 +328,9 @@ export const createRunClient = (): RunClient => {
           break;
         }
         case "error": {
-          const text = `Ошибка сервера: ${describePayload(d.message)}`;
+          const text = message("run.serverError", {
+            detail: describePayload(d.message),
+          });
           // `fatal` means the server drops the connection right after sending
           // (WS_API.md): end the run here, with the reason as its last line,
           // instead of leaving the buttons busy until onclose arrives. A
@@ -337,20 +344,19 @@ export const createRunClient = (): RunClient => {
   };
 
   // If the server never answers `done`, the UI would sit in `stopping`
-  // forever — "Запустить" disabled, "Стоп" disabled, escape only by reload.
+  // forever — start disabled, stop disabled, escape only by reload.
   // A watchdog forces the run back to idle when the stop goes unconfirmed.
   const stop = () => {
     if (phase() !== "running" && phase() !== "connecting") return;
     if (phase() === "connecting") {
-      finish("ok", "Отменено до подключения");
+      finish("ok", "run.cancelledEarly");
       return;
     }
     setPhase("stopping");
     send("stop");
     window.clearTimeout(stopWatchdog);
     stopWatchdog = window.setTimeout(() => {
-      if (phase() === "stopping")
-        finish("error", "Сервер не подтвердил остановку");
+      if (phase() === "stopping") finish("error", "run.noStopAck");
     }, STOP_WATCHDOG_MS);
   };
 

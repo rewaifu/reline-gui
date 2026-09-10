@@ -9,6 +9,7 @@ import {
   SliderRow,
 } from "./shared";
 import type { SharpNodeOptions } from "~/types/options";
+import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -24,21 +25,21 @@ export const SharpForm: Component<FormProps> = (props) => {
     <div class={styles.form}>
       <div class={styles.grid3}>
         <SliderRow
-          label="Low input"
+          label={t("form.sharp.lowInput")}
           value={options().low_input}
           min={0}
           max={255}
           onInput={(low_input) => form.set({ low_input })}
         />
         <SliderRow
-          label="High input"
+          label={t("form.sharp.highInput")}
           value={options().high_input}
           min={0}
           max={255}
           onInput={(high_input) => form.set({ high_input })}
         />
         <SliderRow
-          label="Gamma"
+          label={t("form.sharp.gamma")}
           value={options().gamma}
           min={0.1}
           max={10}
@@ -48,14 +49,14 @@ export const SharpForm: Component<FormProps> = (props) => {
       </div>
       <div class={styles.grid2}>
         <NumberRow
-          label="Diapason white"
+          label={t("form.sharp.white")}
           value={options().diapason_white}
           min={-1}
           max={255}
           onInput={(diapason_white) => form.set({ diapason_white })}
         />
         <NumberRow
-          label="Diapason black"
+          label={t("form.sharp.black")}
           value={options().diapason_black}
           min={-1}
           max={255}
@@ -63,15 +64,15 @@ export const SharpForm: Component<FormProps> = (props) => {
         />
       </div>
       <CheckRow
-        label="Canny"
+        label={t("form.sharp.canny")}
         checked={options().canny}
         onChange={(canny) => form.set({ canny })}
       />
       <Show when={options().canny}>
         <SelectRow
-          label="Canny type"
+          label={t("form.sharp.cannyType")}
           value={options().canny_type}
-          items={[CannyType.NORMAL, CannyType.INVERT, CannyType.UNSHARP]}
+          items={Object.values(CannyType)}
           onChange={(canny_type) =>
             form.set({ canny_type: canny_type as CannyType })
           }

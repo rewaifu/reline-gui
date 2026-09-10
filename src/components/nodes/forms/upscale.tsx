@@ -3,6 +3,7 @@ import { type Component, Show } from "solid-js";
 import { DType, TilerType } from "~/types/enums";
 import { useNodeForm, PathRow, NumberRow, SelectRow, CheckRow } from "./shared";
 import type { UpscaleNodeOptions } from "~/types/options";
+import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -13,11 +14,11 @@ export const UpscaleForm: Component<FormProps> = (props) => {
   return (
     <div class={styles.form}>
       <PathRow
-        label="Model"
+        label={t("form.upscale.model")}
         placeholder={
           options().is_own_model
             ? "/content/models/4x_wtp_MangaScale_UltraSharp"
-            : "Model name"
+            : t("form.upscale.modelPlaceholder")
         }
         value={options().model}
         onInput={(model) => form.set({ model, model_url: undefined })}
@@ -25,27 +26,27 @@ export const UpscaleForm: Component<FormProps> = (props) => {
         source={options().is_own_model ? "weights" : "mdb"}
       />
       <CheckRow
-        label="Own model"
+        label={t("form.upscale.own")}
         checked={options().is_own_model}
         onChange={(is_own_model) => form.set({ is_own_model })}
       />
       <div class={styles.grid2}>
         <SelectRow
-          label="DType"
+          label={t("form.upscale.dtype")}
           value={options().dtype}
-          items={[DType.F32, DType.F16, DType.BF16]}
+          items={Object.values(DType)}
           onChange={(dtype) => form.set({ dtype: dtype as DType })}
         />
         <SelectRow
-          label="Tiler"
+          label={t("form.upscale.tiler")}
           value={options().tiler}
-          items={[TilerType.EXACT, TilerType.NO_TILING]}
+          items={Object.values(TilerType)}
           onChange={(tiler) => form.set({ tiler: tiler as TilerType })}
         />
       </div>
       <Show when={options().tiler === TilerType.EXACT}>
         <NumberRow
-          label="Exact tiler size"
+          label={t("form.upscale.exactSize")}
           value={options().exact_tiler_size}
           min={0}
           step={128}
@@ -53,12 +54,12 @@ export const UpscaleForm: Component<FormProps> = (props) => {
         />
       </Show>
       <CheckRow
-        label="Allow CPU upscale"
+        label={t("form.upscale.allowCpu")}
         checked={options().allow_cpu_upscale}
         onChange={(allow_cpu_upscale) => form.set({ allow_cpu_upscale })}
       />
       <NumberRow
-        label="Target scale (optional)"
+        label={t("form.upscale.targetScale")}
         value={options().target_scale}
         min={0}
         step={0.5}

@@ -1,11 +1,14 @@
 import { omit, type Component, For } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Tabs } from "@kobalte/core/tabs";
+import { t, type MessageKey } from "~/lib/i18n";
 import styles from "./tabs.module.scss";
 
 export interface UiTabDef {
   value: string;
-  label: string;
+  /** A dictionary key, not text: the label has to follow the language, and a
+   * tab list is a module-level constant in every caller. */
+  labelKey: MessageKey;
 }
 
 export interface UiTabsProps {
@@ -30,7 +33,7 @@ export const UiTabs: Component<UiTabsProps> = (props) => {
         <For each={props.tabs}>
           {(tab) => (
             <Tabs.Trigger value={tab.value} class={styles.trigger}>
-              {tab.label}
+              {t(tab.labelKey)}
             </Tabs.Trigger>
           )}
         </For>

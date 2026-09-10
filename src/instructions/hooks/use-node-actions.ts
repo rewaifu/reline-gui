@@ -2,22 +2,24 @@ import { useContext } from "solid-js";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { NODE_DEFS } from "~/components/nodes/registry";
 import { NodesActionType } from "~/types/actions";
+import type { NodeType } from "~/types/enums";
 import type { StackNode } from "~/types/node";
 import { newUid } from "~/lib/uid";
 
 /**
- * Appends a node of the given type label to the stack and selects it.
+ * Appends a node of the given type to the stack and selects it.
  * Shared by the left panel and the phone stack panel: a phone hides the node
- * list, so the stack itself has to be able to grow.
+ * list, so the stack itself has to be able to grow. Takes the wire type, not
+ * the displayed name: identity must never come from text the language
+ * switcher rewrites.
  */
 export const useAddNode = (onSelect: (uid: string) => void) => {
   const dispatch = useContext(NodesDispatchContext);
-  return (label: string) => {
-    const def = Object.values(NODE_DEFS).find((d) => d.label === label);
-    if (!def) return;
+  return (type: NodeType) => {
+    const def = NODE_DEFS[type];
     const node: StackNode = {
       uid: newUid(),
-      type: def.type,
+      type,
       options: structuredClone(def.defaults),
       collapsed: false,
     };

@@ -5,11 +5,11 @@ import {
   useNodeForm,
   NumberRow,
   SelectRow,
-  CheckRow,
   SliderRow,
   ComboboxRow,
 } from "./shared";
 import type { ResizeNodeOptions } from "~/types/options";
+import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -69,19 +69,14 @@ export const ResizeForm: Component<FormProps> = (props) => {
   return (
     <div class={styles.form}>
       <SelectRow
-        label="Resize type"
+        label={t("form.resize.type")}
         value={type()}
-        items={[
-          ResizeType.BY_WIDTH,
-          ResizeType.BY_HEIGHT,
-          ResizeType.ABSOLUTE,
-          ResizeType.PERCENT,
-        ]}
+        items={Object.values(ResizeType)}
         onChange={(value) => changeType(value as ResizeType)}
       />
       <Show when={type() === ResizeType.BY_WIDTH}>
         <NumberRow
-          label="Width (px)"
+          label={t("form.resize.width")}
           value={options().width}
           min={0}
           step={128}
@@ -90,7 +85,7 @@ export const ResizeForm: Component<FormProps> = (props) => {
       </Show>
       <Show when={type() === ResizeType.BY_HEIGHT}>
         <NumberRow
-          label="Height (px)"
+          label={t("form.resize.height")}
           value={options().height}
           min={0}
           step={128}
@@ -100,14 +95,14 @@ export const ResizeForm: Component<FormProps> = (props) => {
       <Show when={type() === ResizeType.ABSOLUTE}>
         <div class={styles.grid2}>
           <NumberRow
-            label="Width (px)"
+            label={t("form.resize.width")}
             value={options().width}
             min={0}
             step={128}
             onInput={(width) => form.set({ width })}
           />
           <NumberRow
-            label="Height (px)"
+            label={t("form.resize.height")}
             value={options().height}
             min={0}
             step={128}
@@ -117,7 +112,7 @@ export const ResizeForm: Component<FormProps> = (props) => {
       </Show>
       <Show when={type() === ResizeType.PERCENT}>
         <SliderRow
-          label="Percent"
+          label={t("form.resize.percent")}
           value={options().percent}
           min={0}
           max={100}
@@ -125,19 +120,14 @@ export const ResizeForm: Component<FormProps> = (props) => {
         />
       </Show>
       <ComboboxRow
-        label="Filter"
+        label={t("form.resize.filter")}
         value={options().filter}
         items={Object.values(FilterType)}
         onChange={(filter) => form.set({ filter: filter as FilterType })}
       />
-      <CheckRow
-        label="Spread"
-        checked={options().spread}
-        onChange={(spread) => form.set({ spread })}
-      />
-      <Show when={options().spread}>
+      <Show when={type() === ResizeType.BY_WIDTH}>
         <NumberRow
-          label="Spread size"
+          label={t("form.resize.spreadSize")}
           value={options().spread_size}
           min={0}
           step={1}

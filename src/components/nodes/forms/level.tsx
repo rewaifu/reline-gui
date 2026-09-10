@@ -2,6 +2,7 @@ import type { StackNode } from "~/types/node";
 import { type Component } from "solid-js";
 import { useNodeForm, SliderRow } from "./shared";
 import type { LevelNodeOptions } from "~/types/options";
+import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -13,14 +14,14 @@ export const LevelForm: Component<FormProps> = (props) => {
     <div class={styles.form}>
       <div class={styles.grid2}>
         <SliderRow
-          label="Low input"
+          label={t("form.level.lowInput")}
           value={options().low_input}
           min={0}
           max={255}
           onInput={(low_input) => form.set({ low_input })}
         />
         <SliderRow
-          label="High input"
+          label={t("form.level.highInput")}
           value={options().high_input}
           min={0}
           max={255}
@@ -29,14 +30,14 @@ export const LevelForm: Component<FormProps> = (props) => {
       </div>
       <div class={styles.grid2}>
         <SliderRow
-          label="Low output"
+          label={t("form.level.lowOutput")}
           value={options().low_output}
           min={0}
           max={255}
           onInput={(low_output) => form.set({ low_output })}
         />
         <SliderRow
-          label="High output"
+          label={t("form.level.highOutput")}
           value={options().high_output}
           min={0}
           max={255}
@@ -44,7 +45,7 @@ export const LevelForm: Component<FormProps> = (props) => {
         />
       </div>
       <SliderRow
-        label="Gamma"
+        label={t("form.level.gamma")}
         value={options().gamma}
         min={0}
         max={10}

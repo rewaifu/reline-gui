@@ -37,6 +37,14 @@
   gap: var(--space-2);
 }
 
+// Language switcher: one button, pushed to the right end of the bar so the
+// panel toggles keep the edge they had before it existed. The row is
+// `space-between`, and the auto margin is what groups the two of them on the
+// right instead of spreading the bar's children apart.
+.localeToggle {
+  margin-left: auto;
+}
+
 .toggle {
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--color-border);

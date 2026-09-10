@@ -9,8 +9,11 @@ import { HydrationScript } from "@solidjs/web";
 // app flips to SSR (`ssr: true` in vite.config.ts) — no document changes
 // needed. Delete this file to fall back to the plugin's built-in shell.
 export default function Document(props: ParentProps) {
+  // `lang` matches the default the client picks (Russian) and is corrected by
+  // the App effect the moment the stored or detected language differs: the
+  // shell is prerendered, so it cannot know the visitor's choice.
   return (
-    <html lang="en">
+    <html lang="ru">
       <head>
         <meta charset="utf-8" />
         {/* `viewport-fit=cover` lets the app paint under the notch/home bar —

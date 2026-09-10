@@ -6,11 +6,12 @@ import {
   useAddNode,
   useToggleEnabled,
 } from "~/instructions/hooks/use-node-actions";
-import { NODE_DEFS } from "~/components/nodes/registry";
+import { nodeLabel } from "~/components/nodes/registry";
 import { Icon, UiSwitch } from "~/components/ui";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { NodesActionType } from "~/types/actions";
 import { AddNodeMenu } from "~/components/nodes-list/add-node-menu";
+import { t } from "~/lib/i18n";
 import styles from "./nodes-list.module.scss";
 
 export interface NodesListProps {
@@ -73,10 +74,10 @@ export const NodesList: Component<NodesListProps> = (props) => {
                   class={styles.dragHandle}
                   role="button"
                   tabindex="0"
-                  aria-label={`Изменить порядок: ${
-                    node.name ?? NODE_DEFS[node.type].label
-                  }`}
-                  title="Перетащите или нажмите ↑ / ↓"
+                  aria-label={t("chrome.reorderNamed", {
+                    name: node.name ?? nodeLabel(node.type),
+                  })}
+                  title={t("chrome.reorderTitle")}
                   {...handlers(index())}
                 >
                   <Icon name="drag-drop" size={16} />
@@ -84,26 +85,24 @@ export const NodesList: Component<NodesListProps> = (props) => {
                 <UiSwitch
                   checked={node.enabled !== false}
                   onChange={(checked) => toggleEnabled(node, checked)}
-                  ariaLabel={`Включить ${
-                    node.name ?? NODE_DEFS[node.type].label
-                  }`}
+                  ariaLabel={t("chrome.enable", {
+                    name: node.name ?? nodeLabel(node.type),
+                  })}
                 />
                 <span class={styles.name}>
                   <span class={styles.nameText}>
-                    {node.name ?? NODE_DEFS[node.type].label}
+                    {node.name ?? nodeLabel(node.type)}
                   </span>
                   <Show when={node.name}>
-                    <span class={styles.typeHint}>
-                      {NODE_DEFS[node.type].label}
-                    </span>
+                    <span class={styles.typeHint}>{nodeLabel(node.type)}</span>
                   </Show>
                 </span>
                 <button
                   type="button"
                   class={styles.remove}
-                  aria-label={`Удалить ${
-                    node.name ?? NODE_DEFS[node.type].label
-                  }`}
+                  aria-label={t("chrome.removeNamed", {
+                    name: node.name ?? nodeLabel(node.type),
+                  })}
                   onClick={(e) => {
                     e.stopPropagation();
                     dispatch({

@@ -5,6 +5,7 @@ import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodeStack } from "~/components/node-card/node-card";
 import { createDefaultNodes } from "~/constants";
+import { t } from "~/lib/i18n";
 import type { FolderReaderNodeOptions } from "~/types/options";
 
 /** Reported: typing at the start of a path field did nothing until the value
@@ -23,7 +24,11 @@ vi.mock("~/lib/ls-client", () => ({
   },
 }));
 
-const PATH_INPUT = "input[placeholder='/content/drive/MyDrive/raws']";
+/** The four sites below query the path field by its label rather than its
+ * placeholder: the placeholder is an example of a wire value and may be
+ * reworded, while the label is the very string the field renders — the same
+ * dictionary key, so the query follows a language switch too. */
+const pathField = () => t("form.folder_reader.path");
 
 const makeStore = () => createStore(createDefaultNodes());
 
@@ -62,17 +67,16 @@ describe("path field under the node store", () => {
   };
 
   it("keeps the same input element while its options change", async () => {
-    const { container } = mount();
-    const input = container.querySelector<HTMLInputElement>(PATH_INPUT);
-    expect(input).not.toBe(null);
-    const before = input!;
+    const view = mount();
+    const input = view.getByLabelText(pathField()) as HTMLInputElement;
+    const before = input;
     before.focus();
     expect(document.activeElement).toBe(before);
 
     fireEvent.input(before, { target: { value: "raws" } });
     await vi.waitFor(() => expect(readerPath()).toBe("raws"));
 
-    const after = container.querySelector<HTMLInputElement>(PATH_INPUT);
+    const after = view.getByLabelText(pathField()) as HTMLInputElement;
     // a remounted input would be a different node, unfocused, with the caret
     // parked at the end — the shape the bug report describes
     expect(after).toBe(before);
@@ -81,8 +85,8 @@ describe("path field under the node store", () => {
   });
 
   it("accepts an insertion at the start of the value", async () => {
-    const { container } = mount();
-    const input = container.querySelector<HTMLInputElement>(PATH_INPUT)!;
+    const view = mount();
+    const input = view.getByLabelText(pathField()) as HTMLInputElement;
     fireEvent.input(input, { target: { value: "src" } });
     await vi.waitFor(() => expect(readerPath()).toBe("src"));
 
@@ -92,7 +96,7 @@ describe("path field under the node store", () => {
     fireEvent.input(input, { target: { value: "./src" } });
     await vi.waitFor(() => expect(readerPath()).toBe("./src"));
 
-    expect(container.querySelector(PATH_INPUT)).toBe(input);
+    expect(view.getByLabelText(pathField())).toBe(input);
     expect(input.value).toBe("./src");
     expect(document.activeElement).toBe(input);
   });

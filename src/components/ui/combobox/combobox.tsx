@@ -3,6 +3,7 @@ import { Combobox } from "@kobalte/core/combobox";
 import { Icon } from "../icon";
 import styles from "./combobox.module.scss";
 import { createDismissOnOutside } from "../create-dismiss-on-outside";
+import { t } from "~/lib/i18n";
 
 export interface UiComboboxProps {
   value: string;
@@ -70,7 +71,10 @@ export const UiCombobox: Component<UiComboboxProps> = (props) => {
       onChange={(value) => value !== null && props.onChange(value)}
       triggerMode={props.triggerMode ?? "focus"}
       options={props.items as string[]}
-      placeholder={props.placeholder ?? "Select…"}
+      // options are the raw wire values (`slinear4`, `dpid_0.25`): the input
+      // shows what the runner parses, as the original editor did, and typing
+      // `lanczos` matches `lanczos`
+      placeholder={props.placeholder ?? t("ui.select")}
       itemComponent={(item) => (
         <Combobox.Item item={item.item} class={styles.item}>
           {item.item.rawValue}
@@ -88,7 +92,7 @@ export const UiCombobox: Component<UiComboboxProps> = (props) => {
         />
         <Combobox.Trigger
           class={styles.trigger}
-          aria-label={props.ariaLabel ?? "Open options"}
+          aria-label={props.ariaLabel ?? t("ui.openOptions")}
         >
           <Icon name="chevron-down" size={16} />
         </Combobox.Trigger>

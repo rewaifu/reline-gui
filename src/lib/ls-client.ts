@@ -1,4 +1,5 @@
 import { encode, decode } from "notepack.io";
+import { t } from "~/lib/i18n";
 import { endpoint } from "./run-client";
 import { ECHO_INTERVAL_MS, ECHO_TIMEOUT_MS } from "./ws-protocol";
 
@@ -58,7 +59,7 @@ class LsClient {
       id,
       window.setTimeout(() => {
         this.settle(id);
-        fail("ls: нет ответа от сервера");
+        fail(t("run.ls.noAnswer"));
       }, LS_TIMEOUT_MS),
     );
     this.send(id, path, opts);
@@ -94,7 +95,7 @@ class LsClient {
       socket.onopen = socket.onmessage = socket.onclose = socket.onerror = null;
       socket.close();
     }
-    this.failAll("ls: адрес изменён");
+    this.failAll(t("run.ls.addressChanged"));
   }
 
   private connect() {
@@ -147,7 +148,7 @@ class LsClient {
       this.ws = undefined;
       this.url = undefined;
       this.stopEcho();
-      this.failAll("ls: соединение закрыто");
+      this.failAll(t("run.ls.closed"));
       this.scheduleReconnect();
     };
     socket.onerror = () => {

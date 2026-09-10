@@ -148,8 +148,9 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
     Re-highlighting is a single memo over a sub-millisecond parse — no debounce, no cache: do not
     reintroduce either.
 - `Ui*` = Kobalte-backed control wrapper (`UiSelect`, `UiCombobox`, `UiSwitch`, `UiTabs`,
-  `UiSlider`); plain names = static primitives (`Input`, `Label`, `Icon`). Node `label`s and
-  preset names stay English (they mirror wire types); UI chrome and messages are Russian.
+  `UiSlider`); plain names = static primitives (`Input`, `Label`, `Icon`). Wording comes from
+  the dictionaries — see **i18n** below. Node names are `NODE_DEFS[type].labelKey` rendered
+  through `nodeLabel(type)`; nothing matches a node by its display name.
 - Icons come from `src/components/ui/icon.tsx` (inline Tabler paths, 24×24 grid, stroke 2) —
   never a text glyph: `⤓` and `↓` in one toolbar were indistinguishable at 16px and only
   differed by a tray line. Icon-only buttons are 32×32 (`.action`), 16px glyph, and carry
@@ -195,6 +196,68 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
   in the pure `src/lib/run-format.ts` (every formatter is total: garbage → `undefined` →
   chip hidden), so the JSX only picks which chips exist. `rx` bars are 8px; a frame with
   neither stage nor percent shows an indeterminate sweep instead of a strip frozen at 0%.
+
+## i18n (ru / en)
+
+Node names and parameter labels are translated. The **values inside a select are not** —
+they stay the raw wire strings (`gray`, `slinear4`, `exact`), the same in both languages, as
+the original editor showed them: a list half-translated into Russian («По ширине», «Без
+тайлинга») next to library names (Lanczos, Box) reads as a bug, and those are the strings the
+runner parses. `src/lib/i18n/`:
+
+- `locale.ts` — `locale()` / `setLocale()` / `LOCALES` / `LOCALE_NAMES`; the choice lives in
+  `reline-web:locale`, is detected from `navigator.languages`, and defaults to **ru**.
+- `index.ts` — `t(key, params)` (`{name}` placeholders), `render`/`raw`/`message` + the
+  `LocalText` type, `MessageKey`, `MessageParams`.
+- `messages/{common,nodes,forms,chrome,panel,run}.ts` — one file per area, each with `ru` and
+  `en: typeof ru` so a missing or misspelled English key is a compile error;
+  `messages/index.ts` merges them. No new wording without both languages.
+
+Rules that the implementation depends on:
+
+- `t()` is typed by the **dotted path** of the merged dictionary — `t("form.upscale.own")`.
+  A bad key fails `tsc` (verified: `t("node.upscale.typo")` → TS2345), so there is no runtime
+  fallback to chase.
+- Never hoist a `t(...)` result into a module constant — it freezes one language for the
+  session. Keep the key in the constant (`TABS`, `COLUMN_LABEL_KEYS`, `UiTabDef.labelKey`)
+  and call `t` where it renders. `t` reads `locale()` internally, so JSX re-renders on a flip
+  with no subscription bookkeeping.
+- Option lists are **derived from the enum** — `items={Object.values(ResizeType)}` — never a
+  hand-listed set of members; the declaration order in `src/types/enums.ts` is the menu order,
+  so adding a member is a one-line change in the enum (plus a line in the node's guide).
+  `UiSelect`/`UiCombobox` render `item.rawValue`; there is no option dictionary and nothing to
+  keep in sync.
+- **Field labels come from the node guides.** `src/instructions/ru/<node>.md` is the reference
+  for a parameter's name («Развороты», «Метод тайлинга», «Нижний порог входа» — not «Разброс»,
+  «Тайлинг», «Нижний вход»), and the EN guide mirrors it with the EN label. When a label and a
+  guide disagree, the guide wins and the label moves: fixing the label alone leaves the doc
+  lying, fixing the doc alone leaves the UI lying.
+- Never match or compare a node by its display name: `NODE_DEFS[type].labelKey` +
+  `nodeLabel(type)`, and `useAddNode(type: NodeType)` takes the type. The old
+  `Object.values(NODE_DEFS).find(d => d.label === label)` broke the moment labels localised.
+- Text that is stored (the run journal) keeps a **key**, not formatted text: `RunMessage.text`
+  is `LocalText`, so lines written in Russian re-read in English after a switch (`render()`);
+  server text goes through `raw()` and is never looked up as a key. Same for preset
+  descriptions (`LocalText`; an old Russian string stored before i18n renders as itself,
+  because `t` falls back to the key text).
+- Instructions are per language: `src/instructions/{ru,en}/<node_type>.md`, loaded by the
+  `import.meta.glob("../../instructions/*/*.md")` map in `config-panel.tsx` keyed
+  `"locale/type"`. `marked` compiles the selected document in a memo that reads `locale()`.
+- Placeholders that show an **example wire value** stay identical in both languages:
+  `/content/drive/MyDrive/raws`, `/content/models/...`, `1, 2, 3`. A placeholder that is
+  wording (`Add node`, `Model name`) is a key like any other label.
+- `<html lang>` follows the switcher from an App effect; the prerendered shell ships
+  `lang="ru"` (the shell cannot know the visitor). The switcher is ONE button in the top
+  bar: it shows the language it switches **to** (`EN` while the UI is Russian — the label is
+  a two-letter code so the 320px bar still fits), carries `LOCALE_NAMES` in the `title` and
+  `t("app.switchLanguage", { language })` in the `aria-label`. It sits just left of the
+  panel toggles with `margin-left: auto`: the toggles keep the right edge they had before
+  the switcher existed (verified at 1400px: toggles end at the bar's inner edge, no
+  horizontal overflow).
+- Tests: `setLocale()` is an ordinary signal write, so a test that reads a message in the same
+  tick needs `flush()` from `solid-js` — `src/lib/i18n/i18n.test.ts` and
+  `run-format.test.ts` both wrap it in a `use(locale)` helper. `i18n.test.ts` also asserts the
+  two dictionaries have identical key sets and no empty strings.
 
 ## Phones & touch
 

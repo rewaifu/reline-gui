@@ -47,12 +47,12 @@ export const DEFAULT_NODE_OPTIONS = {
     unarchive: false,
   } satisfies NodeOptions,
   upscale: {
-    model: "4x_dwtp_ds_atdl3",
-    model_url: "https://bucket.yor.ovh/torch_models/4x_dwtp_ds_atdl3.tar.xz",
+    model: "4x_dwtp_ds_moesr_v2",
+    model_url: "https://bucket.yor.ovh/torch_models/4x_dwtp_ds_moesr_v2.tar.xz",
     is_own_model: false,
     dtype: DType.F32,
     tiler: TilerType.EXACT,
-    exact_tiler_size: 800,
+    exact_tiler_size: 896,
     allow_cpu_upscale: false,
   } satisfies NodeOptions,
   sharp: {
@@ -69,6 +69,7 @@ export const DEFAULT_NODE_OPTIONS = {
     dot_size: 7,
     angle: 0,
     dot_type: DotType.CIRCLE,
+    ssaa_scale: 2,
   } satisfies NodeOptions,
   resize: {
     resize_type: ResizeType.BY_WIDTH,

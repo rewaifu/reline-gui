@@ -3,6 +3,7 @@ import { NodeType } from "~/types/enums";
 import { ensureUids } from "~/lib/uid";
 import { preloadModelNames } from "~/lib/model-db";
 import { STORAGE_KEY, createDefaultNodes } from "~/constants";
+import { locale } from "~/lib/i18n";
 import type { StackNode } from "~/types/node";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
@@ -37,6 +38,16 @@ const App: Component = () => {
   onSettled(() => {
     void preloadModelNames();
   });
+
+  // The document language drives hyphenation, spell-check and which voice a
+  // screen reader uses — a Russian page announced as English is unreadable
+  // with a screen reader, so it follows the switcher.
+  createEffect(
+    () => locale(),
+    (lang) => {
+      document.documentElement.lang = lang;
+    },
+  );
 
   // Single write path for persistence: any store change lands in localStorage.
   // The compute must read through the store proxy: `snapshot()` is untracked,

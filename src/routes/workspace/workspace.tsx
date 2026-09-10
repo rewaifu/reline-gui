@@ -18,12 +18,21 @@ import {
   type ColumnKey,
   type ResizableSide,
 } from "~/instructions/hooks/use-columns-layout";
+import {
+  LOCALE_NAMES,
+  locale,
+  setLocale,
+  t,
+  type MessageKey,
+} from "~/lib/i18n";
 import styles from "./workspace.module.scss";
 
-const COLUMN_LABELS: Record<ColumnKey, string> = {
-  left: "Узлы",
-  middle: "Стек",
-  right: "Настройки",
+// Keys, not text: the panel names are formatted where they render, so the
+// language switcher rewrites them without a second source of truth.
+const COLUMN_LABEL_KEYS: Record<ColumnKey, MessageKey> = {
+  left: "chrome.columns.left",
+  middle: "chrome.columns.middle",
+  right: "chrome.columns.right",
 };
 
 /**
@@ -84,11 +93,33 @@ const Workspace: Component = () => {
   const splitterActive = (key: ColumnKey) =>
     !phone() && !hidden(key) && shown().indexOf(key) > 0;
 
+  /** What a click on the switcher switches to. One button instead of a pair:
+   * the bar has to fit a 320px screen, and the label always names the language
+   * the click gets you (the full name is in the tooltip). */
+  const otherLocale = () => (locale() === "ru" ? "en" : "ru");
+
   return (
     <div class={styles.workspace}>
       <header class={styles.topbar}>
         <span class={styles.logo}>Reline</span>
-        <div class={styles.viewToggles} role="group" aria-label="Панели">
+        <button
+          type="button"
+          class={[styles.toggle, styles.localeToggle]}
+          // the label is the language the click switches TO, its full name
+          // lives in the tooltip: the bar has to fit a 320px screen
+          title={LOCALE_NAMES[otherLocale()]}
+          aria-label={t("app.switchLanguage", {
+            language: LOCALE_NAMES[otherLocale()],
+          })}
+          onClick={() => setLocale(otherLocale())}
+        >
+          {otherLocale().toUpperCase()}
+        </button>
+        <div
+          class={styles.viewToggles}
+          role="group"
+          aria-label={t("chrome.panels")}
+        >
           <For each={phone() ? PHONE_COLUMN_KEYS : COLUMN_KEYS}>
             {(key) => (
               <button
@@ -102,7 +133,7 @@ const Workspace: Component = () => {
                   phone() ? setPhonePanel(key) : toggleHidden(key)
                 }
               >
-                {COLUMN_LABELS[key]}
+                {t(COLUMN_LABEL_KEYS[key])}
               </button>
             )}
           </For>
@@ -121,9 +152,9 @@ const Workspace: Component = () => {
                   ]}
                   role="separator"
                   aria-orientation="vertical"
-                  aria-label={`Изменить ширину: ${
-                    COLUMN_LABELS[neighbourOf(key)]
-                  }`}
+                  aria-label={t("chrome.resizeColumn", {
+                    label: t(COLUMN_LABEL_KEYS[neighbourOf(key)]),
+                  })}
                   tabindex="0"
                   onPointerDown={(e) => startResize(sideOf(key), e)}
                   onPointerMove={moveResize}

@@ -1,6 +1,7 @@
 export enum ReaderNodeMode {
   RGB = "rgb",
   GRAY = "gray",
+  DYNAMIC = "dynamic",
 }
 
 export enum WriterNodeFormat {
