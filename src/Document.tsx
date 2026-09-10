@@ -13,7 +13,14 @@ export default function Document(props: ParentProps) {
     <html lang="en">
       <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* `viewport-fit=cover` lets the app paint under the notch/home bar —
+            the layout then reserves the space with env(safe-area-inset-*).
+            Zoom stays available: the fields are 16px on touch so iOS has no
+            reason to zoom on focus. */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
         {/* Favicon pack (public/): browsers, iOS, Windows tiles. No web manifest
             on purpose — Chrome downloads manifest icons (192/512) on every load
             for installability checks, and this is not a PWA. */}

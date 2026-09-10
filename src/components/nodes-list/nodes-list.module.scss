@@ -32,15 +32,24 @@
   background: var(--color-surface-strong);
   cursor: pointer;
   user-select: none;
-  transition: transform var(--transition-fast), opacity var(--transition-fast),
+  transition:
+    transform var(--transition-fast),
+    opacity var(--transition-fast),
     border-color var(--transition-fast);
 
+  // same rule as the stack card: hover is a border tint, selection is a
+  // background tint — never distinguishable by hue alone
   &:hover:not(.active) {
     border-color: var(--color-primary);
   }
 
   &.active {
-    border-color: var(--color-success);
+    border-color: var(--color-primary);
+    // background: color-mix(
+    //   in srgb,
+    //   var(--color-primary) 10%,
+    //   var(--color-surface-strong)
+    // );
   }
 
   &.dragging {
@@ -80,14 +89,52 @@
   line-height: 1;
 }
 
+// Rows are drag sources, but only through the handle: the rest of the row
+// stays free for the list's own scroll gesture.
+.dragHandle {
+  @include ghost-button;
+
+  flex: none;
+  padding: 0 1px;
+  color: var(--color-text-muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+
+  &:hover {
+    color: var(--color-text);
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+@media (pointer: coarse) {
+  .item {
+    gap: var(--space-1);
+    min-height: calc(var(--touch-min) + var(--space-2));
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .dragHandle,
+  .remove {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+}
+
 .dropPlaceholder {
   flex: none;
   height: 0;
   border: 1px dashed transparent;
   border-radius: var(--radius-sm);
   opacity: 0;
-  transition: height var(--transition-fast), opacity var(--transition-fast),
-    border-color var(--transition-fast), background var(--transition-fast);
+  transition:
+    height var(--transition-fast),
+    opacity var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 
   &.visible {
     height: 10px;

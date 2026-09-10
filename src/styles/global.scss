@@ -9,6 +9,8 @@
 
 html {
   color-scheme: dark;
+  // landscape on iOS inflates text unless the size is pinned
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -21,9 +23,22 @@ body {
   font-size: var(--font-size-md);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  // the app owns every scroll region: no rubber-banding of the page itself
+  // and no pull-to-refresh yanking the UI mid-drag
+  overscroll-behavior: none;
 }
 
-// The app owns the viewport height and scrolls inside its own regions.
+// Real controls react on the first tap instead of waiting 300ms for a
+// double-tap zoom that never comes. Gesture surfaces (drag handles) set
+// `touch-action: none` themselves — a `[role="button"]` selector here would
+// have to be overridden by each of them.
+button,
+label,
+select,
+summary {
+  touch-action: manipulation;
+}
+
 #root,
 main {
   height: 100dvh;
@@ -34,12 +49,12 @@ main {
 // hovered item, which would otherwise paint an input-style outline on hover.
 // Text fields are excluded too: they show focus through the field border.
 :focus-visible:not(
-    [role="option"],
-    [role="menuitem"],
-    input,
-    textarea,
-    select
-  ) {
+  [role="option"],
+  [role="menuitem"],
+  input,
+  textarea,
+  select
+) {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }

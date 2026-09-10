@@ -70,3 +70,11 @@
     color: var(--color-primary);
   }
 }
+
+@media (pointer: coarse) {
+  .item {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-min);
+  }
+}

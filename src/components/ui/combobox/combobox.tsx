@@ -1,7 +1,8 @@
-import { omit, type Component, createEffect, createSignal } from "solid-js";
+import { omit, type Component, createSignal } from "solid-js";
 import { Combobox } from "@kobalte/core/combobox";
 import { Icon } from "../icon";
 import styles from "./combobox.module.scss";
+import { createDismissOnOutside } from "../create-dismiss-on-outside";
 
 export interface UiComboboxProps {
   value: string;
@@ -33,7 +34,7 @@ export const UiCombobox: Component<UiComboboxProps> = (props) => {
     "class",
     "placement",
     "onEnterMatch",
-    "triggerMode"
+    "triggerMode",
   );
   let controlEl: HTMLDivElement | undefined;
   let contentEl: HTMLDivElement | undefined;
@@ -58,35 +59,7 @@ export const UiCombobox: Component<UiComboboxProps> = (props) => {
     inputEl = el;
     el.addEventListener("keydown", onEnter);
   };
-  // Kobalte's dismissable layer does not close the listbox on outside
-  // interaction under solid 2 rc — close it ourselves: any pointer down
-  // that lands outside the input block and the portaled listbox.
-  createEffect(
-    () => open(),
-    (isOpen) => {
-      if (!isOpen) return;
-
-      const onPointerDown = (e: PointerEvent) => {
-        const target = e.target;
-        if (
-          target instanceof Node &&
-          (controlEl?.contains(target) || contentEl?.contains(target))
-        )
-          return;
-        setOpen(false);
-      };
-      const onKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "Escape") setOpen(false);
-      };
-
-      document.addEventListener("pointerdown", onPointerDown, true);
-      document.addEventListener("keydown", onKeyDown);
-      return () => {
-        document.removeEventListener("pointerdown", onPointerDown, true);
-        document.removeEventListener("keydown", onKeyDown);
-      };
-    }
-  );
+  createDismissOnOutside(open, setOpen, () => [controlEl, contentEl]);
 
   return (
     <Combobox

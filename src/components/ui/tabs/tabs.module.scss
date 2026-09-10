@@ -41,7 +41,9 @@
 
   // obvious hover affordance: enabled tabs tint like the preset rows do,
   // selected/disabled tabs keep their own look
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 
   &:hover:not([data-selected]) {
     border-color: var(--color-border);
@@ -66,5 +68,12 @@
 
   &:focus-visible {
     outline: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .trigger {
+    min-height: var(--touch-min);
+    padding: var(--space-1) var(--space-3);
   }
 }

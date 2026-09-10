@@ -39,6 +39,7 @@
   background: var(--color-field);
   color: var(--color-text);
   font: inherit;
+  font-size: var(--font-size-field);
   outline: none;
 
   &::placeholder {
@@ -48,9 +49,16 @@
   &:focus,
   &:focus-within {
     border-color: var(--color-primary);
-    // the green border IS the focus indicator; the global ::focus-visible
-    // ring would double it into two parallel green lines
+    // the accent border IS the focus indicator; the global ::focus-visible
+    // ring would double it into two parallel lines
     outline: none;
+  }
+
+  // finger-sized: a 14px-tall field is a miss waiting to happen, and the
+  // padding keeps the text off the rounded corners when the OS keyboard opens
+  @media (pointer: coarse) {
+    min-height: var(--touch-min);
+    padding: 8px 12px;
   }
 }
 

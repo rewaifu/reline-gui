@@ -46,6 +46,11 @@
   font: inherit;
   font-size: var(--font-size-sm);
   cursor: pointer;
+
+  // a tablet in the desktop layout still gets finger-sized switches
+  @media (pointer: coarse) {
+    min-height: var(--touch-min);
+  }
   &:hover:not(:enabled) {
     border-color: var(--color-primary);
   }
@@ -81,6 +86,11 @@
 // corners. Padding also insets the inner scrollbar from the card edge.
 .column {
   @include surface(var(--radius-lg));
+
+  // Each panel is its own query container: its contents reflow by the width
+  // they actually get, which is why a 260px side column on a desktop and a
+  // phone panel can share one set of rules.
+  container: panel / inline-size;
 
   display: flex;
   flex: none;
@@ -142,23 +152,6 @@
   }
 }
 
-.statusbar {
-  @include surface(var(--radius-md));
-
-  display: flex;
-  align-items: center;
-  flex: none;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  min-height: 40px;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-md);
-}
-
-.statusText {
-  @include truncate;
-}
-
 // Stacked layout: one scroll container, every section keeps a usable height.
 @media (max-width: 860px) {
   .workspace {
@@ -187,5 +180,65 @@
 
   .splitter {
     display: none;
+  }
+}
+
+// Phones: one panel at a time, the switcher on the bottom edge. Stacking all
+// three turned the page into a 2000px scroll where no panel had a usable
+// height of its own; a thumb also never reaches a control at the top of a
+// phone screen. The same layout serves a landscape phone — wide but short.
+@media (max-width: 700px), (pointer: coarse) and (max-height: 500px) {
+  .workspace {
+    // the strip the fixed bar occupies: button + its padding + the hairline
+    --nav-h: calc(var(--touch-min) + 2 * var(--space-1) + 1px);
+
+    padding: var(--space-2);
+  }
+
+  .topbar {
+    min-height: 36px;
+    padding: var(--space-1) var(--space-3);
+  }
+
+  .logo {
+    font-size: var(--font-size-lg);
+  }
+
+  .viewToggles {
+    position: fixed;
+    // below every portaled surface (--z-popover 50, --z-menu 60)
+    z-index: 10;
+    inset: auto 0 0 0;
+    display: grid;
+    // two panels on a phone, three on a tablet-width window — the row fills
+    // itself either way
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+    padding: var(--space-1) calc(var(--space-2) + var(--safe-right))
+      calc(var(--space-1) + var(--safe-bottom))
+      calc(var(--space-2) + var(--safe-left));
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .toggle {
+    min-height: var(--touch-min);
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-md);
+  }
+
+  // the single visible panel owns the viewport and scrolls inside; the
+  // reserved strip keeps its last row from hiding under the fixed bar
+  .columns {
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: calc(var(--nav-h) + var(--safe-bottom));
+  }
+
+  .column,
+  .column:first-child {
+    width: auto;
+    min-height: 0;
   }
 }

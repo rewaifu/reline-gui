@@ -1,12 +1,13 @@
+import type { StackNode } from "~/types/node";
 import { type Component } from "solid-js";
 import { useNodeForm, SliderRow } from "./shared";
 import type { LevelNodeOptions } from "~/types/options";
 import styles from "./forms.module.scss";
 
-type FormProps = { nodeId: number };
+type FormProps = { node: StackNode };
 
 export const LevelForm: Component<FormProps> = (props) => {
-  const form = useNodeForm(() => props.nodeId);
+  const form = useNodeForm(() => props.node);
   const options = () => form.options() as LevelNodeOptions;
   return (
     <div class={styles.form}>

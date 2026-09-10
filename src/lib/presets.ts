@@ -13,7 +13,8 @@ import {
   ResizeType,
   CvtType,
 } from "~/types/enums";
-import { DEFAULT_NODES } from "~/constants";
+import { createDefaultNodes } from "~/constants";
+import { newUid } from "~/lib/uid";
 
 export interface ConfigPreset {
   id: string;
@@ -22,7 +23,7 @@ export interface ConfigPreset {
   nodes: StackNode[];
 }
 const reader = (mode: ReaderNodeMode): StackNode => ({
-  id: 0,
+  uid: newUid(),
   type: NodeType.FOLDER_READER,
   options: {
     path: "/content/drive/MyDrive/raws",
@@ -34,7 +35,7 @@ const reader = (mode: ReaderNodeMode): StackNode => ({
 });
 
 const writer = (): StackNode => ({
-  id: 99,
+  uid: newUid(),
   type: NodeType.FOLDER_WRITER,
   options: {
     path: "/content/drive/MyDrive/raws/output",
@@ -43,29 +44,31 @@ const writer = (): StackNode => ({
   collapsed: true,
 });
 
+const MODEL_BASE = "https://bucket.yor.ovh/torch_models";
+
+// The url is derivable from the model name — never pass it by hand, a
+// wrong-but-plausible url downloads the wrong weights under the right name.
 const upscale = (
   model: string,
-  model_url: string,
   dtype: DType = DType.F32,
-  size = 896
+  size = 896,
 ): StackNode => ({
-  id: 1,
+  uid: newUid(),
   type: NodeType.UPSCALE,
   options: {
     is_own_model: false,
     model,
+    model_url: `${MODEL_BASE}/${model}.tar.xz`,
     dtype,
     tiler: TilerType.EXACT,
     exact_tiler_size: size,
     allow_cpu_upscale: false,
-    model_url:model_url
   },
-  
   collapsed: true,
 });
 
 const sharpUnsharp = (): StackNode => ({
-  id: 2,
+  uid: newUid(),
   type: NodeType.SHARP,
   options: {
     low_input: 2,
@@ -80,7 +83,7 @@ const sharpUnsharp = (): StackNode => ({
 });
 
 const screentone = (): StackNode => ({
-  id: 3,
+  uid: newUid(),
   type: NodeType.SCREENTONE,
   options: {
     halftone_mode: HalftoneMode.GRAY,
@@ -94,7 +97,7 @@ const screentone = (): StackNode => ({
 });
 
 const resize = (filter: FilterType = FilterType.SLINEAR4): StackNode => ({
-  id: 4,
+  uid: newUid(),
   type: NodeType.RESIZE,
   options: {
     resize_type: ResizeType.BY_WIDTH,
@@ -107,14 +110,14 @@ const resize = (filter: FilterType = FilterType.SLINEAR4): StackNode => ({
 });
 
 const gray2020 = (): StackNode => ({
-  id: 5,
+  uid: newUid(),
   type: NodeType.CVT_COLOR,
   options: { cvt_type: CvtType.RGB2Gray2020 },
   collapsed: true,
 });
 
 const level = (): StackNode => ({
-  id: 6,
+  uid: newUid(),
   type: NodeType.LEVEL,
   options: {
     low_input: 0,
@@ -130,17 +133,17 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   {
     id: "default",
     name: "Default",
-    description: "Standard pipeline with all steps",
-    nodes: structuredClone(DEFAULT_NODES),
+    description: "Стандартный конвейер со всеми шагами",
+    nodes: createDefaultNodes(),
   },
   {
     id: "mangascale",
     name: "Mangascale",
     description:
-      "Config for mangascale models, such as MangaJanai family and wtp_MangaScale_GfisrV2",
+      "Конфиг для mangascale-моделей: семейство MangaJanai и wtp_MangaScale_GfisrV2",
     nodes: [
       reader(ReaderNodeMode.GRAY),
-      upscale("4x_wtp_MangaScale_GfisrV2","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz"),
+      upscale("4x_wtp_MangaScale_GfisrV2"),
       level(),
       resize(FilterType.SHAMMING4),
       gray2020(),
@@ -153,7 +156,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     description: "4x_dwtp_ds_atdl3 + Dot 7 SSAA 2",
     nodes: [
       reader(ReaderNodeMode.GRAY),
-      upscale("4x_dwtp_ds_atdl3","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz", DType.F32, 768),
+      upscale("4x_dwtp_ds_atdl3", DType.F32, 768),
       sharpUnsharp(),
       screentone(),
       resize(FilterType.SHAMMING4),
@@ -167,7 +170,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     description: "4x_dwtp_ds_moesr_v2 + Dot 7 SSAA 2",
     nodes: [
       reader(ReaderNodeMode.GRAY),
-      upscale("4x_dwtp_ds_moesr_v2","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz"),
+      upscale("4x_dwtp_ds_moesr_v2"),
       sharpUnsharp(),
       screentone(),
       resize(FilterType.SHAMMING4),
@@ -178,10 +181,10 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   {
     id: "color-mosrl",
     name: "Default color",
-    description: "Color preset with umzi_digital_art_mosr_l model",
+    description: "Цветной пресет с моделью umzi_digital_art_mosr_l",
     nodes: [
       reader(ReaderNodeMode.RGB),
-      upscale("4x_umzi_digital_art_mosr_l","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz"),
+      upscale("4x_umzi_digital_art_mosr_l"),
       level(),
       resize(FilterType.DPID1),
       writer(),
@@ -190,10 +193,10 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   {
     id: "color-heavy",
     name: "Heavy color",
-    description: "Color preset with IllustrationJanaiV3 model",
+    description: "Цветной пресет с моделью IllustrationJanaiV3",
     nodes: [
       reader(ReaderNodeMode.RGB),
-      upscale("4x_IllustrationJaNai_V3detail_DAT2_28k_bf16","https://bucket.yor.ovh/torch_models/4x_wtp_MangaScale_GfisrV2.tar.xz", DType.BF16, 600),
+      upscale("4x_IllustrationJaNai_V3detail_DAT2_28k_bf16", DType.BF16, 600),
       level(),
       resize(FilterType.DPID1),
       writer(),
@@ -202,7 +205,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   {
     id: "psd-to-png",
     name: "PSD to PNG",
-    description: "Converts PSD to PNG",
+    description: "Конвертирует PSD в PNG",
     nodes: [reader(ReaderNodeMode.RGB), writer()],
   },
 ];
@@ -230,11 +233,10 @@ export const loadUserPresets = (): ConfigPreset[] => {
   }
 };
 
-const [userPresets, setUserPresets] = createSignal<ConfigPreset[]>(
-  loadUserPresets()
-);
+const [userPresets, setUserPresets] =
+  createSignal<ConfigPreset[]>(loadUserPresets());
 const [hiddenStock, setHiddenStock] = createSignal<string[]>(
-  readList(HIDDEN_STOCK_KEY)
+  readList(HIDDEN_STOCK_KEY),
 );
 
 /** Built-ins (minus hidden) first, then user-saved presets. */
@@ -255,7 +257,7 @@ const writeUserPresets = (list: ConfigPreset[]) =>
 
 export const saveUserPreset = (
   name: string,
-  nodes: readonly StackNode[]
+  nodes: readonly StackNode[],
 ): ConfigPreset => {
   const preset: ConfigPreset = {
     id: `user-${Date.now()}`,
@@ -283,9 +285,6 @@ export const deletePreset = (id: string) => {
   localStorage.setItem(HIDDEN_STOCK_KEY, JSON.stringify(hidden));
   setHiddenStock(hidden);
 };
-
-export const getPresetById = (id: string): ConfigPreset | undefined =>
-  allPresets().find((preset) => preset.id === id);
 
 export const getPresetByName = (name: string): ConfigPreset | undefined =>
   allPresets().find((preset) => preset.name === name);

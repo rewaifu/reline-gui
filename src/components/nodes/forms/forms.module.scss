@@ -29,6 +29,15 @@
   gap: var(--space-2);
   min-width: 0;
 }
+
+// Narrow panel — a phone, or a desktop column squeezed to its minimum: two
+// number fields per row leave ~100px each, less than the stepper needs.
+@container panel (max-width: 460px) {
+  .grid2,
+  .grid3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .sliderLine {
   display: flex;
   align-items: center;
@@ -164,6 +173,27 @@
   font-size: var(--font-size-sm);
 }
 
+// Touch: two 20px-tall arrows stacked in a 40px field cannot be told apart by
+// a fingertip, so they sit side by side at full target size.
+@media (pointer: coarse) {
+  .spinners {
+    flex-direction: row;
+  }
+
+  .stepBtn {
+    width: var(--touch-min);
+  }
+
+  .stepBtn + .stepBtn {
+    border-top: none;
+    border-left: 1px solid var(--color-border);
+  }
+
+  .sliderValue {
+    width: 88px;
+  }
+}
+
 .pathWrap {
   position: relative;
   min-width: 0;
@@ -211,4 +241,14 @@
   padding: 0;
   list-style: none;
   max-height: calc(220px - 4px);
+}
+
+// Completion rows are 24px on a desktop list; a fingertip needs the same
+// target as every other row, and the menu keeps its 220px window (≈5 rows).
+@media (pointer: coarse) {
+  .pathMenu button {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-min);
+  }
 }

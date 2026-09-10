@@ -1,8 +1,8 @@
 import { omit, type Component } from "solid-js";
 import { Switch } from "@kobalte/core/switch";
-import styles from "./checkbox.module.scss";
+import styles from "./switch.module.scss";
 
-export interface UiCheckboxProps {
+export interface UiSwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   /** Visible text rendered next to the control by Kobalte (<Switch.Label>). */
@@ -14,8 +14,8 @@ export interface UiCheckboxProps {
   class?: string;
 }
 
-/** Toggle switch (replaces the old checkbox look; props API unchanged). */
-export const UiCheckbox: Component<UiCheckboxProps> = (props) => {
+/** Toggle switch. */
+export const UiSwitch: Component<UiSwitchProps> = (props) => {
   const rest = omit(
     props,
     "checked",
@@ -23,7 +23,7 @@ export const UiCheckbox: Component<UiCheckboxProps> = (props) => {
     "label",
     "ariaLabel",
     "id",
-    "class"
+    "class",
   );
 
   return (

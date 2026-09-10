@@ -3,8 +3,10 @@ import solid from "@solidjs/vite-plugin";
 
 import { fileURLToPath } from "node:url";
 
-export default defineConfig({
-  base: "/", // relative './' for CDN is applied at build time via --base
+export default defineConfig(({ command }) => ({
+  // CDN serves the app from a nested path, so the built page must reference
+  // its chunks relatively (./assets/…) — dev keeps an absolute root.
+  base: command === "build" ? "./" : "/",
   resolve: {
     alias: [
       {
@@ -48,4 +50,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

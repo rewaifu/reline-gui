@@ -12,7 +12,7 @@ import {
   WriterNodeFormat,
 } from "./types/enums";
 import type { NodeOptions, StackNode } from "./types/node";
-
+import { newUid } from "~/lib/uid";
 export const STORAGE_KEY = "reline-web:config";
 export const LAYOUT_STORAGE_KEY = "reline-web:layout";
 
@@ -27,6 +27,18 @@ export const MODEL_PREFIX = "/content/models/";
 export const DEFAULT_COLLAPSED = true;
 export const MODEL_POSTFIX = ".pth";
 
+/** Node type → its entry in DEFAULT_NODE_OPTIONS. */
+const OPTION_KEY: Record<NodeType, keyof typeof DEFAULT_NODE_OPTIONS> = {
+  [NodeType.FOLDER_READER]: "folder_reader",
+  [NodeType.FOLDER_WRITER]: "folder_writer",
+  [NodeType.UPSCALE]: "upscale",
+  [NodeType.SHARP]: "sharp",
+  [NodeType.RESIZE]: "resize",
+  [NodeType.SCREENTONE]: "screentone",
+  [NodeType.LEVEL]: "level",
+  [NodeType.CVT_COLOR]: "cvt_color",
+};
+
 export const DEFAULT_NODE_OPTIONS = {
   folder_reader: {
     path: "/content/drive/MyDrive/raws",
@@ -36,7 +48,7 @@ export const DEFAULT_NODE_OPTIONS = {
   } satisfies NodeOptions,
   upscale: {
     model: "4x_dwtp_ds_atdl3",
-    model_url:"https://bucket.yor.ovh/torch_models/4x_dwtp_ds_atdl3.tar.xz",
+    model_url: "https://bucket.yor.ovh/torch_models/4x_dwtp_ds_atdl3.tar.xz",
     is_own_model: false,
     dtype: DType.F32,
     tiler: TilerType.EXACT,
@@ -79,47 +91,26 @@ export const DEFAULT_NODE_OPTIONS = {
   } satisfies NodeOptions,
 };
 
-export const DEFAULT_NODES: StackNode[] = [
-  {
-    id: 0,
-    type: NodeType.FOLDER_READER,
-    options: DEFAULT_NODE_OPTIONS.folder_reader,
+/**
+ * One node of each type with pristine default options. A factory, not a
+ * constant: option objects must never be shared with the store (a user edit
+ * would otherwise mutate the app defaults for the rest of the session), and
+ * every node needs its own fresh uid.
+ */
+export const createDefaultNodes = (): StackNode[] =>
+  [
+    NodeType.FOLDER_READER,
+    NodeType.UPSCALE,
+    NodeType.SHARP,
+    NodeType.SCREENTONE,
+    NodeType.RESIZE,
+    NodeType.LEVEL,
+    NodeType.FOLDER_WRITER,
+  ].map((type) => ({
+    uid: newUid(),
+    type,
+    options: structuredClone(
+      DEFAULT_NODE_OPTIONS[OPTION_KEY[type]],
+    ) as NodeOptions,
     collapsed: DEFAULT_COLLAPSED,
-  },
-  {
-    id: 1,
-    type: NodeType.UPSCALE,
-    options: DEFAULT_NODE_OPTIONS.upscale,
-    collapsed: DEFAULT_COLLAPSED,
-  },
-  {
-    id: 2,
-    type: NodeType.SHARP,
-    options: DEFAULT_NODE_OPTIONS.sharp,
-    collapsed: DEFAULT_COLLAPSED,
-  },
-  {
-    id: 3,
-    type: NodeType.SCREENTONE,
-    options: DEFAULT_NODE_OPTIONS.screentone,
-    collapsed: DEFAULT_COLLAPSED,
-  },
-  {
-    id: 4,
-    type: NodeType.RESIZE,
-    options: DEFAULT_NODE_OPTIONS.resize,
-    collapsed: DEFAULT_COLLAPSED,
-  },
-  {
-    id: 5,
-    type: NodeType.LEVEL,
-    options: DEFAULT_NODE_OPTIONS.level,
-    collapsed: DEFAULT_COLLAPSED,
-  },
-  {
-    id: 6,
-    type: NodeType.FOLDER_WRITER,
-    options: DEFAULT_NODE_OPTIONS.folder_writer,
-    collapsed: DEFAULT_COLLAPSED,
-  },
-];
+  }));

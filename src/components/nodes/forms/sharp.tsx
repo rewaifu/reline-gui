@@ -1,3 +1,4 @@
+import type { StackNode } from "~/types/node";
 import { type Component, Show } from "solid-js";
 import { CannyType } from "~/types/enums";
 import {
@@ -10,14 +11,14 @@ import {
 import type { SharpNodeOptions } from "~/types/options";
 import styles from "./forms.module.scss";
 
-type FormProps = { nodeId: number };
+type FormProps = { node: StackNode };
 export function roundToStep(value: number, step: number): number {
   const decimals = (step.toString().split(".")[1] || "").length;
   const factor = Math.pow(10, decimals);
   return Math.round(value * factor) / factor;
 }
 export const SharpForm: Component<FormProps> = (props) => {
-  const form = useNodeForm(() => props.nodeId);
+  const form = useNodeForm(() => props.node);
   const options = () => form.options() as SharpNodeOptions;
   return (
     <div class={styles.form}>

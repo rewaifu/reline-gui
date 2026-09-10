@@ -26,3 +26,8 @@ gitignore
 # System Files
 .DS_Store
 Thumbs.db
+
+# pnpm is the package manager — bun/npm lockfiles must not appear
+package-lock.json
+bun.lock
+bun.lockb

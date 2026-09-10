@@ -3,33 +3,46 @@ import {
   For,
   Show,
   createEffect,
-  createMemo,
   createSignal,
+  useContext,
 } from "solid-js";
-import { createDragReorder, type DragHandlers } from "~/hooks/use-drag-reorder";
-import { flipReorder } from "~/hooks/use-flip-reorder";
-import { useNodes, useNodesDispatch } from "~/context/contexts";
+import type { Store } from "solid-js";
+import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { NodesActionType } from "~/types/actions";
 import type { StackNode } from "~/types/node";
+import {
+  createDragReorder,
+  type DragHandlers,
+} from "~/instructions/hooks/use-drag-reorder";
+import { flipReorder } from "~/instructions/hooks/use-flip-reorder";
+import {
+  useAddNode,
+  useToggleEnabled,
+} from "~/instructions/hooks/use-node-actions";
 import { NODE_DEFS } from "~/components/nodes/registry";
 import { NodeOptionsForm } from "~/components/nodes/node-options-form";
-import { Icon } from "~/components/ui";
+import { AddNodeMenu } from "~/components/nodes-list/add-node-menu";
+import { Icon, UiSwitch } from "~/components/ui";
 import styles from "./node-card.module.scss";
 
 interface NodeCardProps {
-  id: number;
-  /** Position in the stack — drag state is index-based, ids are not. */
+  /** The row's node object, handed straight down from <For> — no re-find by id. */
+  node: StackNode;
+  /** Position in the stack — drag state is index-based. */
   index: number;
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  /** Keyed projection: only the entering/leaving rows recompute on a click. */
+  selected: boolean;
+  onSelect: (uid: string) => void;
   dragIndex: () => number | null;
   dropIndex: () => number | null;
   handlers: (index: number) => DragHandlers;
+  /** Phone: the node list is hidden, so its enable switch lives on the card. */
+  phone: boolean;
 }
 
 const NodeCard: Component<NodeCardProps> = (props) => {
-  const nodes = useNodes();
-  const dispatch = useNodesDispatch();
+  const dispatch = useContext(NodesDispatchContext);
+  const toggleEnabled = useToggleEnabled();
   const [editing, setEditing] = createSignal(false);
   const [draft, setDraft] = createSignal("");
   let renameInput: HTMLInputElement | undefined;
@@ -37,25 +50,24 @@ const NodeCard: Component<NodeCardProps> = (props) => {
   // typing replaces the name right away
   createEffect(
     () => editing(),
-    (editing) => {
-      if (!editing) return;
+    (isEditing) => {
+      if (!isEditing) return;
       renameInput?.focus();
       renameInput?.select();
-    }
+    },
   );
 
-  const node = () => nodes.find((n) => n.id === props.id);
-  const expanded = () => node()?.collapsed === false;
+  const node = () => props.node;
 
   const change = (patch: Partial<StackNode>) => {
     dispatch({
       type: NodesActionType.CHANGE,
-      payload: { id: props.id, ...patch },
+      payload: { uid: node().uid, ...patch },
     });
   };
 
   const startRename = () => {
-    setDraft(node()?.name ?? "");
+    setDraft(node().name ?? "");
     setEditing(true);
   };
 
@@ -66,168 +78,214 @@ const NodeCard: Component<NodeCardProps> = (props) => {
   };
 
   return (
-    <Show when={node()}>
-      {(node) => (
-        <>
-          <div
-            class={{
-              [styles.dropPlaceholder]: true,
-              [styles.visible]: props.dropIndex() === props.index,
-            }}
-          />
-          <section
-            data-node-id={props.id}
-            data-flip-key={node().uid}
-            class={{
-              [styles.card]: true,
-              [styles.selected]: props.selectedId === props.id,
-              [styles.dragging]: props.dragIndex() === props.index,
-            }}
-            onClick={() => props.onSelect(props.id)}
+    <>
+      <div
+        class={{
+          [styles.dropPlaceholder]: true,
+          [styles.visible]: props.dropIndex() === props.index,
+        }}
+      />
+      <section
+        data-node-id={node().uid}
+        data-flip-key={node().uid}
+        class={{
+          [styles.card]: true,
+          [styles.selected]: props.selected,
+          [styles.dragging]: props.dragIndex() === props.index,
+        }}
+        onClick={() => props.onSelect(node().uid)}
+      >
+        <header
+          class={styles.header}
+          onClick={(e) => {
+            props.onSelect(node().uid);
+            // clicks on the handle/title (spans) are zone-owned: the
+            // handle drags, the title selects/renames — only the empty
+            // header strip and the chevron collapse the node
+            if (
+              e.target instanceof Element &&
+              e.target.closest("span") !== null
+            )
+              return;
+            change({ collapsed: !node().collapsed });
+          }}
+        >
+          <span
+            class={styles.dragHandle}
+            role="button"
+            tabindex="0"
+            aria-label="Изменить порядок ноды"
+            title="Перетащите или нажмите ↑ / ↓"
+            {...props.handlers(props.index)}
           >
-            <header
-              class={styles.header}
+            <Icon name="drag-drop" size={18} />
+          </span>
+          <button
+            type="button"
+            class={styles.iconBtn}
+            aria-label="Переименовать ноду"
+            title="Переименовать ноду"
+            onClick={(e) => {
+              e.stopPropagation();
+              startRename();
+            }}
+          >
+            <Icon name="pencil" size={13} />
+          </button>
+          <Show when={!props.phone}>
+            <button
+              type="button"
+              class={styles.iconBtn}
+              aria-label="Удалить ноду"
+              title="Удалить ноду"
               onClick={(e) => {
-                props.onSelect(props.id);
-                // clicks on the handle/title (spans) are zone-owned: the
-                // handle drags, the title selects/renames — only the empty
-                // header strip and the chevron collapse the node
-                if (
-                  e.target instanceof Element &&
-                  e.target.closest("span") !== null
-                )
-                  return;
-                change({ collapsed: !node().collapsed });
+                e.stopPropagation();
+                dispatch({ type: NodesActionType.DELETE, payload: node().uid });
               }}
             >
-              <span
-                class={styles.dragHandle}
-                title="Drag to reorder"
-                {...props.handlers(props.index)}
-              >
-                <Icon name="drag-drop" size={18} />
+              <Icon name="trash" size={13} />
+            </button>
+          </Show>
+          <Show when={props.phone}>
+            {/* The node list carries this switch on wider screens; on a phone
+                it is the only way to take a node out of the run. */}
+            <span
+              class={styles.enable}
+              onClick={(e) => e.stopPropagation()}
+              onDblClick={(e) => e.stopPropagation()}
+            >
+              <UiSwitch
+                checked={node().enabled !== false}
+                onChange={(enabled) => toggleEnabled(node(), enabled)}
+                ariaLabel={`Включить ${
+                  node().name ?? NODE_DEFS[node().type].label
+                }`}
+              />
+            </span>
+          </Show>
+          <Show
+            when={!editing()}
+            fallback={
+              <input
+                ref={(el) => (renameInput = el)}
+                class={styles.renameInput}
+                value={draft()}
+                placeholder={node().name ?? NODE_DEFS[node().type].label}
+                aria-label="Имя ноды"
+                onClick={(e) => e.stopPropagation()}
+                onInput={(e) => setDraft(e.currentTarget.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  else if (e.key === "Escape") setEditing(false);
+                }}
+              />
+            }
+          >
+            <span
+              class={styles.title}
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onSelect(node().uid);
+              }}
+              onDblClick={startRename}
+              title="Двойной клик — переименовать"
+            >
+              <span class={styles.titleText}>
+                {node().name ?? NODE_DEFS[node().type].label}
               </span>
-              <button
-                type="button"
-                class={styles.iconBtn}
-                aria-label="Rename node"
-                title="Rename node"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  startRename();
-                }}
-              >
-                <Icon name="pencil" size={13} />
-              </button>
-              <button
-                type="button"
-                class={styles.iconBtn}
-                aria-label="Delete node"
-                title="Delete node"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dispatch({ type: NodesActionType.DELETE, payload: props.id });
-                }}
-              >
-                <Icon name="trash" size={13} />
-              </button>
-              <Show
-                when={!editing()}
-                fallback={
-                  <input
-                    ref={(el) => (renameInput = el)}
-                    class={styles.renameInput}
-                    value={draft()}
-                    placeholder={node().name ?? NODE_DEFS[node().type].label}
-                    aria-label="Node name"
-                    onClick={(e) => e.stopPropagation()}
-                    onInput={(e) => setDraft(e.currentTarget.value)}
-                    onBlur={commitRename}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitRename();
-                      else if (e.key === "Escape") setEditing(false);
-                    }}
-                  />
-                }
-              >
-                <span
-                  class={styles.title}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    props.onSelect(props.id);
-                  }}
-                  onDblClick={startRename}
-                  title="Double click to rename"
-                >
-                  <span class={styles.titleText}>
-                    {node().name ?? NODE_DEFS[node().type].label}
-                  </span>
-                  <Show when={node().name}>
-                    <span class={styles.typeHint}>
-                      {NODE_DEFS[node().type].label}
-                    </span>
-                  </Show>
+              <Show when={node().name}>
+                <span class={styles.typeHint}>
+                  {NODE_DEFS[node().type].label}
                 </span>
               </Show>
+            </span>
+          </Show>
+          <button
+            type="button"
+            class={styles.chevron}
+            aria-label="Свернуть ноду"
+            aria-expanded={node().collapsed === false ? "true" : "false"}
+            onClick={(e) => {
+              e.stopPropagation();
+              change({ collapsed: !node().collapsed });
+            }}
+          >
+            <Icon
+              name={
+                node().collapsed === false ? "chevron-down" : "chevron-right"
+              }
+              size={14}
+            />
+          </button>
+        </header>
+        <Show when={node().collapsed === false}>
+          <div class={styles.separator} role="separator" />
+          {/* Destructive action, phone edition: out of the always-visible
+              strip (where a stray thumb costs a node) and into the expanded
+              body, with a label that says what it deletes. */}
+          <Show when={props.phone}>
+            <div class={styles.cardActions}>
               <button
                 type="button"
-                class={styles.chevron}
-                aria-label="Toggle node"
-                aria-expanded={expanded() ? "true" : "false"}
+                class={styles.deleteBtn}
+                aria-label="Удалить ноду"
                 onClick={(e) => {
                   e.stopPropagation();
-                  change({ collapsed: !node().collapsed });
+                  dispatch({
+                    type: NodesActionType.DELETE,
+                    payload: node().uid,
+                  });
                 }}
               >
-                <Icon
-                  name={expanded() ? "chevron-down" : "chevron-right"}
-                  size={14}
-                />
+                <Icon name="trash" size={16} />
+                Удалить ноду
               </button>
-            </header>
-            <Show when={expanded()}>
-              <div class={styles.separator} role="separator" />
-              <NodeOptionsForm nodeId={props.id} />
-            </Show>
-          </section>
-        </>
-      )}
-    </Show>
+            </div>
+          </Show>
+          <NodeOptionsForm node={node()} />
+        </Show>
+      </section>
+    </>
   );
 };
 
 export interface NodeCardsProps {
-  selectedId: () => number | null;
-  onSelect: (id: number) => void;
+  selectedUid: () => string | null;
+  isSelected: Store<Record<string, boolean>>;
+  onSelect: (uid: string) => void;
+  /** Phone: the node list is hidden — the stack adds nodes itself. */
+  phone: boolean;
 }
-export const NodeCards: Component<NodeCardsProps> = (props) => {
-  const nodes = useNodes();
-  const dispatch = useNodesDispatch();
+export const NodeStack: Component<NodeCardsProps> = (props) => {
+  const nodes = useContext(NodesContext);
+  const dispatch = useContext(NodesDispatchContext);
+  // the arrow defers the props read to selection time (not a reactive scope)
+  const addNode = useAddNode((uid) => props.onSelect(uid));
   let stack: HTMLDivElement | undefined;
-  const { dragIndex, dropIndex, handlers, containerHandlers } =
-    createDragReorder((from, to) => {
+  const { dragIndex, dropIndex, handlers } = createDragReorder(
+    () => stack,
+    (from, to) => {
       flipReorder(
         stack,
         "[data-flip-key]",
         () => {
           dispatch({ type: NodesActionType.MOVE, payload: { from, to } });
-          // ids reindex to array positions: the moved node keeps its id
-          if (props.selectedId() === from) props.onSelect(to);
+          // uid is the identity: the moved node keeps it, selection follows
+          // automatically and no row remounts
         },
-        (el) => el.getAttribute("data-flip-key")
+        (el) => el.getAttribute("data-flip-key"),
       );
-    });
-
-  // Render by node objects, not ids: ids are reindexed to array positions
-  // after every MOVE, so an ids-keyed list never sees the order change.
+    },
+  );
 
   // selecting a node in the left list scrolls its card into view
   createEffect(
-    () => props.selectedId(),
-    (id) => {
-      if (id === null) return;
+    () => props.selectedUid(),
+    (uid) => {
+      if (uid === null) return;
       if (stack === undefined) return;
-      const card = stack.querySelector(`[data-node-id="${id}"]`);
+      const card = stack.querySelector(`[data-node-id="${uid}"]`);
       if (card === null) return;
       // a click on the card itself selects too — scrolling a visible card
       // would glide the layout mid double-click and kill the rename; reveal
@@ -236,30 +294,38 @@ export const NodeCards: Component<NodeCardsProps> = (props) => {
       const box = stack.getBoundingClientRect();
       if (rect.top >= box.top && rect.bottom <= box.bottom) return;
       card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
+    },
   );
 
   return (
-    <div class={styles.stack} ref={stack} {...containerHandlers()}>
-      <For each={nodes}>
-        {(_node, index) => (
-          <NodeCard
-            id={nodes[index()].id}
-            index={index()}
-            selectedId={props.selectedId()}
-            onSelect={props.onSelect}
-            dragIndex={dragIndex}
-            dropIndex={dropIndex}
-            handlers={handlers}
-          />
-        )}
-      </For>
-      <div
-        class={{
-          [styles.dropPlaceholder]: true,
-          [styles.visible]: dropIndex() === nodes.length,
-        }}
-      />
-    </div>
+    <>
+      <div class={styles.stack} ref={stack}>
+        <For each={nodes}>
+          {(node, index) => (
+            <NodeCard
+              node={node}
+              index={index()}
+              selected={props.isSelected[node.uid] === true}
+              onSelect={props.onSelect}
+              dragIndex={dragIndex}
+              dropIndex={dropIndex}
+              handlers={handlers}
+              phone={props.phone}
+            />
+          )}
+        </For>
+        <div
+          class={{
+            [styles.dropPlaceholder]: true,
+            [styles.visible]: dropIndex() === nodes.length,
+          }}
+        />
+      </div>
+      {/* Pinned below the scroll area, not inside it: adding a node is the
+          most common action on a phone and must never need a scroll. */}
+      <Show when={props.phone}>
+        <AddNodeMenu onAdd={addNode} />
+      </Show>
+    </>
   );
 };

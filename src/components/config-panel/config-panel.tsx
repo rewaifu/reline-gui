@@ -1,16 +1,20 @@
 import {
   type Component,
+  createEffect,
   createMemo,
   createSignal,
   For,
+  untrack,
   Match,
   Show,
   Switch,
+  useContext,
 } from "solid-js";
 import { marked } from "marked";
-import { useNodes, useNodesDispatch } from "~/context/contexts";
+import { parse, render } from "sugar-high/core";
+import * as json from "sugar-high/lang/json";
+import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { NodesActionType } from "~/types/actions";
-import type { StackNode } from "~/types/node";
 import {
   allPresets,
   getPresetByName,
@@ -20,16 +24,28 @@ import {
   restoreStockPresets,
 } from "~/lib/presets";
 import { nodesToString, stringToNodes } from "~/lib/config";
-import { resolveModelName } from "~/lib/model-db";
+import { modelUrl, preloadModelNames, resolveModelName } from "~/lib/model-db";
+import { convertToPure, type LegacyMigration } from "~/lib/convert";
 import { NodeType } from "~/types/enums";
 import { NODE_DEFS } from "~/components/nodes/registry";
 import { Icon, UiTabs, UiSelect } from "~/components/ui";
 import {
   createRunClient,
-  resolveEndpoint,
-  RUN_ENDPOINT_KEY,
+  endpoint,
+  setEndpoint,
+  type RunMessage,
 } from "~/lib/run-client";
+import {
+  describeStage,
+  formatDownloadProgress,
+  formatElapsed,
+  formatEta,
+  formatProgressCounters,
+  formatRate,
+  PREPARING_TEXT,
+} from "~/lib/run-format";
 import styles from "./config-panel.module.scss";
+
 const TABS = [
   { value: "instructions", label: "Инструкции" },
   { value: "code", label: "Код" },
@@ -38,24 +54,23 @@ const TABS = [
 ] as const;
 
 export interface ConfigPanelProps {
-  selectedId: () => number | null;
+  selectedUid: () => string | null;
 }
-
-/** Per-node instructions, authored as Markdown (`.mdx`) in src/instructions. */
+/** Per-node instructions, authored as Markdown in src/instructions. */
 const INSTRUCTION_DOCS: Record<string, string> = Object.fromEntries(
   Object.entries(
-    import.meta.glob("../../instructions/*.mdx", {
+    import.meta.glob("../../instructions/*.md", {
       query: "?raw",
       import: "default",
       eager: true,
-    })
-  ).map(([path, src]) => [path.match(/([^/]+)\.mdx$/)![1], src as string])
+    }),
+  ).map(([path, src]) => [path.match(/([^/]+)\.md$/)![1], src as string]),
 );
 
 const InstructionsTab: Component<ConfigPanelProps> = (props) => {
-  const nodes = useNodes();
+  const nodes = useContext(NodesContext);
   const def = () => {
-    const node = nodes.find((n) => n.id === props.selectedId());
+    const node = nodes.find((n) => n.uid === props.selectedUid());
     return node ? NODE_DEFS[node.type] : undefined;
   };
   const docHtml = createMemo(() => {
@@ -75,59 +90,104 @@ const InstructionsTab: Component<ConfigPanelProps> = (props) => {
           </p>
         }
       >
-        {(def) => (
+        {
           // Instructions are trusted local files authored by the user, so
-          // rendering the compiled HTML directly is safe here.
+          // rendering the compiled HTML directly is safe here. The callback
+          // binding is dropped on purpose: the body needs only docHtml().
+          // oxlint-disable-next-line solid/no-innerhtml -- trusted local content
           <div class={styles.doc} innerHTML={docHtml()} />
-        )}
+        }
       </Show>
     </div>
   );
 };
 
-type JsonPart = { text: string; cls?: string };
-
-const JSON_TOKEN =
-  /("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g;
-
-/** Split pretty-printed JSON into colored parts: keys, strings, numbers, keywords. */
-const highlightJson = (src: string): JsonPart[] => {
-  const parts: JsonPart[] = [];
-  let last = 0;
-  for (const m of src.matchAll(JSON_TOKEN)) {
-    const start = m.index;
-    if (start > last) parts.push({ text: src.slice(last, start) });
-    if (m[1]) {
-      // a string followed by ":" is an object key
-      parts.push({ text: m[1], cls: m[2] ? styles.tokKey : styles.tokStr });
-      if (m[2]) parts.push({ text: m[2] });
-    } else {
-      const isNumber = /^-?\d/.test(m[0]);
-      parts.push({
-        text: m[0],
-        cls: isNumber ? styles.tokNum : styles.tokBool,
-      });
-    }
-    last = start + m[0].length;
-  }
-  if (last < src.length) parts.push({ text: src.slice(last) });
-  return parts;
+/** Pipeline JSON, tokenized by sugar-high's JSON grammar (lang entry only —
+ * the full registry would pull in every language for one format). */
+const HighlightedJson: Component<{ code: string }> = (props) => {
+  const html = createMemo(() => render(parse(props.code, json)));
+  return (
+    <pre class={styles.codeView}>
+      {
+        // sugar-high escapes the source (`<` → `&lt;`) and the input is our
+        // own pretty-printed config, so the generated markup is safe here.
+        // oxlint-disable-next-line solid/no-innerhtml -- escaped local output
+        <code innerHTML={html()} />
+      }
+    </pre>
+  );
 };
 
-const HighlightedJson: Component<{ code: string }> = (props) => (
-  <pre class={styles.codeView}>
-    <For each={createMemo(() => highlightJson(props.code))()}>
-      {(part) =>
-        part.cls ? <span class={part.cls}>{part.text}</span> : <>{part.text}</>
-      }
-    </For>
-  </pre>
-);
+/** Editable code view: a transparent textarea stacked on the highlight layer,
+ * so the caret and selection live in the field while the glyphs come from
+ * sugar-high. Both layers share one grid cell and one scroll container. */
+const CodeEditor: Component<{
+  value: string;
+  onInput: (value: string) => void;
+}> = (props) => {
+  let area!: HTMLTextAreaElement;
+  createEffect(
+    () => props.value,
+    () => {
+      // grow the field to its content (0 first: a shrinking box would only
+      // report its own height back) so the shell scrolls, not the field
+      area.style.height = "0px";
+      area.style.height = `${area.scrollHeight}px`;
+    },
+  );
+  return (
+    <div class={styles.codeStack}>
+      <HighlightedJson code={props.value} />
+      <textarea
+        ref={area}
+        class={styles.codeInput}
+        value={props.value}
+        onInput={(e) => props.onInput(e.currentTarget.value)}
+        spellcheck={false}
+        aria-label="Конфиг JSON"
+      />
+    </div>
+  );
+};
+
+/** What a legacy import rewrote, for the status line (empty when the config
+ * was already current). */
+const legacyNotice = (migration: LegacyMigration | undefined): string => {
+  if (migration === undefined) return "";
+  const parts: string[] = [];
+  if (migration.models.length > 0) {
+    parts.push(
+      `старый формат: модель ${migration.models
+        .map((m) => `${m.to}`)
+        .join(", ")} переведена на имя вместо пути`,
+    );
+  }
+  if (migration.downloads.length > 0) {
+    const urls = migration.downloads.filter((n) => modelUrl(n) !== undefined);
+    const missing = migration.downloads.filter(
+      (n) => modelUrl(n) === undefined,
+    );
+    if (urls.length > 0) {
+      parts.push(`ссылки из базы: ${urls.join(", ")}`);
+    }
+    if (missing.length > 0) {
+      parts.push(`ссылка не найдена: ${missing.join(", ")}`);
+    }
+  }
+  if (migration.unarchives.length > 0) {
+    parts.push(`распаковка: ${migration.unarchives.join(", ")}`);
+  }
+  if (parts.length === 0) return "";
+  return `конфиг старого формата перенесён — ${parts.join("; ")}`;
+};
 
 const CodeTab: Component = () => {
-  const nodes = useNodes();
-  const dispatch = useNodesDispatch();
-  const [presetName, setPresetName] = createSignal(allPresets()[0]?.name ?? "");
+  const nodes = useContext(NodesContext);
+  const dispatch = useContext(NodesDispatchContext);
+  // one-time snapshot: the select below reads allPresets() reactively
+  const [presetName, setPresetName] = createSignal(
+    untrack(() => allPresets()[0]?.name ?? ""),
+  );
   const [copied, setCopied] = createSignal(false);
   const [editing, setEditing] = createSignal(false);
   const [draft, setDraft] = createSignal("");
@@ -146,20 +206,27 @@ const CodeTab: Component = () => {
     setStatus({ ok: true, text: `Пресет «${preset.name}» применён` });
   };
 
-  const startEdit = () => {
-    setDraft(code());
-    setStatus(undefined);
-    setEditing(true);
-  };
-
-  const applyDraft = () => {
+  /** Parses and dispatches a config, migrating the pre-preprocess format on
+   * the way: a legacy one names its models by path and keeps the download /
+   * unarchive nodes inside the pipeline, so their links have to come from the
+   * model database — wait for it before parsing (warm from the startup
+   * preload, and instant while the localStorage copy is fresh). */
+  const importConfig = async (
+    text: string,
+    success: (migration: LegacyMigration | undefined) => string,
+  ) => {
     try {
-      dispatch({
-        type: NodesActionType.IMPORT,
-        payload: stringToNodes(draft()),
+      await preloadModelNames();
+      let migration: LegacyMigration | undefined;
+      const parsed = stringToNodes(text, {
+        urlOf: modelUrl,
+        onLegacy: (m) => {
+          migration = m;
+        },
       });
+      dispatch({ type: NodesActionType.IMPORT, payload: parsed });
       setEditing(false);
-      setStatus({ ok: true, text: "Конфиг применён" });
+      setStatus({ ok: true, text: success(migration) });
     } catch (err) {
       setStatus({
         ok: false,
@@ -170,22 +237,23 @@ const CodeTab: Component = () => {
     }
   };
 
-  const importFile = async (file: File) => {
-    try {
-      dispatch({
-        type: NodesActionType.IMPORT,
-        payload: stringToNodes(await file.text()),
-      });
-      setStatus({ ok: true, text: `Импортирован файл «${file.name}»` });
-    } catch (err) {
-      setStatus({
-        ok: false,
-        text: `Импорт не удался: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      });
-    }
+  const startEdit = () => {
+    setDraft(code());
+    setStatus(undefined);
+    setEditing(true);
   };
+
+  const applyDraft = () =>
+    importConfig(draft(), (migration) =>
+      ["Конфиг применён", legacyNotice(migration)].filter(Boolean).join(" — "),
+    );
+
+  const importFile = async (file: File) =>
+    importConfig(await file.text(), (migration) =>
+      [`Импортирован файл «${file.name}»`, legacyNotice(migration)]
+        .filter(Boolean)
+        .join(" — "),
+    );
 
   const copyCode = () => {
     navigator.clipboard.writeText(code()).then(
@@ -193,7 +261,7 @@ const CodeTab: Component = () => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       },
-      (err) => console.error("Copy failed", err)
+      (err) => console.error("Copy failed", err),
     );
   };
 
@@ -211,10 +279,10 @@ const CodeTab: Component = () => {
     <div class={styles.code}>
       <div class={styles.codeHeader}>
         <div class={styles.presetSelect}>
-          <span class={styles.presetLabel}>Presets:</span>
+          <span class={styles.presetLabel}>Пресеты:</span>
           <UiSelect
             class={styles.presetTrigger}
-            ariaLabel="Preset"
+            ariaLabel="Пресет"
             value={presetName()}
             items={allPresets().map((p) => p.name)}
             onChange={applyPreset}
@@ -228,18 +296,20 @@ const CodeTab: Component = () => {
                 <button
                   type="button"
                   class={styles.action}
-                  aria-label="Apply edited code"
+                  aria-label="Применить правку кода"
+                  title="Применить правку"
                   onClick={applyDraft}
                 >
-                  ✓
+                  <Icon name="check" size={16} />
                 </button>
                 <button
                   type="button"
                   class={styles.action}
-                  aria-label="Cancel editing"
+                  aria-label="Отменить правку"
+                  title="Отменить правку"
                   onClick={() => setEditing(false)}
                 >
-                  ✕
+                  <Icon name="x" size={16} />
                 </button>
               </>
             }
@@ -247,14 +317,19 @@ const CodeTab: Component = () => {
             <button
               type="button"
               class={styles.action}
-              aria-label="Edit code"
+              aria-label="Править код"
+              title="Править код"
               onClick={startEdit}
             >
-              ✎
+              <Icon name="pencil" size={16} />
             </button>
           </Show>
-          <label class={styles.action} aria-label="Import config file">
-            ⤓
+          <label
+            class={styles.action}
+            aria-label="Импортировать конфиг"
+            title="Импортировать конфиг из файла"
+          >
+            <Icon name="upload" size={16} />
             <input
               type="file"
               accept=".json,application/json"
@@ -269,22 +344,24 @@ const CodeTab: Component = () => {
           <button
             type="button"
             class={styles.action}
-            aria-label="Copy code"
+            aria-label="Скопировать код"
+            title="Скопировать код"
             onClick={copyCode}
           >
             {copied() ? (
-              <Icon name="check" size={14} />
+              <Icon name="check" size={16} />
             ) : (
-              <Icon name="copy" size={14} />
+              <Icon name="copy" size={16} />
             )}
           </button>
           <button
             type="button"
             class={styles.action}
-            aria-label="Download config"
+            aria-label="Скачать конфиг"
+            title="Скачать конфиг файлом"
             onClick={downloadCode}
           >
-            <Icon name="arrow-down" size={14} />
+            <Icon name="download" size={16} />
           </button>
         </div>
       </div>
@@ -296,13 +373,9 @@ const CodeTab: Component = () => {
           </div>
         }
       >
-        <textarea
-          class={styles.codeEdit}
-          value={draft()}
-          onInput={(e) => setDraft(e.currentTarget.value)}
-          spellcheck={false}
-          aria-label="Config JSON"
-        />
+        <div class={styles.codeShell}>
+          <CodeEditor value={draft()} onInput={setDraft} />
+        </div>
       </Show>
       <Show when={status()}>
         {(s) => (
@@ -322,8 +395,8 @@ const CodeTab: Component = () => {
 };
 
 const PresetsTab: Component = () => {
-  const nodes = useNodes();
-  const dispatch = useNodesDispatch();
+  const nodes = useContext(NodesContext);
+  const dispatch = useContext(NodesDispatchContext);
   const [presetId, setPresetId] = createSignal<string>();
   const [name, setName] = createSignal("");
 
@@ -409,16 +482,36 @@ const PresetsTab: Component = () => {
   );
 };
 
+/** Journal line colour per kind. Module styles are static, so the lookup is
+ * built once instead of being recomputed for every line. */
+const LOG_LINE_CLASS: Record<RunMessage["kind"], string> = {
+  info: styles.runLogInfo,
+  ok: styles.runLogOk,
+  error: styles.runLogError,
+};
+
 const RunTab: Component = () => {
-  const nodes = useNodes();
-  const dispatch = useNodesDispatch();
+  const nodes = useContext(NodesContext);
+  const dispatch = useContext(NodesDispatchContext);
   const run = createRunClient();
-  const [endpoint, setEndpoint] = createSignal(resolveEndpoint());
+  let logEl: HTMLDivElement | undefined;
+
+  // The journal is the only record a failed run leaves behind, so it follows
+  // its newest line: a line the user has to scroll for is a line they miss.
+  createEffect(
+    () => run.messages().length,
+    () => {
+      if (logEl === undefined) return;
+      logEl.scrollTop = logEl.scrollHeight;
+    },
+  );
 
   const connect = async () => {
     const url = endpoint().trim();
     if (!url) return;
-    localStorage.setItem(RUN_ENDPOINT_KEY, url);
+    // the setter persists it: the address outlives a reload, and `ls` dials
+    // the same one, so the field is the single place an address is entered
+    setEndpoint(url);
     // force every non-own upscale model onto a real mdb entry (exact or the
     // closest match) so a run can never see an invalid model; the store is
     // updated too, so the corrected name stays visible
@@ -435,7 +528,7 @@ const RunTab: Component = () => {
           dispatch({
             type: NodesActionType.CHANGE,
             payload: {
-              id: node.id,
+              uid: node.uid,
               options: { model: hit.name, model_url: hit.url },
             },
           });
@@ -448,12 +541,38 @@ const RunTab: Component = () => {
         // mdb unreachable: run with what is typed rather than blocking
       }
     }
-    run.start(url, nodesToString(list));
+    run.start(url, convertToPure(list));
   };
 
   const phase = run.phase;
   const busy = () =>
     phase() === "connecting" || phase() === "running" || phase() === "stopping";
+  const stageText = () => {
+    const current = run.progress();
+    return current === undefined ? PREPARING_TEXT : describeStage(current);
+  };
+  // a bar with neither a percent nor a stage yet is "working, size unknown":
+  // a strip frozen at 0 % would read as "stuck"
+  const indeterminate = () => {
+    const current = run.progress();
+    return (
+      current === undefined ||
+      (current.percent === 0 && current.stage === undefined)
+    );
+  };
+  const chips = () => {
+    const current = run.progress();
+    if (current === undefined) return [];
+    // a download counts bytes, every other stage counts items
+    const counters =
+      formatDownloadProgress(current) ?? formatProgressCounters(current);
+    return [
+      counters,
+      formatRate(current),
+      formatEta(current),
+      formatElapsed(current),
+    ].filter((chip): chip is string => chip !== undefined);
+  };
 
   return (
     <div class={styles.run}>
@@ -487,41 +606,56 @@ const RunTab: Component = () => {
       </div>
       <Show when={busy()}>
         <div
-          class={styles.runBar}
+          class={{
+            [styles.runBar]: true,
+            [styles.runBarIndeterminate]: indeterminate(),
+          }}
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={run.progress()?.percent ?? 0}
+          aria-valuetext={stageText()}
         >
           <div
             class={styles.runBarFill}
             style={{ width: `${run.progress()?.percent ?? 0}%` }}
           />
         </div>
-        <Show when={run.progress()?.step}>
-          {(step) => (
-            <p class={styles.runHint}>
-              {run.progress()?.percent}% — {step()}
-            </p>
-          )}
+        <p class={styles.runStage}>{stageText()}</p>
+        <Show when={chips().length > 0}>
+          <div class={styles.runMetrics}>
+            <For each={chips()}>
+              {(chip) => <span class={styles.runChip}>{chip}</span>}
+            </For>
+          </div>
         </Show>
       </Show>
-      <p class={styles.runHint}>
-        Конвейер ({nodes.length} нод) уходит по WebSocket (MessagePack). Адрес
-        можно задать параметром <code>?api=ws://…</code> в URL страницы.
-      </p>
-      <Show when={run.notice()}>
-        {(n) => (
-          <p
-            class={{
-              [styles.status]: true,
-              [styles.ok]: n().ok,
-              [styles.err]: !n().ok,
-            }}
-          >
-            {n().text}
-          </p>
-        )}
+      <Show when={run.messages().length > 0}>
+        <div class={styles.runLogBox}>
+          <div class={styles.runLogHead}>
+            <span class={styles.runLogTitle}>Журнал запуска</span>
+            <button
+              type="button"
+              class={styles.runLogClear}
+              aria-label="Очистить журнал"
+              onClick={() => run.clearMessages()}
+            >
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+          <div class={styles.runLog} ref={logEl}>
+            <For each={run.messages()}>
+              {(message) => (
+                <p class={[styles.runLogLine, LOG_LINE_CLASS[message.kind]]}>
+                  <span class={styles.runLogTime}>
+                    {new Date(message.at).toLocaleTimeString("ru-RU")}
+                  </span>
+                  {message.text}
+                </p>
+              )}
+            </For>
+          </div>
+        </div>
       </Show>
     </div>
   );
@@ -539,7 +673,7 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
       content={(value) => (
         <Switch>
           <Match when={value === "instructions"}>
-            <InstructionsTab selectedId={props.selectedId} />
+            <InstructionsTab selectedUid={props.selectedUid} />
           </Match>
           <Match when={value === "code"}>
             <CodeTab />

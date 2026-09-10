@@ -1,13 +1,14 @@
+import type { StackNode } from "~/types/node";
 import { type Component } from "solid-js";
 import { ReaderNodeMode } from "~/types/enums";
 import { useNodeForm, PathRow, SelectRow, CheckRow } from "./shared";
 import type { FolderReaderNodeOptions } from "~/types/options";
 import styles from "./forms.module.scss";
 
-type FormProps = { nodeId: number };
+type FormProps = { node: StackNode };
 
 export const FolderReaderForm: Component<FormProps> = (props) => {
-  const form = useNodeForm(() => props.nodeId);
+  const form = useNodeForm(() => props.node);
   const options = () => form.options() as FolderReaderNodeOptions;
   return (
     <div class={styles.form}>

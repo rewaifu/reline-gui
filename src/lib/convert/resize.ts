@@ -35,7 +35,6 @@ export const convertResizeToStack: ConvertToStackFunction = (nodes, index) => {
   return [
     [
       {
-        id: index,
         type: NodeType.RESIZE,
         options: {
           ...options,

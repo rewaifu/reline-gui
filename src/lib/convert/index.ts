@@ -6,7 +6,7 @@ import type {
   PureNodeOptions,
   StackNode,
 } from "~/types/node";
-import { MODEL_POSTFIX, MODEL_PREFIX } from "~/constants";
+
 import {
   convertHalftoneToStack,
   convertScreentoneToPure,
@@ -20,6 +20,8 @@ import {
   convertUpscaleToStack,
 } from "~/lib/convert/upscale";
 import { DEFAULT_COLLAPSED } from "~/constants";
+import { ensureUids } from "~/lib/uid";
+import { modelKey } from "~/lib/convert/model-name";
 import {
   convertFolderReaderToPure,
   convertFolderReaderToStack,
@@ -28,7 +30,7 @@ import {
 export type ConvertToPureFunction = (
   nodes: StackNode[],
   index: number,
-  preprocess: PureNode[]
+  preprocess: PureNode[],
 ) => [PureNode[], number];
 
 /** Import context: models downloaded by the preprocess section (name →
@@ -36,13 +38,39 @@ export type ConvertToPureFunction = (
 export interface StackImportContext {
   downloadedModels: ReadonlyMap<string, string | undefined>;
   unarchivedPaths: ReadonlySet<string>;
+  /** Model name → download link, from the loaded model database. */
+  urlOf: (name: string) => string | undefined;
+  /** Accumulates what a legacy config needed rewritten on import. */
+  migration: LegacyMigration;
 }
+
+/** What a legacy (flat, pre-preprocess) config needed rewritten. Empty for
+ * a current config — the caller uses it to tell the user what changed. */
+export interface LegacyMigration {
+  /** model names a legacy inline `download` node asked for */
+  downloads: string[];
+  /** archives a legacy inline `unarchive` node referred to (`<dir>.zip`) */
+  unarchives: string[];
+  /** models rewritten from the legacy mounted path to the bare mdb name */
+  models: { from: string; to: string }[];
+}
+
+export interface StackImportOptions {
+  /** Download link of a model name — legacy configs carry names only, the
+   * link lives in the remote model database (see `model-db.ts`). */
+  urlOf?: (name: string) => string | undefined;
+  /** Called once when the input was a legacy config that got migrated. */
+  onLegacy?: (migration: LegacyMigration) => void;
+}
+/** A node as the converters build it — uid is not yet minted; identity is
+ * assigned once per import in `convertPureList`. */
+type StackNodeDraft = Omit<StackNode, "uid">;
 
 export type ConvertToStackFunction = (
   nodes: PureNode[],
   index: number,
-  ctx: StackImportContext
-) => [StackNode[], number];
+  ctx: StackImportContext,
+) => [StackNodeDraft[], number];
 
 const convertEqualsToPure: ConvertToPureFunction = (nodes, index) => {
   const node = nodes[index];
@@ -56,7 +84,6 @@ const convertEqualsToPure: ConvertToPureFunction = (nodes, index) => {
 const convertEqualsToStack: ConvertToStackFunction = (nodes, index) => {
   const node = nodes[index];
   const result = {
-    id: index,
     type: node.type as unknown as NodeType,
     options: node.options as NodeOptions,
     collapsed: DEFAULT_COLLAPSED,
@@ -91,11 +118,11 @@ const convertToStackMapper: Partial<
 export const convertToPure = (nodes: StackNode[]): PureConfig => {
   const config: PureNode[] = [];
   const preprocess: PureNode[] = [];
-  for (let i = 0; i < nodes.length; ) {
+  for (let i = 0; i < nodes.length;) {
     const [converted, nextIndex] = convertToPureMapper[nodes[i].type](
       nodes,
       i,
-      preprocess
+      preprocess,
     );
     // keep UI-only state on the head pure node of the group (API ignores it)
     const pureNode = nodes[i];
@@ -138,30 +165,52 @@ const dedupeDownloads = (preprocess: PureNode[]): PureNode[] => {
   return [...byName.values(), ...rest];
 };
 
-/** Preprocessors are UI-implicit: on import they dissolve back into flags. */
+/** Preprocessors are UI-implicit: on import they dissolve back into flags.
+ * A legacy flat config keeps them inline in the pipeline, so both lists feed
+ * the same context — and the inline ones are exactly what got migrated. */
 const importContext = (
-  preprocess: PureNode[] | undefined
+  nodes: readonly PureNode[],
+  preprocess: readonly PureNode[] | undefined,
+  options: StackImportOptions,
 ): StackImportContext => {
   const downloadedModels = new Map<string, string | undefined>();
   const unarchivedPaths = new Set<string>();
-  for (const node of preprocess ?? []) {
-    if (node.type === PureNodeType.DOWNLOAD && "name" in node.options) {
-      downloadedModels.set(node.options.name, node.options.url);
+  const migration: LegacyMigration = {
+    downloads: [],
+    unarchives: [],
+    models: [],
+  };
+  const urlOf = options.urlOf ?? ((): undefined => undefined);
+  const absorb = (list: readonly PureNode[], legacy: boolean): void => {
+    for (const node of list) {
+      if (node.type === PureNodeType.DOWNLOAD && "name" in node.options) {
+        const name = modelKey(node.options.name);
+        // a legacy entry has no link of its own: it comes from the database
+        downloadedModels.set(name, node.options.url ?? urlOf(name));
+        if (legacy) migration.downloads.push(name);
+      } else if (
+        node.type === PureNodeType.UNARCHIVE &&
+        "path" in node.options
+      ) {
+        // strip the ".zip" the reader appended on export; legacy entries
+        // point at the directory the archive unpacks into
+        const dir = node.options.path.replace(/\.zip$/, "");
+        unarchivedPaths.add(dir);
+        if (legacy) migration.unarchives.push(`${dir}.zip`);
+      }
     }
-    if (node.type === PureNodeType.UNARCHIVE && "path" in node.options) {
-      // strip the ".zip" the reader appended on export
-      unarchivedPaths.add(node.options.path.replace(/\.zip$/, ""));
-    }
-  }
-  return { downloadedModels, unarchivedPaths };
+  };
+  absorb(preprocess ?? [], false);
+  absorb(nodes, true);
+  return { downloadedModels, unarchivedPaths, urlOf, migration };
 };
 
 const convertPureList = (
   nodes: PureNode[],
-  ctx: StackImportContext
+  ctx: StackImportContext,
 ): StackNode[] => {
-  const result: StackNode[] = [];
-  for (let i = 0; i < nodes.length; ) {
+  const result: StackNodeDraft[] = [];
+  for (let i = 0; i < nodes.length;) {
     // preprocess nodes dissolve into parent flags, they never become stack nodes
     const converter = convertToStackMapper[nodes[i].type];
     if (!converter) {
@@ -177,16 +226,30 @@ const convertPureList = (
     result.push(...converted);
     i = nextIndex;
   }
-  return result.map((node, index) => ({ ...node, id: index }));
+  // converters emit bare nodes — identity is minted here, once per import;
+  // the draft's only gap vs StackNode is the uid ensureUids assigns below
+  return ensureUids(result as StackNode[]);
 };
 
-export const convertToStack = (pure: PureConfig | PureNode[]): StackNode[] => {
-  if (Array.isArray(pure)) {
-    // legacy flat configs have no preprocess section: nothing is downloaded/unarchived implicitly
-    return convertPureList(pure, {
-      downloadedModels: new Map(),
-      unarchivedPaths: new Set(),
-    });
-  }
-  return convertPureList(pure.nodes ?? [], importContext(pure.preprocess));
+export const convertToStack = (
+  pure: PureConfig | PureNode[],
+  options: StackImportOptions = {},
+): StackNode[] => {
+  // a top-level array is the pre-preprocess format: its download/unarchive
+  // nodes live in the pipeline instead of a `preprocess` section
+  const legacy = Array.isArray(pure);
+  const nodes = legacy ? pure : (pure.nodes ?? []);
+  const ctx = importContext(
+    nodes,
+    legacy ? undefined : pure.preprocess,
+    options,
+  );
+  const result = convertPureList(nodes, ctx);
+  const { migration } = ctx;
+  const migrated =
+    migration.downloads.length > 0 ||
+    migration.unarchives.length > 0 ||
+    migration.models.length > 0;
+  if (migrated) options.onLegacy?.(migration);
+  return result;
 };

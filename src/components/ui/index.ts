@@ -1,4 +1,4 @@
-export { UiCheckbox, type UiCheckboxProps } from "./checkbox/checkbox";
+export { UiSwitch, type UiSwitchProps } from "./switch/switch";
 export { UiCombobox, type UiComboboxProps } from "./combobox/combobox";
 export { Icon, type IconName, type IconProps } from "./icon";
 export { Input, type InputProps } from "./input/input";

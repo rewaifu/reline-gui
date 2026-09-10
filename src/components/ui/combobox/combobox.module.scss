@@ -76,3 +76,23 @@
     color: var(--color-primary);
   }
 }
+
+@media (pointer: coarse) {
+  // the chevron doubles as the "show all" affordance — it must be tappable
+  // without hitting the field itself
+  .trigger {
+    right: var(--space-1);
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
+
+  .input {
+    padding-right: calc(var(--touch-min) + var(--space-1));
+  }
+
+  .item {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-min);
+  }
+}

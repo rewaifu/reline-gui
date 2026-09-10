@@ -1,6 +1,6 @@
 import { type StoreSetter } from "solid-js";
 import { type NodesAction, NodesActionType } from "~/types/actions";
-import { ensureUids } from "~/lib/uid";
+import { withFreshUids } from "~/lib/uid";
 import type { StackNode } from "~/types/node";
 
 export type NodesSetter = StoreSetter<StackNode[]>;
@@ -16,12 +16,12 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
   switch (type) {
     case NodesActionType.CHANGE: {
       setNodes((state) => {
-        const index = state.findIndex((node) => node.id === payload.id);
+        const index = state.findIndex((node) => node.uid === payload.uid);
         if (index === -1) return;
         // merge in place: assigning state[index] = payload would swap the item
         // reference, and <For> (keyed by reference) would remount the whole
         // card — every keystroke dropped input focus
-        const { options, ...rest } = payload;
+        const { uid: _uid, options, ...rest } = payload;
         if (options !== undefined) Object.assign(state[index].options, options);
         Object.assign(state[index], rest);
       });
@@ -34,11 +34,10 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
         const [moved] = next.splice(payload.from, 1);
         if (!moved) return state;
         next.splice(payload.to, 0, moved);
-        // reindex, but keep object identity for nodes whose id did not change
-        // so keyed rendering (and FLIP animations) can reuse DOM nodes
-        return next.map((node, index) =>
-          node.id === index ? node : { ...node, id: index }
-        );
+        // survivors keep their object references: <For> moves the existing
+        // DOM nodes instead of unmounting and remounting every row, and the
+        // FLIP animation only has to tween positions, not rebuild cards
+        return next;
       });
       break;
 
@@ -51,16 +50,13 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
       break;
 
     case NodesActionType.DELETE:
-      // ids are array positions: drop the node and reindex the rest
-      setNodes((state) =>
-        state
-          .filter((node) => node.id !== payload)
-          .map((node, index) => ({ ...node, id: index }))
-      );
+      // filter keeps every survivor's reference — no remounts, and nothing
+      // needs reindexing: uid is the identity, position is the For accessor
+      setNodes((state) => state.filter((node) => node.uid !== payload));
       break;
 
     case NodesActionType.IMPORT:
-      setNodes(() => ensureUids(payload));
+      setNodes(() => withFreshUids(payload));
       break;
 
     default:

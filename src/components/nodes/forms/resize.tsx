@@ -1,3 +1,4 @@
+import type { StackNode } from "~/types/node";
 import { type Component, Show, createMemo } from "solid-js";
 import { FilterType, ResizeType } from "~/types/enums";
 import {
@@ -9,12 +10,9 @@ import {
   ComboboxRow,
 } from "./shared";
 import type { ResizeNodeOptions } from "~/types/options";
-import type { NodeOptions } from "~/types/node";
 import styles from "./forms.module.scss";
 
-type FormProps = { nodeId: number };
-
-
+type FormProps = { node: StackNode };
 
 type SizeParam = "width" | "height" | "percent";
 
@@ -41,7 +39,7 @@ const readStash = (): Partial<Record<SizeParam, number>> => {
 };
 
 export const ResizeForm: Component<FormProps> = (props) => {
-  const form = useNodeForm(() => props.nodeId);
+  const form = useNodeForm(() => props.node);
   const options = () => form.options() as ResizeNodeOptions;
   const type = createMemo(() => options().resize_type);
 

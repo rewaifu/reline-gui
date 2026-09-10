@@ -96,7 +96,9 @@ export enum CannyType {
 export enum DotType {
   CIRCLE = "circle",
   LINE = "line",
-  INVERT = "cross",
+  // named for the wire value: the old INVERT name read as an inversion but
+  // serialized "cross" (a real INVLINE lives right below)
+  CROSS = "cross",
   ELLIPSE = "ellipse",
   INVLINE = "invline",
 }

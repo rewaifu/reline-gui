@@ -1,13 +1,14 @@
+import type { StackNode } from "~/types/node";
 import { type Component, Show } from "solid-js";
 import { DType, TilerType } from "~/types/enums";
 import { useNodeForm, PathRow, NumberRow, SelectRow, CheckRow } from "./shared";
 import type { UpscaleNodeOptions } from "~/types/options";
 import styles from "./forms.module.scss";
 
-type FormProps = { nodeId: number };
+type FormProps = { node: StackNode };
 
 export const UpscaleForm: Component<FormProps> = (props) => {
-  const form = useNodeForm(() => props.nodeId);
+  const form = useNodeForm(() => props.node);
   const options = () => form.options() as UpscaleNodeOptions;
   return (
     <div class={styles.form}>

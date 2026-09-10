@@ -1,7 +1,8 @@
-import { type Component, createEffect, createStore, snapshot } from "solid-js";
+import { type Component, createEffect, createStore, onSettled } from "solid-js";
 import { NodeType } from "~/types/enums";
 import { ensureUids } from "~/lib/uid";
-import { STORAGE_KEY, DEFAULT_NODES } from "~/constants";
+import { preloadModelNames } from "~/lib/model-db";
+import { STORAGE_KEY, createDefaultNodes } from "~/constants";
 import type { StackNode } from "~/types/node";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
@@ -15,32 +16,48 @@ const loadNodes = (): StackNode[] => {
     if (raw) {
       // drop node types this build no longer knows (e.g. removed experiments)
       const parsed = (JSON.parse(raw) as StackNode[]).filter((n) =>
-        known.has(n.type)
+        known.has(n.type),
       );
       return ensureUids(parsed);
     }
   } catch {
     // corrupted storage — fall through to defaults
   }
-  return ensureUids(structuredClone(DEFAULT_NODES));
+  return ensureUids(createDefaultNodes());
 };
 
 const App: Component = () => {
   const [nodes, setNodes] = createStore<StackNode[]>(loadNodes());
   const dispatch = createNodesDispatch(setNodes);
 
+  // Warm the remote model index once, in the background: model completion and
+  // name resolution read it synchronously, so the first focus on a model field
+  // no longer waits for the network (and the legacy-config import can look up
+  // download links right away).
+  onSettled(() => {
+    void preloadModelNames();
+  });
+
   // Single write path for persistence: any store change lands in localStorage.
   // The compute must read through the store proxy: `snapshot()` is untracked,
-  // so wrapping it here would only persist the initial state.
+  // so wrapping it here would only persist the initial state. The write is
+  // debounced: serialisation subscribes to every option leaf, so typing in a
+  // number field would otherwise block the main thread once per keystroke.
+  let saveTimer: number | undefined;
   createEffect(
     () => JSON.stringify(nodes),
     (json) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, json);
-      } catch {
-        // storage full or unavailable — keep the app usable
-      }
-    }
+      clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(() => {
+        try {
+          localStorage.setItem(STORAGE_KEY, json);
+        } catch {
+          // storage full or unavailable — keep the app usable
+        }
+      }, 300);
+      // cancel a pending write before the next run (and on disposal)
+      return () => clearTimeout(saveTimer);
+    },
   );
 
   return (

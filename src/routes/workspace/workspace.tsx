@@ -4,18 +4,20 @@ import {
   Match,
   Show,
   Switch,
+  createProjection,
   createSignal,
 } from "solid-js";
 import { MIN_RIGHT_WIDTH, MIN_SIDE_WIDTH } from "~/constants";
 import { NodesList } from "~/components/nodes-list/nodes-list";
-import { NodeCards } from "~/components/node-card/node-card";
+import { NodeStack } from "~/components/node-card/node-card";
 import { ConfigPanel } from "~/components/config-panel/config-panel";
+import { createMediaQuery } from "~/instructions/hooks/use-media-query";
 import {
   COLUMN_KEYS,
   createColumnsLayout,
   type ColumnKey,
   type ResizableSide,
-} from "~/hooks/use-columns-layout";
+} from "~/instructions/hooks/use-columns-layout";
 import styles from "./workspace.module.scss";
 
 const COLUMN_LABELS: Record<ColumnKey, string> = {
@@ -24,8 +26,32 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   right: "Настройки",
 };
 
+/**
+ * Phones: one panel at a time with the switcher pinned to the bottom edge.
+ * Side-by-side columns are unusable there — three stacked panels turned the
+ * page into a 2000px scroll, and every panel lost its own scroll context.
+ */
+const PHONE_QUERY =
+  "(max-width: 700px), (pointer: coarse) and (max-height: 500px)";
+
+/**
+ * A phone shows the stack and the settings, nothing else: the node list is a
+ * second view of the same stack, and its only unique controls (the enable
+ * switch, add-node) moved onto the stack panel. Fewer, bigger targets beat a
+ * third panel on a 390px screen.
+ */
+const PHONE_COLUMN_KEYS: readonly ColumnKey[] = ["middle", "right"];
+
 const Workspace: Component = () => {
-  const [selectedId, setSelectedId] = createSignal<number | null>(null);
+  const [selectedUid, setSelectedUid] = createSignal<string | null>(null);
+  // Keyed selection projection: on every click only the entering and
+  // leaving rows recompute (1–2 class updates total) instead of every card
+  // re-comparing its id against the selected one (n per click).
+  const isSelected = createProjection<Record<string, boolean>>((draft) => {
+    for (const key of Object.keys(draft)) delete draft[key];
+    const uid = selectedUid();
+    if (uid !== null) draft[uid] = true;
+  }, {});
   const {
     layout,
     resizing,
@@ -39,11 +65,16 @@ const Workspace: Component = () => {
   } = createColumnsLayout();
 
   const columns = visibleColumns;
-  const hidden = (key: ColumnKey) => layout().hidden[key];
-  const sole = () => columns().length === 1;
+  const phone = createMediaQuery(PHONE_QUERY);
+  /** Which panel the phone shows — the desktop layout keeps all three. */
+  const [phonePanel, setPhonePanel] = createSignal<ColumnKey>("middle");
+  const shown = () => (phone() ? [phonePanel()] : columns());
+  const hidden = (key: ColumnKey) =>
+    phone() ? key !== phonePanel() : layout().hidden[key];
+  const sole = () => shown().length === 1;
   /** Column that eats the remaining space: the stack, or the last one when it is hidden. */
   const flexKey = () =>
-    hidden("middle") ? columns()[columns().length - 1]! : "middle";
+    phone() || hidden("middle") ? shown()[shown().length - 1]! : "middle";
   /** The divider left of `key` resizes the stack's neighbour — right column, or left when the stack is hidden. */
   const neighbourOf = (key: ColumnKey): ColumnKey =>
     key === "right" && !hidden("middle") ? "middle" : "left";
@@ -51,21 +82,25 @@ const Workspace: Component = () => {
     neighbourOf(key) === "middle" ? "right" : "left";
   /** Columns are kept mounted (only hidden) — unmounting Kobalte tabs halts Solid's reactive graph. */
   const splitterActive = (key: ColumnKey) =>
-    !hidden(key) && columns().indexOf(key) > 0;
+    !phone() && !hidden(key) && shown().indexOf(key) > 0;
 
   return (
     <div class={styles.workspace}>
       <header class={styles.topbar}>
         <span class={styles.logo}>Reline</span>
         <div class={styles.viewToggles} role="group" aria-label="Панели">
-          <For each={["left", "middle", "right"] as ColumnKey[]}>
+          <For each={phone() ? PHONE_COLUMN_KEYS : COLUMN_KEYS}>
             {(key) => (
               <button
                 type="button"
                 class={styles.toggle}
-                aria-pressed={!layout().hidden[key] ? "true" : "false"}
-                disabled={!layout().hidden[key] && sole()}
-                onClick={() => toggleHidden(key)}
+                aria-pressed={!hidden(key) ? "true" : "false"}
+                // on a phone the group is a switcher: one panel is always
+                // active, so nothing may look disabled
+                disabled={!phone() && !hidden(key) && sole()}
+                onClick={() =>
+                  phone() ? setPhonePanel(key) : toggleHidden(key)
+                }
               >
                 {COLUMN_LABELS[key]}
               </button>
@@ -122,18 +157,21 @@ const Workspace: Component = () => {
                 <Switch>
                   <Match when={key === "left"}>
                     <NodesList
-                      selectedId={selectedId}
-                      onSelect={setSelectedId}
+                      selectedUid={selectedUid}
+                      isSelected={isSelected}
+                      onSelect={setSelectedUid}
                     />
                   </Match>
                   <Match when={key === "middle"}>
-                    <NodeCards
-                      selectedId={selectedId}
-                      onSelect={setSelectedId}
+                    <NodeStack
+                      selectedUid={selectedUid}
+                      isSelected={isSelected}
+                      onSelect={setSelectedUid}
+                      phone={phone()}
                     />
                   </Match>
                   <Match when={key === "right"}>
-                    <ConfigPanel selectedId={selectedId} />
+                    <ConfigPanel selectedUid={selectedUid} />
                   </Match>
                 </Switch>
               </div>

@@ -11,7 +11,7 @@ const unwrap = (value: unknown) =>
 
 export const convertScreentoneToPure: ConvertToPureFunction = (
   nodes,
-  index
+  index,
 ) => {
   const node = nodes[index];
   const options = node.options as ScreentoneNodeOptions;
@@ -35,14 +35,13 @@ export const convertScreentoneToPure: ConvertToPureFunction = (
 
 export const convertHalftoneToStack: ConvertToStackFunction = (
   nodes,
-  index
+  index,
 ) => {
   const node = nodes[index];
   const options = node.options as ScreentoneNodeOptions;
   return [
     [
       {
-        id: index,
         type: NodeType.SCREENTONE,
         options: options,
         collapsed: DEFAULT_COLLAPSED,

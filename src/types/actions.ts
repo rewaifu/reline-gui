@@ -14,13 +14,14 @@ interface AddNodeActionType {
 
 interface DeleteNodeActionType {
   type: NodesActionType.DELETE;
-  payload: number;
+  /** uid of the node to remove. */
+  payload: string;
 }
 
 interface ChangeNodeActionType {
   type: NodesActionType.CHANGE;
-  payload: { id: number; options?: Partial<NodeOptions> } & Partial<
-    Omit<StackNode, "options">
+  payload: { uid: string; options?: Partial<NodeOptions> } & Partial<
+    Omit<StackNode, "options" | "uid">
   >;
 }
 

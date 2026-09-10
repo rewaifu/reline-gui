@@ -1,7 +1,8 @@
-import { omit, type Component, createEffect, createSignal } from "solid-js";
+import { omit, type Component, createSignal } from "solid-js";
 import { Select } from "@kobalte/core/select";
 import { Icon } from "../icon";
 import styles from "./select.module.scss";
+import { createDismissOnOutside } from "../create-dismiss-on-outside";
 
 export interface UiSelectProps {
   value: string | null;
@@ -24,41 +25,13 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
     "placeholder",
     "ariaLabel",
     "id",
-    "class"
+    "class",
   );
   const [open, setOpen] = createSignal(false);
   let rootEl: HTMLDivElement | undefined;
   let contentEl: HTMLDivElement | undefined;
 
-  // Kobalte's dismissable layer does not close the listbox on outside
-  // interaction under solid 2 rc — close it ourselves: any pointer down
-  // that lands outside the trigger block and the portaled listbox.
-  createEffect(
-    () => open(),
-    (isOpen) => {
-      if (!isOpen) return;
-
-      const onPointerDown = (e: PointerEvent) => {
-        const target = e.target;
-        if (
-          target instanceof Node &&
-          (rootEl?.contains(target) || contentEl?.contains(target))
-        )
-          return;
-        setOpen(false);
-      };
-      const onKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "Escape") setOpen(false);
-      };
-
-      document.addEventListener("pointerdown", onPointerDown, true);
-      document.addEventListener("keydown", onKeyDown);
-      return () => {
-        document.removeEventListener("pointerdown", onPointerDown, true);
-        document.removeEventListener("keydown", onKeyDown);
-      };
-    }
-  );
+  createDismissOnOutside(open, setOpen, () => [rootEl, contentEl]);
 
   return (
     <Select
@@ -84,9 +57,12 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
           aria-label={props.ariaLabel}
         >
           <Select.Value class={styles.value}>
-            {(state) =>
-              String(state.selectedOption() ?? props.placeholder ?? "")
-            }
+            {(state) => {
+              // items are strings (UiSelectProps.items: readonly string[]),
+              // but Kobalte types the selected option as unknown
+              const selected = state.selectedOption() as string | undefined;
+              return selected ?? props.placeholder ?? "";
+            }}
           </Select.Value>
           <Select.Icon class={styles.icon} aria-hidden="true">
             <Icon name="chevron-down" size={14} />

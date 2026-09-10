@@ -1,3 +1,4 @@
+import type { StackNode } from "~/types/node";
 import { type Component, For, Show } from "solid-js";
 import { DotType, HalftoneMode } from "~/types/enums";
 import {
@@ -11,13 +12,13 @@ import {
 import type { ScreentoneNodeOptions } from "~/types/options";
 import styles from "./forms.module.scss";
 
-type FormProps = { nodeId: number };
+type FormProps = { node: StackNode };
 
 const DOT_TYPES = [
   DotType.CIRCLE,
   DotType.LINE,
   DotType.ELLIPSE,
-  DotType.INVERT,
+  DotType.CROSS,
   DotType.INVLINE,
 ] as const;
 
@@ -52,10 +53,10 @@ const readStash = (): Stash => {
 
 const lastNum = (value: unknown, dflt: number): number =>
   Array.isArray(value)
-    ? (value[value.length - 1] as number) ?? dflt
+    ? ((value[value.length - 1] as number) ?? dflt)
     : typeof value === "number"
-    ? value
-    : dflt;
+      ? value
+      : dflt;
 
 const lastType = (value: unknown): DotType => {
   if (Array.isArray(value))
@@ -63,11 +64,8 @@ const lastType = (value: unknown): DotType => {
   return typeof value === "string" ? (value as DotType) : DotType.CIRCLE;
 };
 
-const channelAt = (value: number | number[], i: number): number =>
-  Array.isArray(value) ? value[i] ?? 0 : value;
-
 export const ScreentoneForm: Component<FormProps> = (props) => {
-  const form = useNodeForm(() => props.nodeId);
+  const form = useNodeForm(() => props.node);
   const options = () => form.options() as ScreentoneNodeOptions;
   const multi = () => options().halftone_mode !== HalftoneMode.GRAY;
   const channels = () => CHANNELS[options().halftone_mode];
@@ -86,17 +84,17 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
     const count = CHANNELS[next].length;
     const num = (
       field: "dot_size" | "angle",
-      dflt: number
+      dflt: number,
     ): number | number[] => {
       if (count === 1) return lastNum(from[field] ?? options()[field], dflt);
       const src = from[field] ?? options()[field];
       const fallback = lastNum(src, dflt);
       return Array.from({ length: count }, (_, i) =>
         Array.isArray(src)
-          ? src[i] ?? fallback
+          ? (src[i] ?? fallback)
           : typeof src === "number"
-          ? src
-          : dflt
+            ? src
+            : dflt,
       );
     };
     const dtype = (): DotType | DotType[] => {
@@ -104,7 +102,7 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
       const src = from.dot_type ?? options().dot_type;
       const fallback = lastType(src);
       return Array.from({ length: count }, (_, i) =>
-        Array.isArray(src) ? (src[i] as DotType) ?? fallback : fallback
+        Array.isArray(src) ? ((src[i] as DotType) ?? fallback) : fallback,
       );
     };
     form.set({

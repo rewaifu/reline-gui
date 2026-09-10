@@ -4,7 +4,7 @@ import type {
   ConvertToStackFunction,
 } from "~/lib/convert/index";
 import { UpscaleOptionsSchema } from "~/types/options";
-import { MODEL_POSTFIX, MODEL_PREFIX } from "~/constants";
+import { stripModelPath } from "~/lib/convert/model-name";
 import { NodeType, PureNodeType } from "~/types/enums";
 import { DEFAULT_COLLAPSED } from "~/constants";
 
@@ -17,12 +17,12 @@ import { DEFAULT_COLLAPSED } from "~/constants";
 export const convertUpscaleToPure: ConvertToPureFunction = (
   nodes,
   index,
-  preprocess
+  preprocess,
 ) => {
   const node = nodes[index];
   const { is_own_model, model_url, ...rest } = v.parse(
     UpscaleOptionsSchema,
-    node.options
+    node.options,
   );
   if (is_own_model || rest.model === "") {
     // own path needs no download; an unpicked model must not spawn a
@@ -41,8 +41,8 @@ export const convertUpscaleToPure: ConvertToPureFunction = (
 };
 
 // Import: the serialized upscale has no `is_own_model` flag — it is derived
-// from the preprocess download section. Names may be bare (current format) or
-// legacy-prefixed "/content/models/<name>.pth"; both resolve to the bare name.
+// from the download section (current format) or from the model database
+// (legacy configs keep the mounted path and carry no link at all).
 const upscaleImportSchema = v.omit(UpscaleOptionsSchema, [
   "is_own_model",
   "model_url",
@@ -51,28 +51,28 @@ const upscaleImportSchema = v.omit(UpscaleOptionsSchema, [
 export const convertUpscaleToStack: ConvertToStackFunction = (
   nodes,
   index,
-  ctx
+  ctx,
 ) => {
   const node = nodes[index];
   const options = v.parse(upscaleImportSchema, node.options);
-  const stripped = stripModelPrefix(options.model);
+  const stripped = stripModelPath(options.model);
   const name = stripped ?? options.model;
-  if (ctx.downloadedModels.has(name)) {
-    const url = ctx.downloadedModels.get(name);
+  const downloaded = ctx.downloadedModels.get(name);
+  // a legacy mounted path is never an own model when the database knows the
+  // name — its link is what the Download preprocessor needs
+  const url = downloaded ?? (stripped === null ? undefined : ctx.urlOf(name));
+  const isOwn = !ctx.downloadedModels.has(name) && url === undefined;
+  if (stripped !== null && !isOwn) {
+    // the mounted path was replaced by the bare mdb name
+    ctx.migration.models.push({ from: options.model, to: name });
+  }
+  if (isOwn) {
+    // own model: keep the typed path (the runner resolves it itself)
     return [
       [
         {
-          id: index,
           type: NodeType.UPSCALE,
-          options:
-            url === undefined
-              ? { ...options, model: name, is_own_model: false }
-              : {
-                  ...options,
-                  model: name,
-                  is_own_model: false,
-                  model_url: url,
-                },
+          options: { ...options, is_own_model: true },
           collapsed: DEFAULT_COLLAPSED,
         },
       ],
@@ -82,18 +82,16 @@ export const convertUpscaleToStack: ConvertToStackFunction = (
   return [
     [
       {
-        id: index,
         type: NodeType.UPSCALE,
-        options: { ...options, is_own_model: true },
+        options: {
+          ...options,
+          model: name,
+          is_own_model: false,
+          ...(url === undefined ? {} : { model_url: url }),
+        },
         collapsed: DEFAULT_COLLAPSED,
       },
     ],
     index + 1,
   ];
-};
-
-const stripModelPrefix = (model: string): string | null => {
-  if (!model.startsWith(MODEL_PREFIX) || !model.endsWith(MODEL_POSTFIX))
-    return null;
-  return model.slice(MODEL_PREFIX.length, model.length - MODEL_POSTFIX.length);
 };

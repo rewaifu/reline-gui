@@ -24,7 +24,7 @@ export const UiSlider: Component<UiSliderProps> = (props) => {
     "max",
     "step",
     "id",
-    "class"
+    "class",
   );
   const min = () => props.min ?? 0;
   const max = () => props.max ?? 100;

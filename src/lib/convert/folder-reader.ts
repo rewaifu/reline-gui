@@ -14,12 +14,12 @@ import { DEFAULT_COLLAPSED } from "~/constants";
 export const convertFolderReaderToPure: ConvertToPureFunction = (
   nodes,
   index,
-  preprocess
+  preprocess,
 ) => {
   const node = nodes[index];
   const { unarchive, ...pureOptions } = v.parse(
     folderReaderOptionsSchema,
-    node.options
+    node.options,
   );
   if (unarchive) {
     preprocess.push({
@@ -45,7 +45,7 @@ const readerImportSchema = v.object({
 export const convertFolderReaderToStack: ConvertToStackFunction = (
   nodes,
   index,
-  ctx
+  ctx,
 ) => {
   const node = nodes[index];
   const parsed = v.parse(readerImportSchema, node.options);
@@ -56,7 +56,6 @@ export const convertFolderReaderToStack: ConvertToStackFunction = (
   return [
     [
       {
-        id: index,
         type: NodeType.FOLDER_READER,
         options,
         collapsed: DEFAULT_COLLAPSED,

@@ -1,9 +1,12 @@
 import { encode, decode } from "notepack.io";
-import { resolveEndpoint } from "./run-client";
+import { endpoint } from "./run-client";
+import { ECHO_INTERVAL_MS, ECHO_TIMEOUT_MS } from "./ws-protocol";
 
 export interface LsOptions {
-  filesOnly?: boolean;
   ext?: string[];
+  /** Only files, no directories — for callers that complete a file rather
+   * than walk the tree (`files_only` on the wire). */
+  filesOnly?: boolean;
 }
 
 export interface LsResult {
@@ -17,7 +20,6 @@ interface Envelope {
   d?: Record<string, unknown>;
 }
 
-const ECHO_INTERVAL_MS = 20000;
 const LS_TIMEOUT_MS = 17000;
 const RECONNECT_MS = 5000;
 
@@ -29,11 +31,16 @@ type Reject = (reason: string) => void;
  * reconnects transparently when the server comes back. */
 class LsClient {
   private ws: WebSocket | undefined;
+  //: address the live socket was opened to, so an edit is noticed
+  private url: string | undefined;
   private echoTimer: ReturnType<typeof setInterval> | undefined;
   private lastEcho = 0;
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private failures = new Map<number, Reject>();
+  // one timeout handle per in-flight request — cleared as soon as it settles,
+  // so a typing session does not accumulate a dozen live 17 s timers
+  private timers = new Map<number, number>();
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   // requests that arrived while the socket was still CONNECTING — flushed on open
   private queue: Array<{ id: number; path: string; opts: LsOptions }> = [];
@@ -47,19 +54,47 @@ class LsClient {
       this.pending.set(id, resolve);
       this.failures.set(id, reject);
     });
-    this.send(id, path, opts);
-    setTimeout(() => {
-      if (this.pending.delete(id)) {
-        this.failures.delete(id);
+    this.timers.set(
+      id,
+      window.setTimeout(() => {
+        this.settle(id);
         fail("ls: нет ответа от сервера");
-      }
-    }, LS_TIMEOUT_MS);
+      }, LS_TIMEOUT_MS),
+    );
+    this.send(id, path, opts);
     return promise;
   }
 
+  /** Drop a request's bookkeeping once it has resolved, failed or timed out. */
+  private settle(id: number) {
+    this.pending.delete(id);
+    this.failures.delete(id);
+    clearTimeout(this.timers.get(id));
+    this.timers.delete(id);
+  }
+
   private ensureSocket() {
+    // The address can change while a socket is open, and a socket to the old
+    // host can only answer with the old host's paths: drop it and dial the
+    // current address. Its in-flight lookups fail; the next keystroke asks the
+    // right server anyway.
+    if (this.ws !== undefined && this.url !== endpoint()) this.dropSocket();
     if (this.ws !== undefined || this.reconnectTimer !== undefined) return;
     this.connect();
+  }
+
+  /** Forget the live socket, if any, without scheduling a reconnect. */
+  private dropSocket() {
+    const socket = this.ws;
+    this.ws = undefined;
+    this.url = undefined;
+    this.queue.length = 0;
+    this.stopEcho();
+    if (socket !== undefined) {
+      socket.onopen = socket.onmessage = socket.onclose = socket.onerror = null;
+      socket.close();
+    }
+    this.failAll("ls: адрес изменён");
   }
 
   private connect() {
@@ -67,15 +102,17 @@ class LsClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    const url = endpoint();
     let socket: WebSocket;
     try {
-      socket = new WebSocket(resolveEndpoint());
+      socket = new WebSocket(url);
     } catch {
       this.scheduleReconnect();
       return;
     }
     socket.binaryType = "arraybuffer";
     this.ws = socket;
+    this.url = url;
     socket.onopen = () => {
       this.lastEcho = Date.now();
       this.startEcho();
@@ -97,8 +134,7 @@ class LsClient {
       if (msg.m !== "ls") return;
       const resolve = this.pending.get(msg.id ?? 0);
       if (resolve === undefined) return;
-      this.pending.delete(msg.id ?? 0);
-      this.failures.delete(msg.id ?? 0);
+      this.settle(msg.id ?? 0);
       const d = msg.d ?? {};
       resolve({
         entries: (d.entries as string[]) ?? [],
@@ -109,6 +145,7 @@ class LsClient {
       if (this.ws !== socket) return;
       this.queue.length = 0;
       this.ws = undefined;
+      this.url = undefined;
       this.stopEcho();
       this.failAll("ls: соединение закрыто");
       this.scheduleReconnect();
@@ -130,12 +167,14 @@ class LsClient {
     for (const reject of this.failures.values()) reject(reason);
     this.failures.clear();
     this.pending.clear();
+    for (const timer of this.timers.values()) clearTimeout(timer);
+    this.timers.clear();
   }
 
   private startEcho() {
     this.stopEcho();
     this.echoTimer = setInterval(() => {
-      if (Date.now() - this.lastEcho > 15000) {
+      if (Date.now() - this.lastEcho > ECHO_TIMEOUT_MS) {
         this.ws?.close();
         return;
       }
@@ -157,10 +196,12 @@ class LsClient {
       return;
     }
     const d: Record<string, unknown> = { path };
-    if (opts.filesOnly) d.files_only = true;
     if (opts.ext !== undefined) d.ext = opts.ext;
+    if (opts.filesOnly === true) d.files_only = true;
+    // The echo (id 0) is a heartbeat, not a lookup: it carries no path options.
+    // `root` is not sent either — the deployment sets the base it browses.
     this.ws.send(
-      encode({ m: id === 0 ? "echo" : "ls", id, d } satisfies Envelope)
+      encode({ m: id === 0 ? "echo" : "ls", id, d } satisfies Envelope),
     );
   }
 }

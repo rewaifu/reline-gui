@@ -1,7 +1,7 @@
-import { type Component, Show } from "solid-js";
+import type { Component } from "solid-js";
 import { Dynamic } from "@solidjs/web";
-import { useNodes } from "~/context/contexts";
 import { NodeType } from "~/types/enums";
+import type { StackNode } from "~/types/node";
 import { FolderReaderForm } from "./forms/folder-reader";
 import { FolderWriterForm } from "./forms/folder-writer";
 import { UpscaleForm } from "./forms/upscale";
@@ -12,7 +12,8 @@ import { LevelForm } from "./forms/level";
 import { CvtColorForm } from "./forms/cvt-color";
 
 export interface NodeFormProps {
-  nodeId: number;
+  /** The row's node object, handed down from <For> via NodeCard. */
+  node: StackNode;
 }
 
 const FORMS: Record<NodeType, Component<NodeFormProps>> = {
@@ -27,15 +28,6 @@ const FORMS: Record<NodeType, Component<NodeFormProps>> = {
 };
 
 /** Routes the expanded node body to its hand-crafted per-type form. */
-export const NodeOptionsForm: Component<NodeFormProps> = (props) => {
-  const nodes = useNodes();
-  const node = () => nodes.find((n) => n.id === props.nodeId);
-
-  return (
-    <Show when={node()}>
-      {(node) => (
-        <Dynamic component={FORMS[node().type]} nodeId={props.nodeId} />
-      )}
-    </Show>
-  );
-};
+export const NodeOptionsForm: Component<NodeFormProps> = (props) => (
+  <Dynamic component={FORMS[props.node.type]} node={props.node} />
+);

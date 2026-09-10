@@ -28,8 +28,19 @@ const PATHS = {
     "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12",
     "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3",
   ],
-  "arrow-down": ["M12 5l0 14", "M18 13l-6 6-6-6"],
-  "arrow-back-up": ["M9 14l-4-4 4-4", "M5 10h11a4 4 0 1 1 0 8h-1"],
+  // Import / export as a file: one arrow leaves the tray, the other enters
+  // it. The pair is only readable when the directions are opposite — a tray
+  // line alone (⤓ vs ↓) was indistinguishable at 16px.
+  upload: [
+    "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2",
+    "M7 9l5 -5l5 5",
+    "M12 4l0 12",
+  ],
+  download: [
+    "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2",
+    "M7 11l5 5l5 -5",
+    "M12 4l0 12",
+  ],
   copy: [
     "M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z",
     "M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2",

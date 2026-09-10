@@ -2,30 +2,17 @@
   "name": "reline-web",
   "version": "0.0.0",
   "description": "",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "start": "vite",
     "dev": "vite",
-    "build": "vite build && rm -rf dist/client/.vite",
+    "build": "vite build && rimraf dist/client/.vite",
     "serve": "vite preview",
     "test": "vitest",
-    "lint": "oxlint src",
-    "format": "prettier --write ."
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "@solidjs/diagnostics": "^2.0.0-rc.6",
-    "@solidjs/testing-library": "^1.0.0-beta.3",
-    "@solidjs/vite-plugin": "^3.0.0-next.38",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@types/node": "^26.5.0",
-    "eslint-plugin-solid": "~0.17.0",
-    "jsdom": "^25.0.1",
-    "oxlint": "~1.79.0",
-    "sass": "^1.104.0",
-    "typescript": "^5.9.2",
-    "vite": "^8.1.5",
-    "vitest": "^4.0.0"
+    "lint": "oxlint --type-aware --type-check",
+    "typecheck": "tsc --noEmit",
+    "format": "oxfmt"
   },
   "dependencies": {
     "@kobalte/core": "git+https://github.com/umzi2/kobalte_fork.git#pkg",
@@ -35,6 +22,35 @@
     "marked": "^18.0.12",
     "notepack.io": "^3.0.1",
     "solid-js": "2.0.0-rc.6",
+    "sugar-high": "^2.4.0",
     "valibot": "^1.4.2"
-  }
+  },
+  "devDependencies": {
+    "@solidjs/diagnostics": "^2.0.0-rc.6",
+    "@solidjs/testing-library": "^1.0.0-beta.3",
+    "@solidjs/vite-plugin": "^3.0.0-next.38",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@types/node": "^26.5.0",
+    "eslint": "^9",
+    "eslint-plugin-solid": "~0.17.0",
+    "jsdom": "^25.0.1",
+    "oxfmt": "^0.67.0",
+    "oxlint": "~1.79.0",
+    "oxlint-tsgolint": "^7",
+    "rimraf": "^6",
+    "sass": "^1.104.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.0.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "onFail": "warn"
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.3.4"
 }

@@ -13,7 +13,8 @@ export const flipReorder = (
   container: HTMLElement | undefined,
   itemSelector: string,
   mutate: () => void,
-  getKey: (el: HTMLElement) => string | null = (el) => el.dataset.nodeId ?? null
+  getKey: (el: HTMLElement) => string | null = (el) =>
+    el.dataset.nodeId ?? null,
 ): void => {
   if (!container) {
     mutate();
@@ -25,7 +26,7 @@ export const flipReorder = (
 
   const firstTop = new Map<string, number>();
   for (const el of Array.from(
-    container.querySelectorAll<HTMLElement>(itemSelector)
+    container.querySelectorAll<HTMLElement>(itemSelector),
   )) {
     const key = getKey(el);
     if (key !== null) firstTop.set(key, relativeTop(el));
@@ -35,7 +36,7 @@ export const flipReorder = (
 
   requestAnimationFrame(() => {
     for (const el of Array.from(
-      container.querySelectorAll<HTMLElement>(itemSelector)
+      container.querySelectorAll<HTMLElement>(itemSelector),
     )) {
       const key = getKey(el);
       const prevTop = key === null ? undefined : firstTop.get(key);
@@ -47,7 +48,7 @@ export const flipReorder = (
         {
           duration: 350,
           easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-        }
+        },
       );
     }
   });

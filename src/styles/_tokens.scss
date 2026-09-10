@@ -19,10 +19,12 @@
   --color-text: #e6e7ea;
   --color-text-muted: #a3a7b0;
 
-  // accents
+  // accents — semantic names, semantic values: success must never read as
+  // an error, and selected must not equal the hover colour
   --color-primary: #975151;
-  --color_accent: #975151;
-  --color-success: #975151;
+  --color-success: #4ade80;
+  --color-danger: #f87171;
+
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -41,6 +43,23 @@
   --font-size-md: 0.875rem;
   --font-size-lg: 0.9375rem;
   --font-size-xl: 1.125rem;
+  // Text fields carry their own size: iOS Safari zooms the page on focus when
+  // a field is under 16px, and the zoom sticks, so every field (and the code
+  // editor, whose highlight layer must keep the textarea's metrics) sizes
+  // from this one token.
+  --font-size-field: var(--font-size-md);
+
+  // touch input: minimum comfortable hit area. Only read inside
+  // `@media (pointer: coarse)` — a mouse does not need 40px targets, a finger
+  // cannot hit 17px ones.
+  --touch-min: 40px;
+
+  // device edges — 0px on screens without cutouts, so they can be added to
+  // any padding unconditionally
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 
   // elevation & layering
   --shadow-popover: 0 8px 24px rgb(0 0 0 / 45%);
@@ -49,4 +68,13 @@
 
   // motion
   --transition-fast: 120ms ease;
+}
+
+// Touch input: fields grow to the zoom-free size and to a hit area a finger
+// can actually land on. Lives next to the tokens because it is the same
+// design decision — only the input capability differs.
+@media (pointer: coarse) {
+  :root {
+    --font-size-field: 16px;
+  }
 }

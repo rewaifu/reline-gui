@@ -89,19 +89,84 @@
   }
 }
 
-.codeView {
-  @include scroll-y;
-
-  flex: 1;
+// Both layers of the code view (highlight markup and, when editing, the
+// textarea on top of it) must agree on every text metric — any difference
+// drifts the caret away from the highlighted glyphs underneath.
+.codeView,
+.codeInput {
   margin: 0;
   padding: var(--space-4);
+  min-width: 0;
   color: var(--color-text);
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   line-height: 1.5;
-  text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  tab-size: 2;
+}
+
+.codeView {
+  @include scroll-y;
+
+  flex: 1;
+  text-align: left;
+
+  // sugar-high paints each token with an inline `color: var(--sh-…)`, so the
+  // syntax palette is defined here rather than in per-token classes.
+  --sh-property: #a3be8c;
+  --sh-string: #bf616a;
+  --sh-class: #d08770;
+  --sh-keyword: #ebcb8b;
+  --sh-sign: var(--color-text-muted);
+}
+
+// The editor scrolls as a whole: the field is stretched to its content, so
+// the shell keeps a single scrollbar and the layers never drift apart.
+.codeStack {
+  @include scroll-y;
+
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+
+  // sugar-high separates lines with literal newlines and `white-space: pre-wrap`
+  // breaks them, so the layers overlay exactly (block line boxes would add a
+  // blank line per row, doubling the pitch)
+  .codeView {
+    grid-area: 1 / 1;
+    // the stack owns the only scrollbar — a second one here would sit under
+    // the field and desync the two layers. The gutter from `scroll-y` must go
+    // too: it steals 20px of content width even when hidden, and the narrower
+    // box wraps more lines than the field and clips the tail of the code.
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
+}
+
+.codeInput {
+  grid-area: 1 / 1;
+  align-self: start;
+  // `scroll-y` gives the layer below `position: relative`, so a positioned
+  // field must sit here too — otherwise the pre swallows every click
+  position: relative;
+  z-index: 1;
+  border: none;
+  background: transparent;
+  // the glyphs come from the highlight layer below; only the caret and the
+  // selection tint belong to the field
+  color: transparent;
+  caret-color: var(--color-text);
+  resize: none;
+  overflow: hidden;
+  outline: none;
+
+  &::selection {
+    // neutral, not the accent: the layer below paints strings
+    // in a red that the accent tint would swallow
+    background: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
+  }
 }
 
 .presets {
@@ -212,22 +277,6 @@
   }
 }
 
-.codeEdit {
-  @include scroll-y;
-
-  flex: 1;
-  min-height: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-sunken);
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-  resize: none;
-}
-
 .status {
   flex: none;
   margin: 0;
@@ -238,7 +287,7 @@
   }
 
   &.err {
-    color: #f87171;
+    color: var(--color-danger);
   }
 }
 
@@ -280,6 +329,34 @@
   transition: width 200ms ease;
 }
 
+// No stage and no percent yet: the runner is connected but has not said what
+// it is doing, so the track sweeps instead of showing a fill frozen at 0 %.
+.runBarIndeterminate {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-primary),
+    transparent
+  );
+  background-size: 45% 100%;
+  background-repeat: no-repeat;
+  animation: runSweep 1.3s ease-in-out infinite;
+
+  .runBarFill {
+    display: none;
+  }
+}
+
+@keyframes runSweep {
+  from {
+    background-position: -45% 0;
+  }
+
+  to {
+    background-position: 145% 0;
+  }
+}
+
 .runBtn {
   @include surface(var(--radius-sm), var(--color-surface-raised));
 
@@ -305,6 +382,143 @@
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+
+.runStage {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  // a file path or a node label can be long: break it instead of widening the
+  // panel (220 px on desktop, ~320 px on a phone)
+  overflow-wrap: anywhere;
+}
+
+.runMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.runChip {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.runLogBox {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.runLogHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.runLogTitle {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.runLogClear {
+  @include ghost-button;
+
+  flex: none;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.runLog {
+  @include scroll-y;
+
+  max-height: 140px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+}
+
+.runLogLine {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+
+  & + & {
+    margin-top: var(--space-1);
+  }
+
+  &.runLogInfo {
+    color: var(--color-text-muted);
+  }
+
+  &.runLogOk {
+    color: var(--color-success);
+  }
+
+  &.runLogError {
+    color: var(--color-danger);
+  }
+}
+
+.runLogTime {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+// Touch: every control in this panel is a finger target, and the code editor
+// must not trigger the iOS focus zoom — which also means the highlight layer
+// below it has to grow in lockstep, or the caret drifts off the glyphs.
+@media (pointer: coarse) {
+  .action {
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
+
+  .presetDelete {
+    width: var(--touch-min);
+  }
+
+  .presetSaveBtn,
+  .presetRestore,
+  .runBtn {
+    min-height: var(--touch-min);
+  }
+
+  .runLogClear {
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
+
+  .codeView,
+  .codeInput {
+    font-size: var(--font-size-field);
+  }
+}
+
+// Narrow panel (phone, or a squeezed settings column): the preset picker
+// takes the full row instead of forcing the toolbar into two ragged rows.
+@container panel (max-width: 460px) {
+  .presetSelect {
+    flex: 1 1 100%;
+  }
+
+  .presetTrigger {
+    flex: 1 1 auto;
+    width: auto;
+  }
 }
 
 .presetName {
@@ -418,21 +632,4 @@
     border: none;
     border-top: 1px solid var(--color-border);
   }
-}
-
-// JSON syntax colors — green family, tuned for the sunken surface.
-.tokKey {
-  color: #a3be8c;
-}
-
-.tokStr {
-  color: #bf616a;
-}
-
-.tokNum {
-  color: #d08770;
-}
-
-.tokBool {
-  color: #ebcb8b;
 }

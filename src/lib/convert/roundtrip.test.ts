@@ -12,9 +12,8 @@ const upscaleStack = (
   model: string,
   uid: string,
   is_own_model = false,
-  model_url?: string
+  model_url?: string,
 ) => ({
-  id: 0,
   uid,
   type: NodeType.UPSCALE,
   options: {
@@ -46,7 +45,7 @@ describe("preprocess generation from parent nodes", () => {
     expect(download.meta?.parents).toEqual(["u1"]);
     const upscaled = pure.nodes.find((n) => n.type === PureNodeType.UPSCALE);
     expect("model" in upscaled!.options && upscaled!.options.model).toBe(
-      "4x_a"
+      "4x_a",
     );
     expect(upscaled!.options).not.toHaveProperty("model_url");
     // own model keeps its path and spawns nothing
@@ -67,7 +66,6 @@ describe("preprocess generation from parent nodes", () => {
   it("reader unarchive flag spawns an Unarchive preprocessor for path + .zip", () => {
     const pure = convertToPure([
       {
-        id: 0,
         uid: "r1",
         type: NodeType.FOLDER_READER,
         options: {

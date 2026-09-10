@@ -3,22 +3,29 @@ import {
   Show,
   createSignal,
   createUniqueId,
+  onSettled,
+  useContext,
   type Component,
 } from "solid-js";
-import { useNodes, useNodesDispatch } from "~/context/contexts";
+import { NodesDispatchContext } from "~/context/contexts";
 import { NodesActionType } from "~/types/actions";
-import type { NodeOptions } from "~/types/node";
+import type { NodeOptions, StackNode } from "~/types/node";
 import {
   Icon,
   Input,
   Label,
-  UiCheckbox,
+  UiSwitch,
   UiCombobox,
   UiSelect,
   UiSlider,
 } from "~/components/ui";
 import { lsClient } from "~/lib/ls-client";
-import { modelNames, resolveModelName, type MdbModel } from "~/lib/model-db";
+import {
+  modelNames,
+  modelsLoaded,
+  resolveModelName,
+  type MdbModel,
+} from "~/lib/model-db";
 import styles from "./forms.module.scss";
 
 export interface NodeForm {
@@ -26,19 +33,18 @@ export interface NodeForm {
   set: (patch: Partial<NodeOptions>) => void;
 }
 
-/** Shared per-node form state: typed read + immutable CHANGE dispatch. */
-export const useNodeForm = (nodeId: () => number): NodeForm => {
-  const nodes = useNodes();
-  const dispatch = useNodesDispatch();
-  const node = () => nodes.find((n) => n.id === nodeId());
+/** Shared per-node form state: typed read + immutable CHANGE dispatch.
+ * Receives the row's node object (from <For>) instead of re-finding it by
+ * id on every read. */
+export const useNodeForm = (node: () => StackNode): NodeForm => {
+  const dispatch = useContext(NodesDispatchContext);
 
   return {
-    // Node presence is guaranteed by the <Show> guard in NodeOptionsForm.
-    options: () => node()?.options as NodeOptions,
+    options: () => node().options as NodeOptions,
     set: (patch) => {
       dispatch({
         type: NodesActionType.CHANGE,
-        payload: { id: nodeId(), options: patch },
+        payload: { uid: node().uid, options: patch },
       });
     },
   };
@@ -96,6 +102,25 @@ export const NumberRow: Component<NumberRowProps> = (props) => {
     const size = props.step ?? 1;
     props.onInput(clamp((props.value ?? props.min ?? 0) + dir * size));
   };
+  // While focused the input holds a local string draft: "-1", "1." and "1e"
+  // are intermediate states a number round-trip through the store would
+  // reject mid-typing (rewriting the field under the caret). The draft
+  // commits — clamped, like the stepper buttons — on blur or Enter.
+  const [draft, setDraft] = createSignal<string>();
+  const shown = () => {
+    const d = draft();
+    if (d !== undefined) return d;
+    return props.value === undefined ? "" : String(props.value);
+  };
+  // the committed value is read from the element, never from `draft()`:
+  // signal writes are deferred, so a blur landing in the same task as the
+  // last keystroke would commit the previous (stale) draft
+  const commit = (value: string) => {
+    setDraft(undefined);
+    if (value.trim() === "") return;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) props.onInput(clamp(parsed));
+  };
   return (
     <div class={styles.row}>
       <Label
@@ -115,11 +140,13 @@ export const NumberRow: Component<NumberRowProps> = (props) => {
           min={props.min}
           max={props.max}
           step={props.step}
-          value={props.value === undefined ? "" : String(props.value)}
-          onInput={(e) => {
-            const parsed = Number(e.currentTarget.value);
-            if (e.currentTarget.value !== "" && Number.isFinite(parsed))
-              props.onInput(parsed);
+          value={shown()}
+          onInput={(e) => setDraft(e.currentTarget.value)}
+          onBlur={(e) => commit(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.currentTarget.blur();
+            }
           }}
         />
         <div class={styles.spinners}>
@@ -277,7 +304,7 @@ export const CheckRow: Component<CheckRowProps> = (props) => {
       >
         {props.label}
       </Label>
-      <UiCheckbox id={id} checked={props.checked} onChange={props.onChange} />
+      <UiSwitch id={id} checked={props.checked} onChange={props.onChange} />
     </div>
   );
 };
@@ -299,7 +326,7 @@ export const NumberOrListRow: Component<NumberOrListRowProps> = (props) => {
     props.onInput(
       isList()
         ? Number((props.value as number[])[0] ?? 0)
-        : [Number(props.value) || 0]
+        : [Number(props.value) || 0],
     );
 
   const parseNumbers = (raw: string): number[] =>
@@ -375,6 +402,15 @@ export interface PathRowProps {
 
 const WEIGHT_EXTS = ["pth", "pt", "safetensors", "safetensor"];
 
+/** The path to send for `ls`. A bare name ("raws") means "complete in the
+ * folder we are in", but splitting it gives an *empty* directory name: runner
+ * builds that do not turn that into "." (`directory = directory or "."`) list
+ * nothing and the field looks dead until the user types a slash. `./raws`
+ * names the same folder, keeps the same last-segment prefix the server
+ * matches on, and lists the same entries on every build. */
+export const queryPath = (value: string): string =>
+  value.includes("/") ? value : `./${value}`;
+
 /** Text input with path completion: debounced `ls` lookups populate a
  * dropdown; picking an entry completes the last path segment, directories
  * get a trailing slash so browsing continues deeper. `mdb` completes against
@@ -388,14 +424,29 @@ export const PathRow: Component<PathRowProps> = (props) => {
   let lastDir = "";
   let mdbHits: MdbModel[] = [];
   const [active, setActive] = createSignal(0);
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: number | undefined;
+  // monotonically increasing per lookup: a slow older response (fast typing
+  // across the debounce boundary, mdb + ls interleaved) must never overwrite
+  // the results of a newer query
+  let seq = 0;
+  // direct refs — no getElementById walks
+  let inputEl: HTMLInputElement | undefined;
+  let listEl: HTMLUListElement | undefined;
+
+  onSettled(() => clearTimeout(timer));
 
   const lookup = (value: string) => {
     clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (props.source === "mdb") {
+    const mine = ++seq;
+    // capture the props the async continuation needs: a reactive read inside
+    // a promise callback is untracked anyway, so read it once here
+    const source = props.source;
+    const query = () => {
+      const stale = () => mine !== seq;
+      if (source === "mdb") {
         modelNames()
           .then((all) => {
+            if (stale()) return;
             // the whole database is already in memory — show every match
             const q = (value.split("/").pop() ?? "").toLowerCase();
             const hits = all.filter((m) => m.name.toLowerCase().includes(q));
@@ -404,20 +455,24 @@ export const PathRow: Component<PathRowProps> = (props) => {
             setDirs(new Set<string>());
             setActive(0);
             setOpen(hits.length > 0);
-            const ul = document.getElementById(listId);
-            if (ul !== null) ul.scrollTop = 0;
+            if (listEl !== undefined) listEl.scrollTop = 0;
           })
-          .catch(() => setOpen(false));
+          .catch(() => {
+            if (!stale()) setOpen(false);
+          });
         return;
       }
       mdbHits = [];
       lsClient
-        .ls(value, props.source === "weights" ? { ext: WEIGHT_EXTS } : {})
+        .ls(queryPath(value), source === "weights" ? { ext: WEIGHT_EXTS } : {})
+        // the active() read is a deliberate current-index snapshot on landing
+        // oxlint-disable-next-line solid/reactivity
         .then((r) => {
+          if (stale()) return;
           const dirs = new Set(r.dirs);
           // server returns raw readdir order — sort for a stable list
           let names = r.entries.slice().sort();
-          if (props.source === "dirs") names = names.filter((n) => dirs.has(n));
+          if (source === "dirs") names = names.filter((n) => dirs.has(n));
           names = names.slice(0, 8);
           setEntries(names);
           setDirs(dirs);
@@ -429,9 +484,9 @@ export const PathRow: Component<PathRowProps> = (props) => {
           lastDir = dir;
           setOpen(names.length > 0);
           // rows were replaced: keep the highlighted row inside the viewport
-          const ul = document.getElementById(listId);
+          const ul = listEl;
           const el = document.getElementById(`${listId}-${active()}`);
-          if (ul !== null && el !== null) {
+          if (ul !== undefined && el !== null) {
             if (
               el.offsetTop < ul.scrollTop ||
               el.offsetTop + el.offsetHeight > ul.scrollTop + ul.clientHeight
@@ -440,8 +495,17 @@ export const PathRow: Component<PathRowProps> = (props) => {
             }
           }
         })
-        .catch(() => setOpen(false));
-    }, 250);
+        .catch(() => {
+          if (!stale()) setOpen(false);
+        });
+    };
+    // A warm model index answers from memory, so the debounce (which exists
+    // to spare the runner from one `ls` per keystroke) only delays the user.
+    if (source === "mdb" && modelsLoaded()) {
+      query();
+      return;
+    }
+    timer = window.setTimeout(query, 250);
   };
 
   const complete = (name: string) => {
@@ -471,9 +535,9 @@ export const PathRow: Component<PathRowProps> = (props) => {
     const next = Math.min(count - 1, Math.max(0, active() + delta));
     setActive(next);
     // keep the highlighted row inside the capped menu (it can hold ~6 rows)
-    const ul = document.getElementById(listId);
+    const ul = listEl;
     const el = document.getElementById(`${listId}-${next}`);
-    if (ul !== null && el !== null) {
+    if (ul !== undefined && el !== null) {
       if (el.offsetTop < ul.scrollTop) ul.scrollTop = el.offsetTop;
       else if (
         el.offsetTop + el.offsetHeight >
@@ -498,6 +562,7 @@ export const PathRow: Component<PathRowProps> = (props) => {
       <div class={styles.pathWrap}>
         <Input
           id={id}
+          ref={inputEl}
           type="text"
           role="combobox"
           aria-expanded={open() ? "true" : "false"}
@@ -515,16 +580,23 @@ export const PathRow: Component<PathRowProps> = (props) => {
             setOpen(false);
             if (props.source !== "mdb") return;
             const typed = props.value;
+            const { onInput, onPick } = props;
             // leaving the field with a not-exact model name snaps it to the
             // closest mdb entry — an invalid model must never survive
-            void resolveModelName(typed).then((hit) => {
-              if (hit === undefined) return;
-              // refocused meanwhile: the user is typing again, don't fight it
-              if (document.activeElement === document.getElementById(id))
-                return;
-              if (hit.name !== typed) props.onInput(hit.name);
-              props.onPick?.(hit.name, { url: hit.url });
-            });
+            void resolveModelName(typed)
+              .then((hit) => {
+                if (hit === undefined) return;
+                // refocused meanwhile: the user is typing again, don't fight it
+                if (document.activeElement === inputEl) return;
+                if (hit.name !== typed) onInput(hit.name);
+                onPick?.(hit.name, { url: hit.url });
+              })
+              // An unreachable mdb (offline, CDN hiccup, CORS) must not escape
+              // as an unhandled rejection — the console showed
+              // "Uncaught (in promise) TypeError: Failed to fetch" on every
+              // preset switch that blurred this field. The typed name stands
+              // and the next focus retries the lookup.
+              .catch(() => undefined);
           }}
           onKeyDown={(e) => {
             if (e.key === "Escape") setOpen(false);
@@ -548,7 +620,12 @@ export const PathRow: Component<PathRowProps> = (props) => {
         />
         <Show when={open()}>
           <div class={styles.pathMenu}>
-            <ul id={listId} class={styles.pathMenuList} role="listbox">
+            <ul
+              id={listId}
+              ref={listEl}
+              class={styles.pathMenuList}
+              role="listbox"
+            >
               <For each={entries()}>
                 {(name, index) => (
                   <li>

@@ -5,8 +5,7 @@
     "jsxImportSource": "@solidjs/web",
     "target": "ESNext",
 
-    "baseUrl": ".",
-    "paths": { "~/*": ["src/*"] },
+    "paths": { "~/*": ["./src/*"] },
 
     // Modules
     "allowSyntheticDefaultImports": true,

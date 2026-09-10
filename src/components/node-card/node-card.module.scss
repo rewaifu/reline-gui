@@ -18,15 +18,21 @@
   flex: none;
   border: 1px solid var(--color-border);
   cursor: pointer;
-  transition: transform var(--transition-fast), opacity var(--transition-fast),
+  transition:
+    transform var(--transition-fast),
+    opacity var(--transition-fast),
     border-color var(--transition-fast);
 
+  // hover and selected are adjacent states on the same element — they must
+  // differ by more than hue: hover tints the border, selected tints the
+  // whole card background and keeps the accent border
   &:hover:not(.selected) {
     border-color: var(--color-primary);
   }
 
   &.selected {
-    border-color: var(--color-success);
+    border-color: var(--color-primary);
+    // background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-strong));
     cursor: default;
 
     .header {
@@ -47,6 +53,10 @@
   padding: 0 1px;
   color: var(--color-text-muted);
   cursor: grab;
+  // the gesture owns this element: without it the browser scrolls the list
+  // out from under the dragged row instead of reporting pointermove
+  touch-action: none;
+  user-select: none;
 
   &:hover {
     color: var(--color-text);
@@ -75,6 +85,36 @@
   margin: 0 var(--space-3);
   border-radius: 1px;
   background: var(--color-border-strong);
+}
+
+// Phone-only action row inside the expanded card. Same inset as the option
+// form below it, so the card reads as one column of rows.
+.cardActions {
+  display: flex;
+  flex: none;
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-danger);
+  font: inherit;
+  font-size: var(--font-size-md);
+  cursor: pointer;
+
+  &:active {
+    border-color: var(--color-danger);
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  }
 }
 
 .renameInput {
@@ -135,14 +175,26 @@
   }
 }
 
+// Phone-only wrapper for the enable switch: it is a status control among
+// buttons, so it takes the same slot rhythm and swallows the taps that would
+// otherwise select or collapse the card underneath it.
+.enable {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
 .dropPlaceholder {
   display: none;
   flex: none;
   border: 1px dashed transparent;
   border-radius: var(--radius-sm);
   opacity: 0;
-  transition: height var(--transition-fast), margin var(--transition-fast),
-    opacity var(--transition-fast), border-color var(--transition-fast),
+  transition:
+    height var(--transition-fast),
+    margin var(--transition-fast),
+    opacity var(--transition-fast),
+    border-color var(--transition-fast),
     background var(--transition-fast);
 
   &.visible {
@@ -152,5 +204,44 @@
     border-color: var(--color-primary);
     background: color-mix(in srgb, var(--color-primary) 15%, transparent);
     opacity: 1;
+  }
+}
+
+// A finger cannot hit a 17px glyph, and the fixed 38px header strip cannot
+// hold 40px boxes — on touch the header grows to fit them.
+@media (pointer: coarse) {
+  .header {
+    height: auto;
+    min-height: var(--touch-min);
+    // four controls + the title in ~350px: the gaps are the first thing to go
+    gap: var(--space-1);
+  }
+
+  .dragHandle,
+  .chevron,
+  .iconBtn {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+
+  .title {
+    height: auto;
+    line-height: 1.3;
+  }
+
+  .renameInput {
+    // the field token, not the compact 15px label size: iOS zooms the page
+    // when a focused field is under 16px
+    font-size: var(--font-size-field);
+  }
+}
+
+// Narrow panel (phone, or a squeezed desktop column): the type hint gives up
+// its space to the name instead of pushing the row wider than the card.
+@container panel (max-width: 420px) {
+  .typeHint {
+    @include truncate;
+
+    max-width: 40%;
   }
 }

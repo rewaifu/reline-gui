@@ -52,7 +52,8 @@ export interface PureNode {
   options: PureNodeOptions;
   /**
    * UI-only metadata carried in the shared config under `meta`, so it never
-   * mixes with pipeline data. The API ignores it.
+   * mixes with pipeline data. `name` and `parents` are ignored by the runner;
+   * `disabled: true` is honoured — a switched-off node is not executed.
    */
   meta?: { name?: string; disabled?: boolean; parents?: string[] };
 }
@@ -64,17 +65,17 @@ export interface PureConfig {
 }
 
 export interface StackNode {
-  id: number;
   type: NodeType;
   options: NodeOptions;
   /** UI-only display name, ignored by backend serialization */
   name?: string;
   collapsed: boolean;
   /**
-   * UI-only stable identity for FLIP reorder animations. Unlike `id` (which
-   * is reindexed to array positions on MOVE), this never changes, so the
-   * DOM element can be matched to its pre-move position.
+   * The node's sole identity. Array position is NOT identity: `<For>` hands
+   * rows their position via the index accessor, and MOVE/DELETE keep every
+   * surviving node's object reference, so keyed rendering reuses the DOM.
+   * Also the parent key preprocessors use to record ownership (`meta.parents`).
    */
-  uid?: string;
+  uid: string;
   enabled?: boolean;
 }

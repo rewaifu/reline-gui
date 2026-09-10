@@ -55,7 +55,7 @@ const loadLayout = (): LayoutState => {
           right: readNumber(
             parsed.right,
             DEFAULT_LAYOUT.right,
-            MIN_RIGHT_WIDTH
+            MIN_RIGHT_WIDTH,
           ),
           hidden,
         };
@@ -85,15 +85,22 @@ export const createColumnsLayout = () => {
   const [layout, setLayout] = createSignal<LayoutState>(loadLayout());
   const [resizing, setResizing] = createSignal(false);
 
+  // Layout changes stream in per pointermove frame during a column drag —
+  // a synchronous localStorage write per frame would stutter the gesture.
+  let saveTimer: number | undefined;
   createEffect(
     () => JSON.stringify(layout()),
     (json) => {
-      try {
-        localStorage.setItem(LAYOUT_STORAGE_KEY, json);
-      } catch {
-        // storage full or unavailable — layout just won't persist
-      }
-    }
+      clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(() => {
+        try {
+          localStorage.setItem(LAYOUT_STORAGE_KEY, json);
+        } catch {
+          // storage full or unavailable — layout just won't persist
+        }
+      }, 300);
+      return () => clearTimeout(saveTimer);
+    },
   );
 
   let active: ActiveResize | null = null;
@@ -125,21 +132,22 @@ export const createColumnsLayout = () => {
     if (!row) return;
 
     const rect = row.getBoundingClientRect();
-    const state = layout();
+    // one-time snapshot: the drag bounds are computed once, on grab
+    const staticLayout = layout();
     const visibleCount = COLUMN_KEYS.filter(
-      (column) => !state.hidden[column]
+      (column) => !staticLayout.hidden[column],
     ).length;
     const otherWidth =
       side === "left"
-        ? state.hidden.right
+        ? staticLayout.hidden.right
           ? 0
-          : state.right
-        : state.hidden.left
-        ? 0
-        : state.left;
+          : staticLayout.right
+        : staticLayout.hidden.left
+          ? 0
+          : staticLayout.left;
     const reserved =
       otherWidth +
-      (state.hidden.middle ? 0 : MIN_MIDDLE_WIDTH) +
+      (staticLayout.hidden.middle ? 0 : MIN_MIDDLE_WIDTH) +
       Math.max(visibleCount - 1, 0) * SPLITTER_WIDTH;
 
     active = {
