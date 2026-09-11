@@ -65,7 +65,13 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
   const form = useNodeForm(() => props.node);
   const options = () => form.options() as ScreentoneNodeOptions;
   const multi = () => options().halftone_mode !== HalftoneMode.GRAY;
-  const channels = () => CHANNELS[options().halftone_mode];
+  // A tree saved by an older build can name a mode this build no longer has
+  // (or a hand-edited config can invent one). Looking that up returns
+  // undefined, which reaches `<For>` and throws *during render* — the kind of
+  // error that halts Solid's reactive system. Show the default channel set
+  // instead; the select still shows what is actually stored.
+  const channels = () =>
+    CHANNELS[options().halftone_mode] ?? CHANNELS[HalftoneMode.GRAY];
   const changeMode = (next: HalftoneMode) => {
     const curMode = options().halftone_mode;
     if (curMode === next) return;

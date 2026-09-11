@@ -5,6 +5,8 @@ import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodeStack } from "~/components/node-card/node-card";
 import { createDefaultNodes } from "~/constants";
+import { nodeLabel } from "~/components/nodes/registry";
+import { NodeType } from "~/types/enums";
 import { t } from "~/lib/i18n";
 import type { FolderReaderNodeOptions } from "~/types/options";
 
@@ -99,5 +101,37 @@ describe("path field under the node store", () => {
     expect(view.getByLabelText(pathField())).toBe(input);
     expect(input.value).toBe("./src");
     expect(document.activeElement).toBe(input);
+  });
+
+  /** The title carried its own click handler (select) *and* stopped the event,
+   * so the header's fold never ran for a click on the name or on the wide empty
+   * stretch beside it (the title is `flex: 1`): the card took two clicks to
+   * open. Double-click-to-rename was the other half of that history, and the
+   * pencil button never needed a gesture beside it. */
+  it("folds on the first click on the title, and leaves renaming to the pencil", async () => {
+    const view = mount();
+    const upscale = () => store[0][1];
+
+    // the upscale node starts collapsed: one click selects *and* folds
+    fireEvent.click(view.getByText(nodeLabel(NodeType.UPSCALE)));
+    await vi.waitFor(() => expect(upscale().collapsed).toBe(false));
+    expect(view.queryAllByLabelText(t("chrome.nodeName"))).toHaveLength(0);
+
+    // and one more click folds it back — the first click always acts
+    fireEvent.click(view.getByText(nodeLabel(NodeType.UPSCALE)));
+    await vi.waitFor(() => expect(upscale().collapsed).toBe(true));
+
+    // the grip is a drag surface: a tap on it selects, but must not fold —
+    // otherwise dropping a dragged card would fold the card that was dropped
+    const grips = view.getAllByLabelText(t("chrome.reorder"));
+    fireEvent.click(grips[1] as HTMLElement);
+    await vi.waitFor(() => expect(upscale().collapsed).toBe(true));
+
+    // the pencil is the one way into renaming, and it still works
+    const pencils = view.getAllByLabelText(t("chrome.rename"));
+    fireEvent.click(pencils[1] as HTMLElement);
+    await vi.waitFor(() =>
+      expect(view.getAllByLabelText(t("chrome.nodeName"))).toHaveLength(1),
+    );
   });
 });

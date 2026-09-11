@@ -91,8 +91,29 @@ export interface NumberRowProps {
   step?: number;
 }
 
-export const NumberRow: Component<NumberRowProps> = (props) => {
-  const id = createUniqueId();
+export interface NumberFieldProps {
+  /** Id for the label's `for`. */
+  id?: string;
+  /** Named in the steppers' aria-labels. */
+  label: string;
+  value: number | undefined;
+  onInput: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  class?: string;
+}
+
+/** Numeric entry with ▲/▼ steppers, clamped to the limits it is given.
+ *
+ * While focused the field holds a local string draft: "-1", "1." and "1e" are
+ * intermediate states a number round-trip through the store would reject
+ * mid-typing (rewriting the field under the caret). Edits that already sit
+ * inside the limits commit as they are typed — a slider bound to the same value
+ * then follows along — while a half-typed or out-of-range value waits for blur
+ * or Enter and lands clamped. A number outside `min`/`max` is never stored, and
+ * the steppers never step past the ends. */
+export const NumberField: Component<NumberFieldProps> = (props) => {
   const clamp = (value: number) => {
     let v = value;
     if (props.min !== undefined) v = Math.max(props.min, v);
@@ -100,13 +121,11 @@ export const NumberRow: Component<NumberRowProps> = (props) => {
     return v;
   };
   const step = (dir: 1 | -1) => {
-    const size = props.step ?? 1;
-    props.onInput(clamp((props.value ?? props.min ?? 0) + dir * size));
+    setDraft(undefined);
+    props.onInput(
+      clamp((props.value ?? props.min ?? 0) + dir * (props.step ?? 1)),
+    );
   };
-  // While focused the input holds a local string draft: "-1", "1." and "1e"
-  // are intermediate states a number round-trip through the store would
-  // reject mid-typing (rewriting the field under the caret). The draft
-  // commits — clamped, like the stepper buttons — on blur or Enter.
   const [draft, setDraft] = createSignal<string>();
   const shown = () => {
     const d = draft();
@@ -122,6 +141,60 @@ export const NumberRow: Component<NumberRowProps> = (props) => {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) props.onInput(clamp(parsed));
   };
+
+  return (
+    <div class={[styles.stepper, props.class]}>
+      <Input
+        id={props.id}
+        type="number"
+        class={styles.stepInput}
+        min={props.min}
+        max={props.max}
+        step={props.step}
+        value={shown()}
+        onInput={(e) => {
+          const raw = e.currentTarget.value;
+          setDraft(raw);
+          const parsed = Number(raw);
+          // inside the limits: follow as it is typed. Outside or incomplete:
+          // keep the draft (the store keeps the old value) until commit.
+          if (raw.trim() === "" || !Number.isFinite(parsed)) return;
+          if (parsed !== clamp(parsed)) return;
+          props.onInput(parsed);
+        }}
+        onBlur={(e) => commit(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      <div class={styles.spinners}>
+        <button
+          type="button"
+          class={styles.stepBtn}
+          tabindex="-1"
+          aria-label={t("ui.increase", { label: props.label })}
+          onClick={() => step(1)}
+        >
+          <Icon name="chevron-up" size={12} />
+        </button>
+        <button
+          type="button"
+          class={styles.stepBtn}
+          tabindex="-1"
+          aria-label={t("ui.decrease", { label: props.label })}
+          onClick={() => step(-1)}
+        >
+          <Icon name="chevron-down" size={12} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export const NumberRow: Component<NumberRowProps> = (props) => {
+  const id = createUniqueId();
   return (
     <div class={styles.row}>
       <Label
@@ -133,44 +206,15 @@ export const NumberRow: Component<NumberRowProps> = (props) => {
       >
         {props.label}
       </Label>
-      <div class={styles.stepper}>
-        <Input
-          id={id}
-          type="number"
-          class={styles.stepInput}
-          min={props.min}
-          max={props.max}
-          step={props.step}
-          value={shown()}
-          onInput={(e) => setDraft(e.currentTarget.value)}
-          onBlur={(e) => commit(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.currentTarget.blur();
-            }
-          }}
-        />
-        <div class={styles.spinners}>
-          <button
-            type="button"
-            class={styles.stepBtn}
-            tabindex="-1"
-            aria-label={t("ui.increase", { label: props.label })}
-            onClick={() => step(1)}
-          >
-            <Icon name="chevron-up" size={12} />
-          </button>
-          <button
-            type="button"
-            class={styles.stepBtn}
-            tabindex="-1"
-            aria-label={t("ui.decrease", { label: props.label })}
-            onClick={() => step(-1)}
-          >
-            <Icon name="chevron-down" size={12} />
-          </button>
-        </div>
-      </div>
+      <NumberField
+        id={id}
+        label={props.label}
+        value={props.value}
+        min={props.min}
+        max={props.max}
+        step={props.step}
+        onInput={props.onInput}
+      />
     </div>
   );
 };
@@ -184,7 +228,11 @@ export interface SliderRowProps {
   step?: number;
 }
 
-/** Label + slider + numeric entry bound to the same value. */
+/** Label + slider + numeric entry with steppers, all three on one value.
+ *
+ * The arrows are the keyboard-free way to land on an exact number (gamma 1.4,
+ * width 2000); the entry and the steppers clamp to `min`/`max`, so the slider's
+ * range is also the range of everything that can reach the store. */
 export const SliderRow: Component<SliderRowProps> = (props) => {
   const id = createUniqueId();
   const value = () => props.value ?? props.min ?? 0;
@@ -208,18 +256,14 @@ export const SliderRow: Component<SliderRowProps> = (props) => {
           step={props.step}
           onChange={props.onInput}
         />
-        <Input
+        <NumberField
           class={styles.sliderValue}
-          type="number"
+          label={props.label}
+          value={value()}
           min={props.min}
           max={props.max}
           step={props.step}
-          value={String(value())}
-          onInput={(e) => {
-            const parsed = Number(e.currentTarget.value);
-            if (e.currentTarget.value !== "" && Number.isFinite(parsed))
-              props.onInput(parsed);
-          }}
+          onInput={props.onInput}
         />
       </div>
     </div>

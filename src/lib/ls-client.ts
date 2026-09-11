@@ -201,9 +201,14 @@ class LsClient {
     if (opts.filesOnly === true) d.files_only = true;
     // The echo (id 0) is a heartbeat, not a lookup: it carries no path options.
     // `root` is not sent either — the deployment sets the base it browses.
-    this.ws.send(
-      encode({ m: id === 0 ? "echo" : "ls", id, d } satisfies Envelope),
-    );
+    try {
+      this.ws.send(
+        encode({ m: id === 0 ? "echo" : "ls", id, d } satisfies Envelope),
+      );
+    } catch {
+      // the socket closed between the state check and the write; `onclose`
+      // fails this lookup (and the queued ones) with a readable reason
+    }
   }
 }
 

@@ -1,5 +1,6 @@
 import { type StoreSetter } from "solid-js";
 import { type NodesAction, NodesActionType } from "~/types/actions";
+import { sanitizeNode, sanitizeNodes } from "~/lib/node-shape";
 import { withFreshUids } from "~/lib/uid";
 import type { StackNode } from "~/types/node";
 
@@ -41,13 +42,18 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
       });
       break;
 
-    case NodesActionType.ADD:
+    case NodesActionType.ADD: {
+      // Parsed even here: a pasted config reaches the store through this case,
+      // and a node whose shape nothing checked throws later, during render.
+      const node = sanitizeNode(payload);
+      if (node === undefined) break;
       // under signals rc a replaced array does not notify — a keyed index
       // write does (same fine-grained path CHANGE uses)
       setNodes((state) => {
-        state[state.length] = payload;
+        state[state.length] = node;
       });
       break;
+    }
 
     case NodesActionType.DELETE:
       // filter keeps every survivor's reference — no remounts, and nothing
@@ -55,9 +61,14 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
       setNodes((state) => state.filter((node) => node.uid !== payload));
       break;
 
-    case NodesActionType.IMPORT:
-      setNodes(() => withFreshUids(payload));
+    case NodesActionType.IMPORT: {
+      // imports are the most untrusted input there is: presets, pasted configs
+      // and legacy files all land here
+      const nodes = sanitizeNodes(payload);
+      if (nodes.length === 0) break;
+      setNodes(() => withFreshUids(nodes));
       break;
+    }
 
     default:
       break;

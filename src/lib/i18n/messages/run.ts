@@ -14,6 +14,10 @@ export const ru = {
       process: "Обработка изображений",
       write: "Запись результатов",
     },
+    phase: {
+      preprocess: "Предобработка",
+      process: "Обработка",
+    },
     preparing: "Подготовка…",
     done: "Готово",
     doneOutput: "Готово: {output}",
@@ -22,10 +26,11 @@ export const ru = {
     serverError: "Ошибка сервера: {detail}",
     unknown: "неизвестно",
     echoLost: "Соединение потеряно: нет ответа на echo",
+    reconnecting: "Переподключение ({attempt}/{total})…",
+    reconnected: "Соединение восстановлено, запуск повторён",
+    reconnectFailed:
+      "Переподключиться не удалось · {url} — запуск прерван. Проверьте, что раннер запущен: GET /health на том же хосте должен ответить 200",
     badAddress: "Некорректный адрес: {detail}",
-    closedByServer: "Соединение закрыто сервером · {url}",
-    unreachable:
-      "Не удалось подключиться · {url} — раннер не ответил. Проверьте, что он запущен: GET /health на том же хосте должен вернуть 200",
     badFrame: "Некорректный кадр (не MessagePack)",
     accepted: "Запуск принят сервером",
     cancelledEarly: "Отменено до подключения",
@@ -67,6 +72,10 @@ export const en: typeof ru = {
       process: "Processing images",
       write: "Writing results",
     },
+    phase: {
+      preprocess: "Preprocessing",
+      process: "Processing",
+    },
     preparing: "Preparing…",
     done: "Done",
     doneOutput: "Done: {output}",
@@ -75,10 +84,11 @@ export const en: typeof ru = {
     serverError: "Server error: {detail}",
     unknown: "unknown",
     echoLost: "Connection lost: no reply to the echo",
+    reconnecting: "Reconnecting ({attempt}/{total})…",
+    reconnected: "Connection restored, the run was repeated",
+    reconnectFailed:
+      "Could not reconnect · {url} — the run was interrupted. Check that the runner is up: GET /health on the same host must return 200",
     badAddress: "Invalid address: {detail}",
-    closedByServer: "Connection closed by the server · {url}",
-    unreachable:
-      "Could not connect · {url} — the runner did not answer. Check that it is running: GET /health on the same host must return 200",
     badFrame: "Malformed frame (not MessagePack)",
     accepted: "The server accepted the run",
     cancelledEarly: "Cancelled before connecting",

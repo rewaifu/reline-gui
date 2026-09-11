@@ -50,18 +50,11 @@
   }
 }
 
+// The entry + its steppers next to a slider. The width covers both, so adding
+// the arrows takes 4px off the slider, not 24 off the row.
 .sliderValue {
   flex: none;
-  width: 72px;
-  padding: 4px 8px;
-  -moz-appearance: textfield;
-  appearance: textfield;
-
-  &::-webkit-outer-spin-button,
-  &::-webkit-inner-spin-button {
-    appearance: none;
-    margin: 0;
-  }
+  width: 76px;
 }
 
 .channels {

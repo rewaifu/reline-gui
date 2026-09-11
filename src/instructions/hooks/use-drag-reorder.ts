@@ -22,16 +22,51 @@ export interface DragReorder {
 const DRAG_THRESHOLD_PX = 6;
 
 /**
- * Pointer-driven reorder. HTML5 drag-and-drop never fires on touch screens,
- * so the gesture is built from pointer events with capture on the handle: the
- * handle owns the whole gesture, works for mouse, finger and pen alike, and
- * the `touch-action: none` it needs lives on the handle only — the list keeps
- * scrolling normally everywhere else.
+ * Pointer-driven reorder. HTML5 drag-and-drop never fires on touch screens, so
+ * the gesture is built from pointer events with capture on the drag source: it
+ * owns the whole gesture and works for mouse, finger and pen alike.
+ *
+ * A source may be a whole row, and a row contains controls. Capturing a press
+ * that started on a control would swallow the click it was about to deliver —
+ * a switch that never flips, a delete button that never deletes — so a press
+ * inside one is left alone (see `ownsPress`). A source that covers its whole
+ * row needs `touch-action: none` there, which costs native panning: the left
+ * column is a pointer surface and the rows carry the reorder.
  *
  * `onMove` receives (from, to) where `to` is the final index after removal —
  * matches MOVE reducer splice semantics. Arrow keys on a focused handle move
  * the row too, so reordering does not require a pointing device at all.
  */
+/** A control's own press: it, or an ancestor of it inside the drag source, is a
+ * control or wraps one.
+ *
+ * Matching the target alone is not enough — the visible parts of a switch are
+ * plain nodes (the input that carries `role="switch"` is the hidden one), so a
+ * press lands on a `div` whose *sibling* is the control. Walking up to the drag
+ * source and asking each step what it contains is what catches that shape. */
+const ownsPress = (target: EventTarget | null, root: Element): boolean => {
+  if (!(target instanceof Element)) return false;
+  for (
+    let el: Element | null = target;
+    el !== null && el !== root;
+    el = el.parentElement
+  ) {
+    if (
+      el.matches(
+        "input, button, a, select, textarea, label, [role='switch'], [role='button']",
+      )
+    )
+      return true;
+    if (
+      el.querySelector(
+        "input, button, a, select, textarea, [role='switch']",
+      ) !== null
+    )
+      return true;
+  }
+  return false;
+};
+
 export const createDragReorder = (
   container: () => HTMLElement | undefined,
   onMove: (from: number, to: number) => void,
@@ -91,6 +126,8 @@ export const createDragReorder = (
     onPointerDown: (e) => {
       // primary button only: right/middle click stays native
       if (e.pointerType === "mouse" && e.button !== 0) return;
+      // a press on the switch or the delete button belongs to that control
+      if (ownsPress(e.target, e.currentTarget as Element)) return;
       pressed = { index, id: e.pointerId, x: e.clientX, y: e.clientY };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     },

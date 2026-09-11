@@ -37,14 +37,15 @@ import {
 } from "~/lib/i18n";
 import { Icon, UiTabs, UiSelect } from "~/components/ui";
 import {
-  createRunClient,
   endpoint,
+  runClient,
   setEndpoint,
   type RunMessage,
 } from "~/lib/run-client";
 import {
   describeStage,
   formatDownloadProgress,
+  formatPhase,
   formatElapsed,
   formatEta,
   formatProgressCounters,
@@ -535,7 +536,10 @@ const LOG_LINE_CLASS: Record<RunMessage["kind"], string> = {
 const RunTab: Component = () => {
   const nodes = useContext(NodesContext);
   const dispatch = useContext(NodesDispatchContext);
-  const run = createRunClient();
+  // the client belongs to the module, not to this component: the tab unmounts
+  // whenever the user looks at another one, and a socket closed here would be
+  // read by the server as a disconnect and cancel the run (WS_API.md)
+  const run = runClient;
   let logEl: HTMLDivElement | undefined;
 
   // The journal is the only record a failed run leaves behind, so it follows
@@ -609,6 +613,9 @@ const RunTab: Component = () => {
     const counters =
       formatDownloadProgress(current) ?? formatProgressCounters(current);
     return [
+      // the phase first: the bar restarts when it changes, and the chip is
+      // what says why (preprocessors done, images begin)
+      formatPhase(current),
       counters,
       formatRate(current),
       formatEta(current),

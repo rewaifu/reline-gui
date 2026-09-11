@@ -61,6 +61,35 @@ Rules that keep keyed rendering cheap (measured before/after in the 2026-09-10 r
 Never compare `props.selectedUid() === node.uid` inside every row (that is O(n) per click —
 the diagnostics code for it is `HUGE_FAN_OUT`).
 
+## Untrusted nodes and the reactive halt
+
+- **Solid 2 halts the ENTIRE reactive system on an uncaught error** inside a
+  computation (JSX render, `createEffect` compute, `createMemo`): the page keeps
+  painting and every input ignores the keyboard. `[REACTIVITY_HALTED]` in the
+  console is the _symptom_; the cause is the first error above it.
+- **An error boundary does not catch effect errors** — it only sees render
+  errors, so a form computing on data it did not expect still halts everything.
+  `Errored`/`createErrorBoundary` is damage control, not the fix.
+- **`Errored` must be the JSX form** (`<Errored fallback={…}><Workspace/></Errored>`).
+  Calling `createErrorBoundary(() => <Workspace/>, …)` builds the child in the
+  component body, outside the context providers, and dies on `useContext`
+  ("Context must either be created with a default value or a value must be
+  provided").
+- **Node data from outside the app is parsed at the door**: `sanitizeNodes` /
+  `sanitizeNode` (`src/lib/node-shape.ts`, valibot) run in `App.loadNodes` and in
+  the reducer's ADD/IMPORT. They drop non-nodes, fill options the type declares
+  but the payload lacks, and mint missing uids — the store is rendered directly,
+  so an unchecked shape (a stale tree, `options: null`, a hand-edited config) is
+  a throw in JSX.
+- **Enum maps indexed by stored values need a fallback** (`CHANNELS[mode] ??
+CHANNELS[default]` in `screentone.tsx`): an unknown member returns `undefined`
+  and reaches `<For>`, which throws during render.
+- **The halt watchdog** (`src/lib/ui-watchdog.ts`) detects what a boundary
+  cannot: a signal is bumped on a timer and one hidden node renders it, so a DOM
+  that stops following the beat means the scheduler is dead; then a plain-DOM
+  overlay shows the last `window.onerror` text with a reload button. Tests:
+  `ui-watchdog.test.ts`, `crash.test.tsx`, `node-shape.test.ts`.
+
 ## Solid 2 traps hit in this repo
 
 - **Writes are deferred.** Reading a signal right after `setX()` yields the old value.
@@ -74,6 +103,12 @@ the diagnostics code for it is `HUGE_FAN_OUT`).
   passing a module-level array does not.
 - **Async continuations capture props they need** before the first `await`/`.then`
   (see `PathRow.lookup`/`onBlur`): untracked reads there are lint warnings and hide bugs.
+- **State that outlives a view belongs to the module, not to the component.** The panel
+  renders its tabs through a `Switch`, so leaving a tab unmounts it — an object created in
+  the component body (the run client did this) closed its WebSocket on the way out, and the
+  server read that as a disconnect and cancelled the job. `runClient` is now a module-level
+  singleton (`run-client.ts`) and `RunTab` only borrows it; the socket, the progress and the
+  journal survive any tab switch.
 - Effects are split (`createEffect(compute, apply)`), cleanups are returned from `apply`,
   context wrappers do not exist — call `useContext(NodesContext)` directly (it throws on a
   missing provider by itself).
@@ -119,6 +154,28 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
 
 ## Layout / data conventions
 
+- **Icon buttons get `@include hit-area`** (`src/styles/_mixins.scss`): a 13px icon
+  paints a 17px button, so most of a 38px header strip looks clickable and is not.
+  The mixin overlays a transparent `::after`, so nothing moves or resizes. Keep the
+  insets at or below half the neighbour gap (`--space-2` = 8px → 4px horizontal):
+  expanded buttons then meet at the border instead of covering each other. Verify
+  with `document.elementFromPoint` a few px outside the button box, not by eye.
+- **Gestures do not rename.** Renaming is the pencil button. A single click
+  anywhere on the card's header strip — the name and the wide empty stretch beside
+  it included — selects *and* folds the node; the grip is the one exception (a drop
+  must not fold the card it just dropped, and it is marked `data-drag-handle`, not
+  detected by tag). Do not give the title its own handler: a zone handler has to
+  `stopPropagation` to keep its zone, which is exactly what made the first click
+  dead (the header's fold never ran) and made the old double-click-to-rename
+  swallow the fold.
+- **A whole row as drag source needs no selector list**: `createDragReorder`'s
+  `ownsPress` walks from the press target up to the source and refuses the press
+  when any step is a control or *wraps* one — the visible parts of a Kobalte switch
+  are plain divs, so matching the target alone misses them.
+- **Numeric entry is one component**: `NumberField` (input + ▲/▼ steppers) backs both
+  `NumberRow` and `SliderRow`, so limits behave the same everywhere — in-range edits
+  commit while typing, out-of-range or half-typed ones clamp on blur/Enter, and the
+  steppers never step past `min`/`max`.
 - Design tokens only from `src/styles/_tokens.scss`; semantic names must stay semantic
   (`--color-success` green, `--color-danger` red). Hover and selected states must differ by
   more than hue (border tint vs background tint) — they are adjacent states on one element.

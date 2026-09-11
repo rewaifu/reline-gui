@@ -432,6 +432,7 @@
 
 .runLogClear {
   @include ghost-button;
+  @include hit-area;
 
   flex: none;
   padding: var(--space-1);

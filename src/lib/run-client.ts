@@ -15,11 +15,17 @@ export type RunPhase = "idle" | "connecting" | "running" | "stopping";
  * putting an unknown word in the UI. */
 export type RunStage = "download" | "unarchive" | "read" | "process" | "write";
 
+/** The phase a `progress` frame belongs to. Each phase owns the bar from 0 %:
+ * the preprocessors fill it, then the image loop starts its own scale, so a
+ * long download cannot eat the bar the images are drawn on. */
+export type ProgressPhase = "preprocess" | "process";
+
 /** One `progress` frame, with the wire's snake_case keys decoded to camelCase.
  * Every field except `percent` is optional: `total: 0` means "size unknown",
  * `eta`/`rate` appear only after the first measurement. */
 export interface RunProgress {
   percent: number;
+  phase?: ProgressPhase;
   stage?: RunStage;
   label?: string;
   node?: string;
@@ -148,6 +154,13 @@ const STAGES: Record<string, RunStage | undefined> = {
   write: "write",
 };
 
+/** Same for the phase: an unknown name keeps the percent and the stage, and
+ * only the phase chip goes missing. */
+const PHASES: Record<string, ProgressPhase | undefined> = {
+  preprocess: "preprocess",
+  process: "process",
+};
+
 /** A number, or nothing: msgpack decides the wire type, and a frame carrying
  * a string where a counter belongs must not become "NaN" in the UI. */
 const readNumber = (value: unknown): number | undefined =>
@@ -166,6 +179,7 @@ const readProgress = (d: Record<string, unknown>): RunProgress => {
     // percent drives the bar and `aria-valuenow`: a frame outside 0..100 is
     // clamped instead of trusted
     percent: percent === undefined ? 0 : Math.min(100, Math.max(0, percent)),
+    phase: typeof d.phase === "string" ? PHASES[d.phase] : undefined,
     stage: typeof d.stage === "string" ? STAGES[d.stage] : undefined,
     label: readText(d.label),
     node: readText(d.node),
@@ -200,12 +214,28 @@ const doneMessage = (d: Record<string, unknown>): Omit<RunMessage, "at"> => {
   };
 };
 
+/** How many times a lost connection is retried before the run is given up on.
+ * Four retries after a drop: 1 s + 2 s + 4 s + 8 s of trying. */
+const RECONNECT_ATTEMPTS = 4;
+/** Backoff between retries. Long enough for a tunnel or a proxy to come back,
+ * short enough that the user watches it happen instead of reopening the tab. */
+const RECONNECT_BASE_MS = 1000;
+
 export const createRunClient = (): RunClient => {
   let ws: WebSocket | undefined;
   let echoTimer: number | undefined;
   let stopWatchdog: number | undefined;
+  let retryTimer: number | undefined;
   let lastEcho = 0;
   let nextId = 1;
+  /** Bumped by every dial and every `finish`: callbacks of a socket (or a
+   * retry) that we have moved on from compare their own ticket and go quiet. */
+  let ticket = 0;
+  /** Retries spent on the current drop; reset by a successful `onopen`. */
+  let attempt = 0;
+  /** The run as the user asked for it, so a reconnect can repeat it verbatim. */
+  let runUrl = "";
+  let runPipeline: PureConfig | undefined;
   const [phase, setPhase] = createSignal<RunPhase>("idle");
   const [progress, setProgress] = createSignal<RunProgress>();
   const [messages, setMessages] = createSignal<RunMessage[]>([]);
@@ -231,17 +261,65 @@ export const createRunClient = (): RunClient => {
 
   const send = (m: string, d: Record<string, unknown> = {}) => {
     if (ws?.readyState !== WebSocket.OPEN) return;
-    ws.send(encode({ m, id: nextId, d } as Envelope));
+    try {
+      ws.send(encode({ m, id: nextId, d } as Envelope));
+    } catch {
+      // the socket closed between the state check and the write: the close
+      // handler is already on its way, and a throw here would escape into
+      // whoever asked (a timer, an event handler) for no gain
+      return;
+    }
     nextId += 1;
   };
 
-  /** End the run: drop the socket and the watchdog, and leave one journal line
-   * that outlives the busy phase. */
+  /** End the run: drop the socket, the watchdog and any pending retry, and
+   * leave one journal line that outlives the busy phase. */
   const finish = (kind: RunMessage["kind"], text: LocalText) => {
+    // a retry in flight (or a socket callback on its way) must not resurrect
+    // the run we are closing here
+    ticket += 1;
+    window.clearTimeout(retryTimer);
+    runPipeline = undefined;
+    attempt = 0;
     closeSocket();
     window.clearTimeout(stopWatchdog);
     setPhase("idle");
     log(kind, text);
+  };
+
+  /** Dial the run again, with the same address and the same config.
+   *
+   * A socket that dies mid-run is not the end of it: the server cancels the
+   * abandoned job (WS_API.md), and the runner has no resume, so coming back
+   * means repeating `start`. That is cheap — a model already installed is not
+   * downloaded twice, and re-reading a folder is one scan — while the
+   * alternative, a silent drop, leaves the user with a progress bar that
+   * stopped moving and no way to know why.
+   *
+   * Bounded: after `RECONNECT_ATTEMPTS` the run ends with one honest journal
+   * line instead of a retry loop nobody can see the end of. */
+  const reconnect = (reason?: LocalText) => {
+    if (runPipeline === undefined) return;
+    if (reason !== undefined) log("info", reason);
+    if (attempt >= RECONNECT_ATTEMPTS) {
+      finish("error", message("run.reconnectFailed", { url: runUrl }));
+      return;
+    }
+    attempt += 1;
+    setPhase("connecting");
+    log(
+      "info",
+      message("run.reconnecting", {
+        attempt: String(attempt),
+        total: String(RECONNECT_ATTEMPTS),
+      }),
+    );
+    window.clearTimeout(retryTimer);
+    // 1 s, 2 s, 4 s, 8 s
+    retryTimer = window.setTimeout(
+      connect,
+      RECONNECT_BASE_MS * 2 ** (attempt - 1),
+    );
   };
 
   const startEcho = () => {
@@ -249,31 +327,35 @@ export const createRunClient = (): RunClient => {
     window.clearInterval(echoTimer);
     echoTimer = window.setInterval(() => {
       if (Date.now() - lastEcho > ECHO_TIMEOUT_MS) {
-        finish("error", "run.echoLost");
+        // A silent socket is not necessarily a dead run: drop it and let the
+        // reconnect path dial again instead of ending the run here.
+        window.clearInterval(echoTimer);
+        closeSocket();
+        reconnect("run.echoLost");
         return;
       }
       send("echo", { t: Date.now() });
     }, ECHO_INTERVAL_MS);
   };
 
-  const start = (url: string, pipeline: PureConfig) => {
-    if (phase() !== "idle" || !url) return;
+  /** One dial: open the socket, start the run on `onopen`, retry on `onclose`.
+   * `start` and every retry come through here, so there is one place where a
+   * connection becomes a run. */
+  const connect = () => {
+    const pipeline = runPipeline;
+    if (pipeline === undefined) return;
+    const mine = ++ticket;
     closeSocket();
-    setProgress(undefined);
-    // a new run gets a fresh journal; the previous run's lines are its own
-    setMessages([]);
-    setPhase("connecting");
-
     // The config is all this client sends: where the runner reads and writes
     // is the deployment's business (`--root` / `--models`, WS_API.md).
     const frame: Record<string, unknown> = { pipeline };
 
     let socket: WebSocket;
     try {
-      socket = new WebSocket(url);
+      socket = new WebSocket(runUrl);
     } catch (err) {
-      setPhase("idle");
-      log(
+      // a malformed address cannot be fixed by retrying
+      finish(
         "error",
         message("run.badAddress", {
           detail: err instanceof Error ? err.message : String(err),
@@ -283,26 +365,33 @@ export const createRunClient = (): RunClient => {
     }
     socket.binaryType = "arraybuffer";
     ws = socket;
+    // The dial itself is a busy state, not idle: an address that never answers
+    // (typo, wrong port, runner down) used to leave the panel looking idle
+    // until the socket opened, so a second click would start a second run and
+    // the buttons lied about what was happening.
+    setPhase("connecting");
 
     socket.onopen = () => {
+      if (ticket !== mine) return;
+      if (attempt > 0) log("info", "run.reconnected");
+      attempt = 0;
       setPhase("running");
       startEcho();
       send("start", frame);
     };
     socket.onclose = () => {
-      if (ws !== socket) return;
+      if (ws !== socket || ticket !== mine) return;
       ws = undefined;
       window.clearInterval(echoTimer);
-      if (phase() === "idle") return;
-      setPhase("idle");
-      log("error", message("run.closedByServer", { url }));
-    };
-    socket.onerror = () => {
-      if (ws === socket && phase() === "connecting")
-        finish("error", message("run.unreachable", { url }));
+      // No idle check here: a run that is over already went through `finish`,
+      // which bumped the ticket and cleared `runPipeline` — both checked
+      // above/inside `reconnect()`. Testing the phase instead made the most
+      // common failure silent: a socket that dies *before* it opens never set
+      // `running`, so a dead address retried zero times and logged nothing.
+      reconnect();
     };
     socket.onmessage = (ev: MessageEvent) => {
-      if (ws !== socket) return;
+      if (ws !== socket || ticket !== mine) return;
       let msg: Envelope;
       try {
         msg = decode(new Uint8Array(ev.data)) as Envelope;
@@ -310,7 +399,6 @@ export const createRunClient = (): RunClient => {
         finish("error", "run.badFrame");
         return;
       }
-      if (typeof msg?.m !== "string") return;
       const d = (msg.d ?? {}) as Record<string, unknown>;
       switch (msg.m) {
         case "echo":
@@ -343,6 +431,19 @@ export const createRunClient = (): RunClient => {
     };
   };
 
+  const start = (url: string, pipeline: PureConfig) => {
+    if (phase() !== "idle" || !url) return;
+    window.clearTimeout(retryTimer);
+    setProgress(undefined);
+    // a new run gets a fresh journal; the previous run's lines are its own
+    setMessages([]);
+    // kept for a reconnect: the retry repeats this exact run
+    runUrl = url;
+    runPipeline = pipeline;
+    attempt = 0;
+    connect();
+  };
+
   // If the server never answers `done`, the UI would sit in `stopping`
   // forever — start disabled, stop disabled, escape only by reload.
   // A watchdog forces the run back to idle when the stop goes unconfirmed.
@@ -364,3 +465,12 @@ export const createRunClient = (): RunClient => {
 
   return { phase, progress, messages, start, stop, clearMessages };
 };
+
+/** The panel's run client — one per page, deliberately.
+ *
+ * Switching a panel tab unmounts `RunTab`, and a client owned by that
+ * component would close its socket on the way out. The server reads that as
+ * "the user is gone" and cancels the job (WS_API.md), so a glance at another
+ * tab killed the run and emptied the bar. Owned by the module, the socket,
+ * the progress and the journal all outlive the tab that started them. */
+export const runClient = createRunClient();

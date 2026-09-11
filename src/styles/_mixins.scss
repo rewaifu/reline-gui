@@ -78,6 +78,24 @@
   }
 }
 
+/// Grow a button's *hit* area without changing its box.
+///
+/// Icon buttons are painted at the size of their icon — 17 px for a 13 px glyph
+/// — so most of the row looks clickable and is not. A transparent
+/// pseudo-element overlays the space around the button instead: nothing moves,
+/// nothing resizes, and the target grows. Keep the insets at or below half the
+/// gap between neighbours (`--space-2` = 8px, so 4px at most): two expanded
+/// buttons then meet at the border instead of covering each other.
+@mixin hit-area($x: 4px, $y: 6px) {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: (-$y) (-$x);
+  }
+}
+
 /// Popover surface: portaled menus, select content.
 @mixin popover {
   z-index: var(--z-popover);

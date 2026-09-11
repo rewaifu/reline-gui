@@ -100,12 +100,17 @@ const NodeCard: Component<NodeCardProps> = (props) => {
           class={styles.header}
           onClick={(e) => {
             props.onSelect(node().uid);
-            // clicks on the handle/title (spans) are zone-owned: the
-            // handle drags, the title selects/renames — only the empty
-            // header strip and the chevron collapse the node
+            // A single click anywhere on the strip folds the node — the name
+            // included. It used to be excluded because the title is a span
+            // with its own handler, which also stopped the event: the wide
+            // empty stretch beside the name (the title is `flex: 1`, so that
+            // stretch is *inside* it) swallowed the first click and the card
+            // opened only on the second. Only the grip is left out: a press
+            // there is a drag, and a drop would otherwise fold the card it
+            // just dropped.
             if (
               e.target instanceof Element &&
-              e.target.closest("span") !== null
+              e.target.closest("[data-drag-handle]") !== null
             )
               return;
             change({ collapsed: !node().collapsed });
@@ -113,6 +118,7 @@ const NodeCard: Component<NodeCardProps> = (props) => {
         >
           <span
             class={styles.dragHandle}
+            data-drag-handle
             role="button"
             tabindex="0"
             aria-label={t("chrome.reorder")}
@@ -183,15 +189,10 @@ const NodeCard: Component<NodeCardProps> = (props) => {
               />
             }
           >
-            <span
-              class={styles.title}
-              onClick={(e) => {
-                e.stopPropagation();
-                props.onSelect(node().uid);
-              }}
-              onDblClick={startRename}
-              title={t("chrome.renameHint")}
-            >
+            {/* No handler of its own: selecting and folding are the header's
+                job, and a handler here would have to stop the event to keep
+                its own zone — which is exactly what broke the first click. */}
+            <span class={styles.title}>
               <span class={styles.titleText}>
                 {node().name ?? nodeLabel(node().type)}
               </span>

@@ -69,19 +69,16 @@ export const NodesList: Component<NodesListProps> = (props) => {
                   [styles.dragging]: dragIndex() === index(),
                 }}
                 onClick={() => props.onSelect(node.uid)}
+                // The whole row drags: the grip icon cost a slot in every row
+                // and said less than the cursor does. Keyboard reordering stays
+                // (↑/↓ on the focused row), and a press on the switch or the ×
+                // stays with that control — the hook refuses those itself.
+                tabindex="0"
+                title={t("chrome.reorderNamed", {
+                  name: node.name ?? nodeLabel(node.type),
+                })}
+                {...handlers(index())}
               >
-                <span
-                  class={styles.dragHandle}
-                  role="button"
-                  tabindex="0"
-                  aria-label={t("chrome.reorderNamed", {
-                    name: node.name ?? nodeLabel(node.type),
-                  })}
-                  title={t("chrome.reorderTitle")}
-                  {...handlers(index())}
-                >
-                  <Icon name="drag-drop" size={16} />
-                </span>
                 <UiSwitch
                   checked={node.enabled !== false}
                   onChange={(checked) => toggleEnabled(node, checked)}

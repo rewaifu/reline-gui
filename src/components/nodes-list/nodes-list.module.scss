@@ -30,8 +30,11 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-strong);
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
+  // the row owns the drag gesture, so the browser must not claim pans on it.
+  // The column keeps its wheel/scrollbar scrolling; the rows are the surface.
+  touch-action: none;
   transition:
     transform var(--transition-fast),
     opacity var(--transition-fast),
@@ -53,6 +56,7 @@
   }
 
   &.dragging {
+    cursor: grabbing;
     opacity: 0.35;
     transform: scale(0.97);
   }
@@ -82,32 +86,12 @@
 
 .remove {
   @include ghost-button;
+  @include hit-area;
 
   flex: none;
   padding: 0 2px;
   font-size: 1rem;
   line-height: 1;
-}
-
-// Rows are drag sources, but only through the handle: the rest of the row
-// stays free for the list's own scroll gesture.
-.dragHandle {
-  @include ghost-button;
-
-  flex: none;
-  padding: 0 1px;
-  color: var(--color-text-muted);
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-
-  &:hover {
-    color: var(--color-text);
-  }
-
-  &:active {
-    cursor: grabbing;
-  }
 }
 
 @media (pointer: coarse) {
@@ -117,7 +101,6 @@
     padding: var(--space-1) var(--space-2);
   }
 
-  .dragHandle,
   .remove {
     min-width: var(--touch-min);
     min-height: var(--touch-min);

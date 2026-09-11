@@ -1,35 +1,52 @@
-import { type Component, createEffect, createStore, onSettled } from "solid-js";
-import { NodeType } from "~/types/enums";
-import { ensureUids } from "~/lib/uid";
+import {
+  type Accessor,
+  type Component,
+  createEffect,
+  createSignal,
+  createStore,
+  Errored,
+  onSettled,
+} from "solid-js";
+import { sanitizeNodes } from "~/lib/node-shape";
 import { preloadModelNames } from "~/lib/model-db";
 import { STORAGE_KEY, createDefaultNodes } from "~/constants";
 import { locale } from "~/lib/i18n";
 import type { StackNode } from "~/types/node";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
+import { Crash } from "~/components/crash/crash";
+import {
+  createWatchdog,
+  rememberErrors,
+  rememberedError,
+  showHaltOverlay,
+} from "~/lib/ui-watchdog";
 import { Workspace } from "~/routes/workspace/workspace";
 import "~/styles/global.scss";
 
 const loadNodes = (): StackNode[] => {
-  const known = new Set<string>(Object.values(NodeType));
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      // drop node types this build no longer knows (e.g. removed experiments)
-      const parsed = (JSON.parse(raw) as StackNode[]).filter((n) =>
-        known.has(n.type),
-      );
-      return ensureUids(parsed);
+      // Every entry is parsed, not trusted: a tree written by an older build,
+      // truncated by a full quota or hand-edited carries shapes the forms read
+      // during render, and a throw there halts the whole reactive system.
+      const nodes = sanitizeNodes(JSON.parse(raw));
+      if (nodes.length > 0) return nodes;
     }
   } catch {
     // corrupted storage — fall through to defaults
   }
-  return ensureUids(createDefaultNodes());
+  return createDefaultNodes();
 };
 
 const App: Component = () => {
   const [nodes, setNodes] = createStore<StackNode[]>(loadNodes());
   const dispatch = createNodesDispatch(setNodes);
+  // the probe: a signal written by a timer and rendered into one hidden node
+  const [beat, setBeat] = createSignal(0);
+  let beats = 0;
+  let probe: HTMLSpanElement | undefined;
 
   // Warm the remote model index once, in the background: model completion and
   // name resolution read it synchronously, so the first focus on a model field
@@ -37,6 +54,24 @@ const App: Component = () => {
   // download links right away).
   onSettled(() => {
     void preloadModelNames();
+    // A halt is invisible: the page paints, the inputs ignore the keyboard, and
+    // the error that caused it is already behind us. The watchdog watches for
+    // exactly that, and the listener keeps the cause around for the overlay.
+    const forget = rememberErrors();
+    const watchdog = createWatchdog({
+      beat: () => {
+        beats += 1;
+        setBeat(beats);
+        return String(beats);
+      },
+      rendered: () => probe?.textContent ?? null,
+      onStall: () => showHaltOverlay(rememberedError()),
+    });
+    watchdog.start();
+    return () => {
+      watchdog.stop();
+      forget();
+    };
   });
 
   // The document language drives hyphenation, spell-check and which voice a
@@ -75,7 +110,26 @@ const App: Component = () => {
     <NodesContext value={nodes}>
       <NodesDispatchContext value={dispatch}>
         <main>
-          <Workspace />
+          {/* An uncaught error anywhere below halts Solid's reactive system:
+              every later update is ignored, which reads as "the page froze,
+              nothing types". The boundary keeps the blast radius to the
+              workspace and puts the stack on screen.
+              It has to be the JSX form: a child created imperatively
+              (`createErrorBoundary(() => <Workspace/>)`) renders outside the
+              context providers above and dies on `useContext`. */}
+          <Errored
+            fallback={(error: Accessor<unknown>) => {
+              console.error("workspace crashed", error());
+              return <Crash error={error} />;
+            }}
+          >
+            <Workspace />
+          </Errored>
+          {/* read by the watchdog: if this stops following the timer, the
+              reactive system is gone and nothing else on the page will move */}
+          <span ref={probe} hidden>
+            {String(beat())}
+          </span>
         </main>
       </NodesDispatchContext>
     </NodesContext>

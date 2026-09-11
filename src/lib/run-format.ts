@@ -1,6 +1,6 @@
 import { t, type MessageKey } from "~/lib/i18n";
 import { PureNodeType } from "~/types/enums";
-import type { RunProgress, RunStage } from "./run-client";
+import type { ProgressPhase, RunProgress, RunStage } from "./run-client";
 
 /** Stage titles from WS_API.md. `RunStage` is a closed union, so this covers
  * every stage a frame can carry. Keys, not text: the line is formatted where
@@ -11,6 +11,14 @@ const STAGE_KEYS: Record<RunStage, MessageKey> = {
   read: "run.stage.read",
   process: "run.stage.process",
   write: "run.stage.write",
+};
+
+/** Phase titles. The bar restarts when the phase changes (WS_API.md), so the
+ * name is what tells "the preprocessors are done, the images begin" from a
+ * glitch in the bar. */
+const PHASE_KEYS: Record<ProgressPhase, MessageKey> = {
+  preprocess: "run.phase.preprocess",
+  process: "run.phase.process",
 };
 
 /** Wire node type → the name that node carries in the editor. The runner
@@ -117,6 +125,11 @@ export const describeStage = (p: RunProgress): string => {
   const stage = t(STAGE_KEYS[p.stage]);
   return detail === undefined ? stage : `${stage} · ${detail}`;
 };
+
+/** The phase the bar belongs to ("Предобработка" / "Preprocessing"), read off
+ * the frame; undefined for a runner that does not report phases yet. */
+export const formatPhase = (p: RunProgress): string | undefined =>
+  p.phase === undefined ? undefined : t(PHASE_KEYS[p.phase]);
 
 /** "42 / 120", undefined while the total is unknown (`total: 0` is exactly
  * the case where a share of the stage cannot be told). */

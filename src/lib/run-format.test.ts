@@ -9,6 +9,7 @@ import {
   formatDuration,
   formatElapsed,
   formatEta,
+  formatPhase,
   formatProgressCounters,
   formatRate,
 } from "~/lib/run-format";
@@ -31,6 +32,17 @@ const use = (next: Locale) => {
 // jsdom reports an English browser, so the Russian expectations below state
 // their language instead of inheriting one.
 beforeEach(() => use("ru"));
+
+describe("phase chip", () => {
+  it("names the phase the bar belongs to", () => {
+    expect(formatPhase(frame({ phase: "preprocess" }))).toBe("Предобработка");
+    expect(formatPhase(frame({ phase: "process" }))).toBe("Обработка");
+  });
+
+  it("says nothing for a runner that does not report phases", () => {
+    expect(formatPhase(frame({}))).toBeUndefined();
+  });
+});
 
 describe("stage line", () => {
   it("names the stage and the model it is fetching", () => {
@@ -217,6 +229,8 @@ describe("English output", () => {
       "Processing images · Sharp",
     );
     expect(describeStage(frame({}))).toBe("Preparing…");
+    expect(formatPhase(frame({ phase: "preprocess" }))).toBe("Preprocessing");
+    expect(formatPhase(frame({ phase: "process" }))).toBe("Processing");
   });
 
   it("formats durations, bytes and rates in English units", () => {
