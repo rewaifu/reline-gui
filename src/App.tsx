@@ -11,6 +11,8 @@ import { sanitizeNodes } from "~/lib/node-shape";
 import { preloadModelNames } from "~/lib/model-db";
 import { STORAGE_KEY, createDefaultNodes } from "~/constants";
 import { locale } from "~/lib/i18n";
+import { runClient } from "~/lib/run-client";
+import { faviconStatusFor, syncFavicon } from "~/lib/favicon-status";
 import type { StackNode } from "~/types/node";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
@@ -81,6 +83,20 @@ const App: Component = () => {
     () => locale(),
     (lang) => {
       document.documentElement.lang = lang;
+    },
+  );
+  // Tab-icon run status: the panda stays only while idle — a busy run draws
+  // a progress ring over it, a finished one a green check, a failed one a
+  // red cross. The journal outlives the run, so the outcome badge survives
+  // until the next start.
+  createEffect(
+    () => ({
+      phase: runClient.phase(),
+      percent: runClient.progress()?.percent,
+      last: runClient.messages().at(-1)?.kind,
+    }),
+    ({ phase, percent, last }) => {
+      syncFavicon(faviconStatusFor(phase, percent, last));
     },
   );
 

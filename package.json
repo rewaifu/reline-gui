@@ -15,8 +15,8 @@
     "format": "oxfmt"
   },
   "dependencies": {
-    "@kobalte/core": "git+https://github.com/umzi2/kobalte_fork.git#pkg",
-    "@kobalte/utils": "git+https://github.com/umzi2/kobalte_fork.git#pkg-utils",
+    "@floating-ui/dom": "^1.8.0",
+    "@rebase-ui/solid": "0.2.0",
     "@solidjs/signals": "2.0.0-rc.6",
     "@solidjs/web": "2.0.0-rc.6",
     "marked": "^18.0.12",

@@ -7,6 +7,7 @@ import {
   useToggleEnabled,
 } from "~/instructions/hooks/use-node-actions";
 import { nodeLabel } from "~/components/nodes/registry";
+import { NodeSwap } from "~/components/node-swap/node-swap";
 import { Icon, UiSwitch } from "~/components/ui";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { NodesActionType } from "~/types/actions";
@@ -94,6 +95,7 @@ export const NodesList: Component<NodesListProps> = (props) => {
                     <span class={styles.typeHint}>{nodeLabel(node.type)}</span>
                   </Show>
                 </span>
+                <NodeSwap node={node} />
                 <button
                   type="button"
                   class={styles.remove}

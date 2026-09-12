@@ -125,4 +125,23 @@ describe("reducer: uid is the only identity", () => {
       expect(nodes.map((n) => sharp(n).diapason_black)).toEqual([1, 2]);
     });
   });
+
+  it("SWAP replaces the type in place and resets options to defaults", () => {
+    withStore(({ nodes, dispatch }) => {
+      const survivor = nodes[1];
+      dispatch({
+        type: NodesActionType.SWAP,
+        payload: { uid: "u1", nodeType: NodeType.RESIZE },
+      });
+      flush();
+      expect(nodes.length).toBe(2);
+      // uid, position and the survivor's reference survive the swap
+      expect(nodes[0].uid).toBe("u1");
+      expect(nodes[1]).toBe(survivor);
+      expect(nodes[0].type).toBe(NodeType.RESIZE);
+      // options are the new type's defaults, not merged leftovers
+      expect(sharp(nodes[0] as StackNode).diapason_black).toBeUndefined();
+      expect(nodes[0].options).toMatchObject({ filter: "slinear4" });
+    });
+  });
 });

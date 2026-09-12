@@ -19,6 +19,9 @@ export const ru = {
     remove: "Удалить ноду",
     removeNamed: "Удалить {name}",
     enable: "Включить {name}",
+    swap: "Заменить ноду",
+    swapNamed: "Заменить {name}",
+    swapPick: "Тип ноды",
     addNode: "Добавить ноду",
     /* Shown by the error boundary around the workspace. Solid 2 halts the
      * whole reactive system on an uncaught error, so this screen is the
@@ -60,6 +63,9 @@ export const en: typeof ru = {
     remove: "Delete node",
     removeNamed: "Delete {name}",
     enable: "Enable {name}",
+    swap: "Swap node",
+    swapNamed: "Swap {name}",
+    swapPick: "Node type",
     addNode: "Add node",
     crash: {
       title: "The interface broke",

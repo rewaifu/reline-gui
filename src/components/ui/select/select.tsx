@@ -1,8 +1,17 @@
-import { omit, type Component, createSignal } from "solid-js";
-import { Select } from "@kobalte/core/select";
+import {
+  For,
+  Show,
+  createSignal,
+  createUniqueId,
+  onCleanup,
+  omit,
+  type Component,
+} from "solid-js";
+import { Portal } from "@solidjs/web";
 import { Icon } from "../icon";
 import styles from "./select.module.scss";
 import { createDismissOnOutside } from "../create-dismiss-on-outside";
+import { createMenuPosition } from "../menu-position";
 import { t } from "~/lib/i18n";
 
 export interface UiSelectProps {
@@ -17,6 +26,9 @@ export interface UiSelectProps {
   class?: string;
 }
 
+/** Single-value dropdown over the raw wire strings. Focus stays on the
+ * trigger while the menu is open (roving `aria-activedescendant`); arrows
+ * move, Enter commits, Escape closes, printable characters typeahead. */
 export const UiSelect: Component<UiSelectProps> = (props) => {
   const rest = omit(
     props,
@@ -29,55 +41,184 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
     "class",
   );
   const [open, setOpen] = createSignal(false);
-  let rootEl: HTMLDivElement | undefined;
+  const [highlight, setHighlight] = createSignal(-1);
+  const listId = `${createUniqueId()}-listbox`;
+  let triggerEl: HTMLButtonElement | undefined;
   let contentEl: HTMLDivElement | undefined;
+  let listEl: HTMLUListElement | undefined;
+  let typeTimer: number | undefined;
+  let typeBuf = "";
+  onCleanup(() => clearTimeout(typeTimer));
 
-  createDismissOnOutside(open, setOpen, () => [rootEl, contentEl]);
+  createDismissOnOutside(open, setOpen, () => [triggerEl, contentEl]);
+  createMenuPosition(
+    open,
+    () => triggerEl,
+    () => contentEl,
+    () => "bottom-start",
+  );
+
+  const scrollHighlight = () => {
+    requestAnimationFrame(() => {
+      listEl
+        ?.querySelector("[data-highlighted]")
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  };
+
+  const openMenu = (fromTop = true) => {
+    if (props.items.length === 0) return;
+    typeBuf = "";
+    const selected = props.items.indexOf(props.value ?? "");
+    setHighlight(
+      selected >= 0 ? selected : fromTop ? 0 : props.items.length - 1,
+    );
+    setOpen(true);
+  };
+
+  const closeMenu = (refocus = false) => {
+    setOpen(false);
+    setHighlight(-1);
+    typeBuf = "";
+    if (refocus) triggerEl?.focus();
+  };
+
+  const commit = (index: number) => {
+    const value = props.items[index];
+    if (value === undefined) return;
+    closeMenu();
+    triggerEl?.focus();
+    props.onChange(value);
+  };
+
+  const move = (delta: number) => {
+    const count = props.items.length;
+    if (count === 0) return;
+    // clamp, not wrap: wrapping teleports the highlight across the whole list
+    setHighlight(Math.min(count - 1, Math.max(0, highlight() + delta)));
+    scrollHighlight();
+  };
+
+  const typeahead = (key: string) => {
+    typeBuf = (typeBuf + key).toLowerCase();
+    clearTimeout(typeTimer);
+    typeTimer = window.setTimeout(() => {
+      typeBuf = "";
+    }, 500);
+    const at = props.items.findIndex((item) =>
+      item.toLowerCase().startsWith(typeBuf),
+    );
+    if (at >= 0) {
+      setHighlight(at);
+      scrollHighlight();
+    }
+  };
+
+  const onTriggerClick = () => {
+    if (open()) closeMenu();
+    else openMenu(true);
+  };
+
+  const onTriggerKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Tab") {
+      closeMenu();
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open()) openMenu(e.key === "ArrowDown");
+      else move(e.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (!open()) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openMenu(true);
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        openMenu(true);
+        typeahead(e.key);
+      }
+      return;
+    }
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      commit(highlight());
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setHighlight(0);
+      scrollHighlight();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setHighlight(props.items.length - 1);
+      scrollHighlight();
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      typeahead(e.key);
+    }
+  };
 
   return (
-    <Select
-      open={open()}
-      onOpenChange={setOpen}
-      value={props.value}
-      onChange={(value) => value !== null && props.onChange(value)}
-      options={props.items as string[]}
-      placeholder={props.placeholder ?? t("ui.select")}
-      // options are the raw wire values (`no_tiling`, `slinear4`): the same
-      // strings the runner parses, as the original editor showed them, so the
-      // list never mixes a translated word with a library name
-      itemComponent={(item) => (
-        <Select.Item item={item.item} class={styles.item}>
-          {item.item.rawValue}
-        </Select.Item>
-      )}
-      gutter={4}
-      placement="bottom-start"
-      {...rest}
-    >
-      <div ref={rootEl} style={{ display: "contents" }}>
-        <Select.Trigger
-          id={props.id}
-          class={[styles.trigger, props.class]}
-          aria-label={props.ariaLabel}
+    <>
+      <button
+        {...rest}
+        ref={triggerEl}
+        type="button"
+        id={props.id}
+        class={[styles.trigger, props.class]}
+        aria-label={props.ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open() ? "true" : "false"}
+        aria-controls={open() ? listId : undefined}
+        aria-activedescendant={
+          open() && highlight() >= 0 ? `${listId}-${highlight()}` : undefined
+        }
+        onClick={onTriggerClick}
+        onKeyDown={onTriggerKeyDown}
+      >
+        <span
+          class={styles.value}
+          data-placeholder-shown={props.value == null ? "" : undefined}
         >
-          <Select.Value class={styles.value}>
-            {(state) => {
-              // items are strings (UiSelectProps.items: readonly string[]),
-              // but Kobalte types the selected option as unknown
-              const selected = state.selectedOption() as string | undefined;
-              return selected ?? props.placeholder ?? "";
-            }}
-          </Select.Value>
-          <Select.Icon class={styles.icon} aria-hidden="true">
-            <Icon name="chevron-down" size={14} />
-          </Select.Icon>
-        </Select.Trigger>
-      </div>
-      <Select.Portal>
-        <Select.Content ref={contentEl} class={styles.content}>
-          <Select.Listbox class={styles.listbox} />
-        </Select.Content>
-      </Select.Portal>
-    </Select>
+          {props.value ?? props.placeholder ?? t("ui.select")}
+        </span>
+        <span class={styles.icon} aria-hidden="true">
+          <Icon name="chevron-down" size={14} />
+        </span>
+      </button>
+      <Show when={open()}>
+        <Portal>
+          <div
+            ref={contentEl}
+            class={styles.content}
+            style={{ position: "fixed", left: "0px", top: "0px" }}
+          >
+            <ul
+              ref={listEl}
+              id={listId}
+              role="listbox"
+              class={styles.listbox}
+              aria-label={props.ariaLabel}
+            >
+              <For each={props.items}>
+                {(item, index) => (
+                  <li
+                    role="option"
+                    id={`${listId}-${index()}`}
+                    aria-selected={item === props.value ? "true" : "false"}
+                    data-selected={item === props.value ? "" : undefined}
+                    data-highlighted={index() === highlight() ? "" : undefined}
+                    class={styles.item}
+                    onClick={() => commit(index())}
+                    onPointerMove={() => setHighlight(index())}
+                    onPointerDown={(e) => e.preventDefault()}
+                  >
+                    {item}
+                  </li>
+                )}
+              </For>
+            </ul>
+          </div>
+        </Portal>
+      </Show>
+    </>
   );
 };

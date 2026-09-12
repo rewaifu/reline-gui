@@ -1,10 +1,4 @@
 # pnpm 12 settings live here — its non-auth .npmrc keys are ignored.
-#
-# @kobalte/core is installed from a git fork whose package.json points
-# @kobalte/utils at that same repository (`#pkg-utils`). pnpm rejects git specs
-# inside subdependencies by default and a pnpm.overrides entry does not lift
-# that check, so the guard is off for this single-fork project.
-blockExoticSubdeps: false
 
 # sass pulls @parcel/watcher; its install script only matters on platforms
 # without a prebuilt binary, and Linux x64 has one
@@ -17,3 +11,4 @@ allowBuilds:
 # 2026-09-09T15:04Z; the entry can go once that age is past.
 minimumReleaseAgeExclude:
   - sugar-high@2.4.0
+  - "@rebase-ui/solid@0.2.0"

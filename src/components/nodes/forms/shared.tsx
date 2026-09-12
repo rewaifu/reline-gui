@@ -456,6 +456,12 @@ const WEIGHT_EXTS = ["pth", "pt", "safetensors", "safetensor"];
 export const queryPath = (value: string): string =>
   value.includes("/") ? value : `./${value}`;
 
+/** Directory part of a path, through the last slash (`/content/raw` →
+ * `/content/`, a bare `raws` → ``). Focusing a field lists this whole
+ * directory; the last-segment prefix filters only once editing starts. */
+export const dirOf = (value: string): string =>
+  value.slice(0, value.lastIndexOf("/") + 1);
+
 /** Text input with path completion: debounced `ls` lookups populate a
  * dropdown; picking an entry completes the last path segment, directories
  * get a trailing slash so browsing continues deeper. `mdb` completes against
@@ -523,7 +529,7 @@ export const PathRow: Component<PathRowProps> = (props) => {
           setDirs(dirs);
           // fresh directory starts at the top; a re-listing of the same dir
           // (e.g. after arrow-reopen) keeps the highlighted row
-          const dir = value.slice(0, value.lastIndexOf("/") + 1);
+          const dir = dirOf(value);
           if (dir !== lastDir || names.length === 0) setActive(0);
           else if (active() >= names.length) setActive(names.length - 1);
           lastDir = dir;
@@ -554,7 +560,7 @@ export const PathRow: Component<PathRowProps> = (props) => {
   };
 
   const complete = (name: string) => {
-    const head = props.value.slice(0, props.value.lastIndexOf("/") + 1);
+    const head = dirOf(props.value);
     const isDir = dirs().has(name);
     const next = head + name + (isDir ? "/" : "");
     props.onInput(next);
@@ -620,7 +626,9 @@ export const PathRow: Component<PathRowProps> = (props) => {
             props.onInput(e.currentTarget.value);
             lookup(e.currentTarget.value);
           }}
-          onFocus={() => lookup(props.value)}
+          // entering the field lists the whole directory; the last-segment
+          // prefix filters only once the user starts editing
+          onFocus={() => lookup(dirOf(props.value))}
           onBlur={() => {
             setOpen(false);
             if (props.source !== "mdb") return;

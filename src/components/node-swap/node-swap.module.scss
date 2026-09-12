@@ -1,0 +1,82 @@
+@use "../../styles/mixins" as *;
+
+.swap {
+  flex: none;
+}
+
+.button {
+  @include ghost-button;
+  @include hit-area;
+
+  padding: 0 2px;
+  line-height: 1;
+
+  &[aria-expanded="true"] {
+    color: var(--color-primary);
+  }
+}
+
+// portaled under the button (never clipped by a scrolling column); the
+// option list lives inside it — no nested portal
+.popover {
+  @include popover;
+
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-popover);
+  width: 220px;
+  padding: var(--space-1);
+
+  @media (pointer: coarse) {
+    width: 240px;
+  }
+}
+
+.filter {
+  @include field;
+
+  margin-bottom: var(--space-1);
+}
+
+.list {
+  @include scroll-y;
+
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: min(
+    264px,
+    calc(var(--menu-available-height, 280px) - 2 * var(--space-1))
+  );
+}
+
+.item {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &[data-active] {
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+}
+
+@media (pointer: coarse) {
+  .button {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+
+  .item {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-min);
+  }
+}

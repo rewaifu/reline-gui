@@ -538,6 +538,22 @@
   flex: 1;
   text-align: left;
 }
+
+.instructionsHeader {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.instructionsTitle {
+  @include truncate;
+
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
 // Rendered Markdown instructions (src/instructions/*.mdx).
 .doc {
   color: var(--color-text);

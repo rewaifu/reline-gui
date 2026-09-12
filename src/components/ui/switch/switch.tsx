@@ -1,13 +1,13 @@
 import { omit, type Component } from "solid-js";
-import { Switch } from "@kobalte/core/switch";
+import { Switch } from "@rebase-ui/solid/switch";
 import styles from "./switch.module.scss";
 
 export interface UiSwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
-  /** Visible text rendered next to the control by Kobalte (<Switch.Label>). */
+  /** Visible text rendered next to the control. */
   label?: string;
-  /** Accessible name for the hidden input — use when the label is rendered outside. */
+  /** Accessible name for the control — use when the label is rendered outside. */
   ariaLabel?: string;
   /** Set to link an external <label for> to this control. */
   id?: string;
@@ -27,19 +27,18 @@ export const UiSwitch: Component<UiSwitchProps> = (props) => {
   );
 
   return (
-    <Switch
-      class={[styles.switch, props.class]}
-      checked={props.checked}
-      onChange={props.onChange}
-      {...rest}
-    >
-      <Switch.Input id={props.id} aria-label={props.ariaLabel} />
-      <Switch.Control class={styles.track}>
+    <span class={[styles.switch, props.class]}>
+      <Switch.Root
+        class={styles.track}
+        checked={props.checked}
+        onCheckedChange={(checked) => props.onChange(checked)}
+        id={props.id}
+        aria-label={props.ariaLabel}
+        {...rest}
+      >
         <Switch.Thumb class={styles.thumb} />
-      </Switch.Control>
-      {props.label && (
-        <Switch.Label class={styles.label}>{props.label}</Switch.Label>
-      )}
-    </Switch>
+      </Switch.Root>
+      {props.label && <span class={styles.label}>{props.label}</span>}
+    </span>
   );
 };

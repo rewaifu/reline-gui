@@ -44,8 +44,11 @@
 .content {
   @include popover;
 
-  min-width: var(--kb-popper-anchor-width, 180px);
-  max-height: min(280px, var(--kb-popper-content-available-height, 280px));
+  position: fixed;
+  left: 0;
+  top: 0;
+  min-width: 180px;
+  max-height: min(280px, var(--menu-available-height, 280px));
   padding: var(--space-1);
   overflow: hidden;
 }
@@ -58,7 +61,7 @@
   list-style: none;
   max-height: min(
     264px,
-    calc(var(--kb-popper-content-available-height, 280px) - 2 * var(--space-1))
+    calc(var(--menu-available-height, 280px) - 2 * var(--space-1))
   );
 }
 

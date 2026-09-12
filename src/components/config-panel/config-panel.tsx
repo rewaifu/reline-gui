@@ -27,7 +27,8 @@ import { nodesToString, stringToNodes } from "~/lib/config";
 import { modelUrl, preloadModelNames, resolveModelName } from "~/lib/model-db";
 import { convertToPure, type LegacyMigration } from "~/lib/convert";
 import { NodeType } from "~/types/enums";
-import { NODE_DEFS } from "~/components/nodes/registry";
+import { NODE_DEFS, nodeLabel } from "~/components/nodes/registry";
+import { NodeSwap } from "~/components/node-swap/node-swap";
 import {
   locale,
   message,
@@ -83,9 +84,10 @@ const INSTRUCTION_DOCS: Record<string, string> = Object.fromEntries(
 
 const InstructionsTab: Component<ConfigPanelProps> = (props) => {
   const nodes = useContext(NodesContext);
+  const node = () => nodes.find((n) => n.uid === props.selectedUid());
   const def = () => {
-    const node = nodes.find((n) => n.uid === props.selectedUid());
-    return node ? NODE_DEFS[node.type] : undefined;
+    const current = node();
+    return current ? NODE_DEFS[current.type] : undefined;
   };
   const docHtml = createMemo(() => {
     const d = def();
@@ -95,6 +97,16 @@ const InstructionsTab: Component<ConfigPanelProps> = (props) => {
 
   return (
     <div class={styles.instructions}>
+      <Show when={node()}>
+        {(n) => (
+          <div class={styles.instructionsHeader}>
+            <span class={styles.instructionsTitle}>
+              {n().name ?? nodeLabel(n().type)}
+            </span>
+            <NodeSwap node={n()} />
+          </div>
+        )}
+      </Show>
       <Show
         when={def()}
         fallback={<p class={styles.empty}>{t("panel.instructions.empty")}</p>}

@@ -46,6 +46,8 @@ const PATHS = {
     "M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2",
   ],
   check: ["M5 12l5 5L20 6"],
+  // two opposing arrows: node type swap (replace, keep position)
+  swap: ["M4 7h13l-3 -3", "M17 7l-3 3", "M20 17h-13l3 3", "M7 17l3 -3"],
 } as const;
 
 export type IconName = keyof typeof PATHS;

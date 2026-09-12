@@ -8,7 +8,7 @@
   font-size: var(--font-size-md);
   cursor: pointer;
 
-  &[data-disabled] {
+  &:has(.track[data-disabled]) {
     opacity: 0.5;
     cursor: default;
   }

@@ -1,4 +1,5 @@
 import type { NodeOptions, StackNode } from "~/types/node";
+import type { NodeType } from "~/types/enums";
 
 export enum NodesActionType {
   ADD = "ADD",
@@ -6,6 +7,7 @@ export enum NodesActionType {
   CHANGE = "CHANGE",
   MOVE = "MOVE",
   IMPORT = "IMPORT",
+  SWAP = "SWAP",
 }
 interface AddNodeActionType {
   type: NodesActionType.ADD;
@@ -38,9 +40,15 @@ interface ImportNodeActionType {
   payload: StackNode[];
 }
 
+interface SwapNodeActionType {
+  type: NodesActionType.SWAP;
+  payload: { uid: string; nodeType: NodeType };
+}
+
 export type NodesAction =
   | AddNodeActionType
   | DeleteNodeActionType
   | ChangeNodeActionType
   | MoveNodeActionType
-  | ImportNodeActionType;
+  | ImportNodeActionType
+  | SwapNodeActionType;

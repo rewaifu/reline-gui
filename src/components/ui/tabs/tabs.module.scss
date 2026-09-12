@@ -45,7 +45,7 @@
     background-color 120ms ease,
     border-color 120ms ease;
 
-  &:hover:not([data-selected]) {
+  &:hover:not([data-active]) {
     border-color: var(--color-border);
     background: color-mix(
       in srgb,
@@ -54,7 +54,7 @@
     );
   }
 
-  &[data-selected] {
+  &[data-active] {
     border-color: var(--color-border);
     background: var(--color-surface);
   }

@@ -21,6 +21,7 @@ import {
 } from "~/instructions/hooks/use-node-actions";
 import { nodeLabel } from "~/components/nodes/registry";
 import { NodeOptionsForm } from "~/components/nodes/node-options-form";
+import { NodeSwap } from "~/components/node-swap/node-swap";
 import { AddNodeMenu } from "~/components/nodes-list/add-node-menu";
 import { Icon, UiSwitch } from "~/components/ui";
 import { t } from "~/lib/i18n";
@@ -139,6 +140,7 @@ const NodeCard: Component<NodeCardProps> = (props) => {
           >
             <Icon name="pencil" size={13} />
           </button>
+          <NodeSwap node={node()} />
           <Show when={!props.phone}>
             <button
               type="button"

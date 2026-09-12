@@ -1,6 +1,6 @@
 import { omit, type Component, For } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import { Tabs } from "@kobalte/core/tabs";
+import { Tabs } from "@rebase-ui/solid/tabs";
 import { t, type MessageKey } from "~/lib/i18n";
 import styles from "./tabs.module.scss";
 
@@ -23,24 +23,24 @@ export const UiTabs: Component<UiTabsProps> = (props) => {
   const rest = omit(props, "value", "onChange", "tabs", "content", "class");
 
   return (
-    <Tabs
+    <Tabs.Root
+      {...rest}
       class={[styles.tabs, props.class]}
       value={props.value}
-      onChange={props.onChange}
-      {...rest}
+      onValueChange={(value) => props.onChange(value)}
     >
       <Tabs.List class={styles.list}>
         <For each={props.tabs}>
           {(tab) => (
-            <Tabs.Trigger value={tab.value} class={styles.trigger}>
+            <Tabs.Tab value={tab.value} class={styles.trigger}>
               {t(tab.labelKey)}
-            </Tabs.Trigger>
+            </Tabs.Tab>
           )}
         </For>
       </Tabs.List>
-      <Tabs.Content value={props.value} class={styles.content}>
+      <Tabs.Panel value={props.value} class={styles.content}>
         {props.content(props.value)}
-      </Tabs.Content>
-    </Tabs>
+      </Tabs.Panel>
+    </Tabs.Root>
   );
 };

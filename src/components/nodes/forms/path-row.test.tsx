@@ -83,4 +83,21 @@ describe("path completion", () => {
     fireEvent.input(combobox(view), { target: { value: "raws/" } });
     await vi.waitFor(() => expect(ls).toHaveBeenCalledWith("raws/", {}));
   });
+
+  it("lists the whole folder on focus, filters only once typing", async () => {
+    const [value, setValue] = createSignal("raws");
+    const view = render(() => (
+      <PathRow
+        label="Path to folder"
+        value={value()}
+        onInput={setValue}
+        source="dirs"
+      />
+    ));
+    const input = view.getByRole("combobox") as HTMLInputElement;
+    fireEvent.focus(input);
+    // the bare name is a prefix filter only while typing — entering the
+    // field lists the whole current directory instead
+    await vi.waitFor(() => expect(ls).toHaveBeenCalledWith("./", {}));
+  });
 });

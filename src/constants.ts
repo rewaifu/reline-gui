@@ -28,7 +28,7 @@ export const DEFAULT_COLLAPSED = true;
 export const MODEL_POSTFIX = ".pth";
 
 /** Node type → its entry in DEFAULT_NODE_OPTIONS. */
-const OPTION_KEY: Record<NodeType, keyof typeof DEFAULT_NODE_OPTIONS> = {
+export const OPTION_KEY: Record<NodeType, keyof typeof DEFAULT_NODE_OPTIONS> = {
   [NodeType.FOLDER_READER]: "folder_reader",
   [NodeType.FOLDER_WRITER]: "folder_writer",
   [NodeType.UPSCALE]: "upscale",

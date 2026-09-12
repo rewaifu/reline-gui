@@ -1,5 +1,6 @@
 import { type StoreSetter } from "solid-js";
 import { type NodesAction, NodesActionType } from "~/types/actions";
+import { DEFAULT_NODE_OPTIONS, OPTION_KEY } from "~/constants";
 import { sanitizeNode, sanitizeNodes } from "~/lib/node-shape";
 import { withFreshUids } from "~/lib/uid";
 import type { StackNode } from "~/types/node";
@@ -60,6 +61,23 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
       // needs reindexing: uid is the identity, position is the For accessor
       setNodes((state) => state.filter((node) => node.uid !== payload));
       break;
+
+    case NodesActionType.SWAP: {
+      // replace the type in place: uid, position and enabled stay, options
+      // reset to the new type's defaults — mixing option bags across types
+      // would leave fields the new form never reads
+      const optionKey = OPTION_KEY[payload.nodeType];
+      if (optionKey === undefined) break;
+      setNodes((state) => {
+        const index = state.findIndex((node) => node.uid === payload.uid);
+        if (index === -1) return;
+        // keyed index writes, not a replaced array: signals rc needs the
+        // fine-grained path (see ADD above)
+        state[index].type = payload.nodeType;
+        state[index].options = structuredClone(DEFAULT_NODE_OPTIONS[optionKey]);
+      });
+      break;
+    }
 
     case NodesActionType.IMPORT: {
       // imports are the most untrusted input there is: presets, pasted configs
