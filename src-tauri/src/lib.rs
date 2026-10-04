@@ -2,6 +2,7 @@ mod backend;
 mod commands;
 mod deps;
 mod logging;
+mod models;
 mod util;
 mod uv;
 
@@ -26,6 +27,7 @@ pub fn run() {
             app.manage(BackendProcess(Mutex::new(None)));
             app.manage(BackendPort(Mutex::new(None)));
             app.manage(BackendLogs(Mutex::new(Vec::new())));
+            app.manage(models::ModelDownloads::default());
             if let Some(window) = app.get_webview_window("main") {
                 if use_custom_titlebar() {
                     let _ = window.set_decorations(false);
@@ -54,6 +56,10 @@ pub fn run() {
             deps::install_deps,
             logging::get_logs,
             logging::clear_logs,
+            models::list_remote_models,
+            models::download_model,
+            models::cancel_model_download,
+            models::delete_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

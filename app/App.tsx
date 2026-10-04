@@ -16,6 +16,7 @@ import { FooterBar, TauriFooter } from "~/components/layout/footer-bar"
 import { BackendProvider } from "~/components/providers/backend-provider"
 import { PreferencesProvider } from "~/components/providers/preferences-provider"
 import { LocalModelsProvider } from "~/components/providers/local-models-provider"
+import { ModelDownloadsProvider } from "~/components/providers/model-downloads-provider"
 import { SettingsProvider } from "~/components/providers/settings-provider"
 import { TauriSettingsHost, WebSettingsHost } from "~/components/settings/settings-host"
 import { useIsTauri } from "~/hooks/useIsTauri"
@@ -76,10 +77,12 @@ export function App() {
         <TooltipProvider delay={150}>
           <PreferencesProvider>
             <LocalModelsProvider>
-              <SettingsProvider>
-                <HomePage />
-                <Toaster position="top-center" />
-              </SettingsProvider>
+              <ModelDownloadsProvider>
+                <SettingsProvider>
+                  <HomePage />
+                  <Toaster position="top-center" />
+                </SettingsProvider>
+              </ModelDownloadsProvider>
             </LocalModelsProvider>
           </PreferencesProvider>
         </TooltipProvider>

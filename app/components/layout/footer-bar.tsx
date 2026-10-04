@@ -1,6 +1,7 @@
 import {
   IconBrandDiscordFilled,
   IconBrandGithub,
+  IconDownload,
   IconExternalLink,
   IconFolder,
   IconLoader2,
@@ -12,7 +13,9 @@ import { useContext, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useBackendContext } from "~/components/providers/backend-provider"
 import { ServerPopover } from "~/components/layout/server-popover"
+import { useModelDownloads } from "~/components/providers/model-downloads-provider"
 import { useSettings } from "~/components/providers/settings-provider"
+import { ModelDownloaderDialog } from "~/components/models/model-downloader-dialog"
 import { DocumentationDialog } from "~/components/docs/documentation-dialog.tsx"
 import { Button } from "~/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog"
@@ -100,8 +103,10 @@ export function TauriFooter() {
     handleOpenFolder,
   } = useBackendContext()
   const { openSettings } = useSettings()
+  const { activeCount } = useModelDownloads()
   const nodes = useContext(NodesContext)
   const [errorOpen, setErrorOpen] = useState(false)
+  const [modelsOpen, setModelsOpen] = useState(false)
   const [showPercent, setShowPercent] = useState(false)
   const [pendingStart, setPendingStart] = useState(false)
   const lastStageRef = useRef(stage)
@@ -215,9 +220,27 @@ export function TauriFooter() {
 
       <ServerPopover />
 
+      <Button
+        size="icon-lg"
+        variant="outline"
+        className="relative shrink-0"
+        onClick={() => setModelsOpen(true)}
+        aria-label={t("backend.models.title")}
+        title={t("backend.models.title")}
+      >
+        {activeCount > 0 ? <IconLoader2 className="animate-spin" /> : <IconDownload />}
+        {activeCount > 0 ? (
+          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+            {activeCount}
+          </span>
+        ) : null}
+      </Button>
+
       <Button size="icon-lg" variant="outline" className="shrink-0" onClick={() => openSettings("deps")}>
         <IconSettings />
       </Button>
+
+      <ModelDownloaderDialog open={modelsOpen} onOpenChange={setModelsOpen} />
 
       <Dialog open={errorOpen} onOpenChange={setErrorOpen}>
         <DialogContent className="max-w-md">

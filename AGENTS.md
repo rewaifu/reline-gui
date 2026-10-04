@@ -106,6 +106,10 @@ The app has a desktop variant via Tauri V2. The Rust backend at `src-tauri/src/l
 | `get_logs` | `fn get_logs(state) -> Vec<LogEntry>` | Returns collected session logs. |
 | `clear_logs` | `fn clear_logs(state)` | Clears log buffer. |
 | `get_window_mode` | `fn get_window_mode() -> bool` | Whether the custom (frameless) titlebar is used on this platform. |
+| `list_remote_models` | `async fn list_remote_models() -> Result<Vec<RemoteModel>, String>` | Fetches `https://mdb.yor.ovh/v1/files` via reqwest (no CORS). Returns `{filename,name,ext,size,url}`. |
+| `download_model` | `async fn download_model(app, state, url, filename, target_dir) -> Result<String, String>` | Streams download, emits `model-download-progress`, extracts `.tar.xz` (xz2+tar) picking first `.pth`/`.safetensors`. Cancellable per-filename. |
+| `cancel_model_download` | `fn cancel_model_download(state, filename) -> Result<(), String>` | Sets the per-filename cancel flag; the running download aborts with `"cancelled"`. |
+| `delete_model` | `fn delete_model(folder, model_name) -> Result<(), String>` | Removes `<folder>/<model_name>.pth` / `.safetensors`. |
 
 ### Events
 
@@ -130,6 +134,24 @@ interface LogEntry {
   message: string
 }
 ```
+
+**`model-download-progress`** — emitted while `download_model` streams/extracts. Payload:
+
+```ts
+interface ModelDownloadProgress {
+  filename: string
+  progress: number   // 0-100
+  downloaded: number
+  total: number
+  stage: "downloading" | "extracting"
+}
+```
+
+### Model downloads
+
+Managed by `ModelDownloads(Mutex<HashMap<String, Arc<AtomicBool>>>)` (per-filename cancel flags) in `src-tauri/src/models.rs`. Downloads are concurrent, continue while the downloader dialog is closed, and are aborted on app exit.
+
+Frontend state lives in `app/components/providers/model-downloads-provider.tsx` (mounted app-wide) so progress/status survive the modal unmounting. UI: `app/components/models/model-downloader-dialog.tsx`, triggered by the download button in `TauriFooter`.
 
 ### State (Rust)
 

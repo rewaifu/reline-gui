@@ -33,3 +33,23 @@ export interface UvProgress {
   total: number
   raw_message: string
 }
+
+export type DownloadStage = "downloading" | "extracting"
+
+export interface ModelDownloadProgress {
+  filename: string
+  progress: number
+  downloaded: number
+  total: number
+  stage: DownloadStage
+}
+
+export type DownloadStatus = "downloading" | "extracting" | "done" | "error" | "cancelled"
+
+export interface DownloadState {
+  status: DownloadStatus
+  progress: number
+  downloaded: number
+  total: number
+  error?: string
+}

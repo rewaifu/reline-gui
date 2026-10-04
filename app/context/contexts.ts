@@ -1,6 +1,7 @@
 import { type Dispatch, createContext } from "react"
 import type { UseBackendReturn } from "~/hooks/useBackend"
 import type { NodesAction } from "~/types/actions.ts"
+import type { DownloadState } from "~/types/backend"
 import type { NodeType } from "~/types/enums"
 import type { NodeOptions, StackNode } from "~/types/node"
 
@@ -60,3 +61,14 @@ export const SettingsContext = createContext<SettingsContextValue | null>(null)
 export type BackendContextValue = UseBackendReturn
 
 export const BackendContext = createContext<BackendContextValue | null>(null)
+
+export interface ModelDownloadsContextValue {
+  downloads: Record<string, DownloadState>
+  activeCount: number
+  startDownload: (filename: string, url: string) => Promise<void>
+  cancelDownload: (filename: string) => void
+  deleteModel: (modelName: string) => Promise<void>
+  clearDownload: (filename: string) => void
+}
+
+export const ModelDownloadsContext = createContext<ModelDownloadsContextValue | null>(null)
