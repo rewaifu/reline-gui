@@ -1,5 +1,5 @@
 import { Card, CardHeader, CardContent } from "~/components/ui"
-import React, { useContext, useRef } from "react"
+import React, { useContext } from "react"
 import type { ComponentProps } from "react"
 import { NodesContext, NodesDispatchContext } from "~/context/contexts"
 import { NodeResolver } from "~/components/nodes/node-resolver"
@@ -9,7 +9,7 @@ import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area.tsx"
 import { useTranslation } from "react-i18next"
 import { DragDropProvider, useDroppable, PointerSensor, KeyboardSensor } from "@dnd-kit/react"
 import { PointerActivationConstraints } from "@dnd-kit/dom"
-import { isSortableOperation } from "@dnd-kit/react/sortable"
+import { isSortable } from "@dnd-kit/react/sortable"
 import { cn } from "~/lib/utils"
 import { NodesActionType } from "~/types/actions"
 import { useMediaQuery } from "~/hooks/useMediaQuery"
@@ -30,90 +30,22 @@ export function NodesSection() {
   const nodes = useContext(NodesContext)
   const dispatch = useContext(NodesDispatchContext)
   const isMobile = useMediaQuery("(max-width: 767px)")
-  const dragStartIndexRef = useRef<number | null>(null)
-  const lastOverIndexRef = useRef<number | null>(null)
-  const getSourceInitialIndex = (source: unknown): number | null => {
-    if (!source || typeof source !== "object") {
-      return null
-    }
-
-    const candidate = (source as { initialIndex?: unknown }).initialIndex
-    return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null
-  }
-
-  const onDragOver: NonNullable<ComponentProps<typeof DragDropProvider>["onDragOver"]> = (event) => {
-    if (event.operation.target?.id === EDGE_DROP_ZONE_START) {
-      lastOverIndexRef.current = 0
-      return
-    }
-
-    if (event.operation.target?.id === EDGE_DROP_ZONE_END) {
-      lastOverIndexRef.current = Math.max(nodes.length - 1, 0)
-      return
-    }
-
-    const overIndex = isSortableOperation(event.operation) ? event.operation.target?.index : undefined
-    if (overIndex !== undefined && overIndex >= 0) {
-      lastOverIndexRef.current = overIndex
-    }
-  }
-
-  const onDragStart: NonNullable<ComponentProps<typeof DragDropProvider>["onDragStart"]> = (event) => {
-    dragStartIndexRef.current = null
-    lastOverIndexRef.current = null
-
-    if (!event.operation.source) {
-      return
-    }
-
-    dragStartIndexRef.current = getSourceInitialIndex(event.operation.source)
-  }
 
   const onDragEnd: NonNullable<ComponentProps<typeof DragDropProvider>["onDragEnd"]> = (event) => {
     if (event.canceled) {
-      dragStartIndexRef.current = null
-      lastOverIndexRef.current = null
       return
     }
 
-    if (!event.operation.source) {
-      dragStartIndexRef.current = null
-      lastOverIndexRef.current = null
+    const source = event.operation.source
+    if (!source || !isSortable(source) || !("initialIndex" in source)) {
       return
     }
 
-    const sourceInitialIndex = getSourceInitialIndex(event.operation.source)
-    if (sourceInitialIndex === null && dragStartIndexRef.current === null) {
-      dragStartIndexRef.current = null
-      lastOverIndexRef.current = null
-      return
-    }
-
-    const from = dragStartIndexRef.current ?? sourceInitialIndex ?? -1
-    const toRaw =
-      event.operation.target?.id === EDGE_DROP_ZONE_START
-        ? 0
-        : event.operation.target?.id === EDGE_DROP_ZONE_END
-          ? Math.max(nodes.length - 1, 0)
-          : isSortableOperation(event.operation)
-            ? (event.operation.target?.index ?? lastOverIndexRef.current)
-            : lastOverIndexRef.current
-    const deltaY = event.operation.transform.y
-
-    let to: number
-    if (toRaw === null || toRaw === undefined) {
-      to = deltaY < 0 ? 0 : nodes.length - 1
-    } else {
-      to = Math.max(0, Math.min(toRaw, nodes.length - 1))
-    }
-
-    if (to === from && Math.abs(deltaY) > 24) {
-      to = deltaY < 0 ? 0 : nodes.length - 1
-    }
+    const from = source.initialIndex
+    const targetId = event.operation.target?.id
+    const to = targetId === EDGE_DROP_ZONE_START ? 0 : targetId === EDGE_DROP_ZONE_END ? Math.max(nodes.length - 1, 0) : source.index
 
     if (from < 0 || to < 0 || from === to) {
-      dragStartIndexRef.current = null
-      lastOverIndexRef.current = null
       return
     }
 
@@ -124,9 +56,6 @@ export function NodesSection() {
         to,
       },
     })
-
-    dragStartIndexRef.current = null
-    lastOverIndexRef.current = null
   }
 
   return (
@@ -153,8 +82,6 @@ export function NodesSection() {
             }),
             KeyboardSensor.configure(KeyboardSensor.defaults),
           ]}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
           onDragEnd={onDragEnd}
         >
           <ScrollArea
