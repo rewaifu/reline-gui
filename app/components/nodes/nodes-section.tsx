@@ -95,7 +95,7 @@ export function NodesSection() {
           >
             <div className="flex flex-col min-h-full">
               <EdgeDropZone id={EDGE_DROP_ZONE_START} />
-              <div className="flex-1 flex flex-col gap-5 m-3 md:m-5">
+              <div className="flex-1 flex flex-col gap-5 mx-3 mt-0 mb-0 pt-3 pb-3 md:mx-5 md:pt-5 md:pb-5 [transform:translateZ(0)]">
                 {nodes.map((data, index) => (
                   <NodeResolver key={data.id} id={data.id} index={index} />
                 ))}

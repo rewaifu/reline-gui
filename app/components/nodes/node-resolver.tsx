@@ -89,7 +89,6 @@ export function NodeResolver({ id, index }: { id: number; index: number }) {
     },
     index,
     group: "nodes",
-    feedback: "default",
   })
   const nodeRef = useRef<HTMLDivElement | null>(null)
   const keepInViewRef = useRef(false)
