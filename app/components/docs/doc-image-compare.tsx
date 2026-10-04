@@ -1,24 +1,15 @@
-import {
-  useState,
-  useCallback,
-  useRef,
-  useEffect,
-  useMemo,
-} from "react"
+import { type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent, useCallback, useMemo, useRef, useState } from "react"
 
-import {useTranslation} from "react-i18next"
+import { useTranslation } from "react-i18next"
 import { createPortal } from "react-dom"
-import { IconX, IconArrowsMoveHorizontal, IconZoomIn } from "@tabler/icons-react"
+import { IconArrowsMoveHorizontal, IconX, IconZoomIn } from "@tabler/icons-react"
 
 import { Button } from "~/components/ui/button.tsx"
 import { Slider } from "~/components/ui/slider.tsx"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs.tsx"
-import {
-  Select,
-  SelectItem,
-  SelectTrigger,
-} from "~/components/ui/select.tsx"
+import { Select, SelectItem, SelectTrigger } from "~/components/ui/select.tsx"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
+import { MAX_ZOOM, MIN_ZOOM, useImageViewer } from "./image-viewer/useImageViewer"
 
 type CompareImage = {
   src: string
@@ -37,10 +28,6 @@ type DocImageCompareProps = {
   caption?: string
   pixelated?: boolean
 }
-
-const MIN_ZOOM = 1
-const MAX_ZOOM = 8
-const MIN_SCREEN_COVERAGE = 0.3
 
 function SliderKnob({ iconSize = 18 }: { iconSize?: number }) {
   return (
@@ -74,7 +61,7 @@ function SliderKnob({ iconSize = 18 }: { iconSize?: number }) {
 
 export function DocImageCompare(props: DocImageCompareProps) {
   // ── normalise images ──────────────────────────────────────────────
-  const {t} = useTranslation()
+  const { t } = useTranslation()
   const previewMode = props.previewMode ?? "slider"
   const forcePixelated = props.pixelated ?? false
   const images: CompareImage[] = useMemo(() => {
@@ -92,205 +79,119 @@ export function DocImageCompare(props: DocImageCompareProps) {
   const imgB = images[selB] ?? images[0]
   const alt = props.alt ?? `${imgA.label} vs ${imgB.label}`
 
-  // ── viewer state ──────────────────────────────────────────────────
+  // ── compare-specific state ────────────────────────────────────────
 
-  const [render, setRender] = useState(false)
-  const [visible, setVisible] = useState(false)
   const [position, setPosition] = useState(50)
-  const [zoomUI, setZoomUI] = useState(1)
-  const [viewerDragging, setViewerDragging] = useState(false)
   const [viewerMode, setViewerMode] = useState<"slider" | "switch">(previewMode)
   const [switchIdx, setSwitchIdx] = useState(0)
 
-  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
+  const positionRef = useRef(50)
+  positionRef.current = position
 
   const inlineRef = useRef<HTMLDivElement>(null)
-  const viewerContainerRef = useRef<HTMLDivElement>(null)
-  const transformRef = useRef<HTMLDivElement>(null)
-  const imgProbeRef = useRef<HTMLImageElement>(null)
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const zoomRef = useRef(1)
-  const panRef = useRef({ x: 0, y: 0 })
-  const dragRef = useRef({ startX: 0, startY: 0, startPanX: 0, startPanY: 0 })
 
   const sliderDragRef = useRef(false)
   const wasSliderDraggedRef = useRef(false)
   const sliderJustEndedRef = useRef(false)
-  const panMovedRef = useRef(false)
 
-  // ── fit scale ─────────────────────────────────────────────────────
+  // ── shared zoom / pan viewer ──────────────────────────────────────
 
-  const fitScale = useMemo(() => {
-    if (!naturalSize) return 1
-    const vw = window.innerWidth * 0.9
-    const vh = window.innerHeight * 0.9
-    let scale = Math.min(vw / naturalSize.w, vh / naturalSize.h)
-    scale = Math.min(scale, 1)
-    const minW = window.innerWidth * MIN_SCREEN_COVERAGE
-    const minH = window.innerHeight * MIN_SCREEN_COVERAGE
-    const minScale = Math.max(minW / naturalSize.w, minH / naturalSize.h)
-    return Math.max(scale, minScale)
-  }, [naturalSize])
-
-  const isZoomed = zoomUI > 1.001
-
-  // ── update transform (direct DOM) ─────────────────────────────────
-
-  const updateTransform = useCallback(() => {
-    const el = transformRef.current
-    if (!el) return
-    const { x, y } = panRef.current
-    el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${zoomRef.current * fitScale})`
-  }, [fitScale])
-
-  useEffect(() => {
-    updateTransform()
-  }, [updateTransform])
-
-  // ── clamp pan ─────────────────────────────────────────────────────
-
-  const clampPan = useCallback(
-    (x: number, y: number, scale = zoomRef.current * fitScale) => {
-      const container = viewerContainerRef.current
-      if (!container || !naturalSize) return { x, y }
-      const vw = container.clientWidth
-      const vh = container.clientHeight
-      const scaledW = naturalSize.w * scale
-      const scaledH = naturalSize.h * scale
-      const maxX = Math.max(0, (scaledW - vw) / 2)
-      const maxY = Math.max(0, (scaledH - vh) / 2)
-      return {
-        x: Math.min(maxX, Math.max(-maxX, x)),
-        y: Math.min(maxY, Math.max(-maxY, y)),
-      }
+  const {
+    render,
+    visible,
+    zoomUI,
+    naturalSize,
+    isZoomed,
+    fitScale,
+    containerRef,
+    transformRef,
+    probeRef,
+    zoomRef,
+    panRef,
+    panMovedRef,
+    openViewer,
+    closeViewer,
+    startDrag,
+    handleZoomSliderChange,
+  } = useImageViewer({
+    onOpen: () => {
+      setPosition(50)
+      setSwitchIdx(0)
     },
-    [fitScale, naturalSize],
-  )
-
-  // ── natural size ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!render) {
-      setNaturalSize(null)
-      return
-    }
-    const img = imgProbeRef.current
-    if (!img) return
-    const update = () => {
-      if (img.naturalWidth && img.naturalHeight) {
-        setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight })
-      }
-    }
-    if (img.complete && img.naturalWidth) update()
-    img.addEventListener("load", update)
-    return () => img.removeEventListener("load", update)
-  }, [render])
-
-  // ── open / close ─────────────────────────────────────────────────
-
-  const openViewer = useCallback(() => {
-    if (wasSliderDraggedRef.current) {
-      wasSliderDraggedRef.current = false
-      return
-    }
-    zoomRef.current = 1
-    panRef.current = { x: 0, y: 0 }
-    setZoomUI(1)
-    setPosition(50)
-    setSwitchIdx(0)
-
-    setVisible(false)
-    setRender(true)
-    requestAnimationFrame(() => setVisible(true))
-  }, [])
-
-  const closeViewer = useCallback(() => {
-    setVisible(false)
-    closeTimer.current = setTimeout(() => {
-      setRender(false)
-      zoomRef.current = 1
-      panRef.current = { x: 0, y: 0 }
-      setZoomUI(1)
-    }, 200)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (closeTimer.current) clearTimeout(closeTimer.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!render) return
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [render])
-
-  useEffect(() => {
-    if (!render) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation()
-        closeViewer()
-        return
-      }
-      // number keys in switch mode
-      if (viewerMode === "switch" && /^[1-9]$/.test(e.key)) {
-        const idx = Number.parseInt(e.key) - 1
+    onZoomApplied: (ctx) => {
+      const Nw = ctx.naturalSize.w
+      const cw = ctx.container.clientWidth
+      const visCx = (positionRef.current / 100) * cw
+      const imageX = (visCx - cw / 2 - ctx.prevPan.x) / ctx.prevScale + Nw / 2
+      const newVisCx = (imageX - Nw / 2) * ctx.nextScale + cw / 2 + panRef.current.x
+      setPosition((newVisCx / cw) * 100)
+    },
+    onPanApplied: ({ container, dx }) => {
+      const cw = container.clientWidth
+      if (cw) setPosition((p) => p + (dx / cw) * 100)
+    },
+    onKeyDown: (event) => {
+      if (viewerMode === "switch" && /^[1-9]$/.test(event.key)) {
+        const idx = Number.parseInt(event.key) - 1
         if (idx < images.length) setSwitchIdx(idx)
       }
-    }
-    document.addEventListener("keydown", onKey, true)
-    return () => document.removeEventListener("keydown", onKey, true)
-  }, [render, closeViewer, viewerMode, images.length])
+    },
+  })
+
+  const setTransformRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      transformRef.current = el
+    },
+    [transformRef],
+  )
 
   // ── shared slider drag (inline) ───────────────────────────────────
 
-  const beginDrag = useCallback((container: HTMLDivElement | null) => {
-    sliderDragRef.current = true
-    wasSliderDraggedRef.current = false
+  const beginDrag = useCallback(
+    (container: HTMLDivElement | null) => {
+      sliderDragRef.current = true
+      wasSliderDraggedRef.current = false
 
-    const onMove = (e: MouseEvent) => {
-      if (!sliderDragRef.current) return
-      e.preventDefault()
-      if (!container) return
-      const rect = container.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const pct = Math.max(0, Math.min(100, (x / rect.width) * 100))
-      if (Math.abs(pct - position) > 1) wasSliderDraggedRef.current = true
-      setPosition(pct)
-    }
+      const onMove = (e: MouseEvent) => {
+        if (!sliderDragRef.current) return
+        e.preventDefault()
+        if (!container) return
+        const rect = container.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const pct = Math.max(0, Math.min(100, (x / rect.width) * 100))
+        if (Math.abs(pct - position) > 1) wasSliderDraggedRef.current = true
+        setPosition(pct)
+      }
 
-    const onTouchMove = (e: TouchEvent) => {
-      if (!sliderDragRef.current) return
-      e.preventDefault()
-      if (!container) return
-      const rect = container.getBoundingClientRect()
-      const x = e.touches[0].clientX - rect.left
-      const pct = Math.max(0, Math.min(100, (x / rect.width) * 100))
-      if (Math.abs(pct - position) > 1) wasSliderDraggedRef.current = true
-      setPosition(pct)
-    }
+      const onTouchMove = (e: TouchEvent) => {
+        if (!sliderDragRef.current) return
+        e.preventDefault()
+        if (!container) return
+        const rect = container.getBoundingClientRect()
+        const x = e.touches[0].clientX - rect.left
+        const pct = Math.max(0, Math.min(100, (x / rect.width) * 100))
+        if (Math.abs(pct - position) > 1) wasSliderDraggedRef.current = true
+        setPosition(pct)
+      }
 
-    const onUp = () => {
-      sliderDragRef.current = false
-      window.removeEventListener("mousemove", onMove)
-      window.removeEventListener("mouseup", onUp)
-      window.removeEventListener("touchmove", onTouchMove)
-      window.removeEventListener("touchend", onUp)
-    }
+      const onUp = () => {
+        sliderDragRef.current = false
+        window.removeEventListener("mousemove", onMove)
+        window.removeEventListener("mouseup", onUp)
+        window.removeEventListener("touchmove", onTouchMove)
+        window.removeEventListener("touchend", onUp)
+      }
 
-    window.addEventListener("mousemove", onMove)
-    window.addEventListener("mouseup", onUp)
-    window.addEventListener("touchmove", onTouchMove, { passive: false })
-    window.addEventListener("touchend", onUp)
-  }, [position])
+      window.addEventListener("mousemove", onMove)
+      window.addEventListener("mouseup", onUp)
+      window.addEventListener("touchmove", onTouchMove, { passive: false })
+      window.addEventListener("touchend", onUp)
+    },
+    [position],
+  )
 
   const handleInlineSliderDown = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
+    (e: ReactMouseEvent | ReactTouchEvent) => {
       e.preventDefault()
       e.stopPropagation()
       beginDrag(inlineRef.current)
@@ -301,11 +202,11 @@ export function DocImageCompare(props: DocImageCompareProps) {
   // ── viewer slider drag ───────────────────────────────────────────
 
   const handleViewerSliderDown = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
+    (e: ReactMouseEvent | ReactTouchEvent) => {
       e.preventDefault()
       e.stopPropagation()
 
-      const container = viewerContainerRef.current
+      const container = containerRef.current
       if (!container) return
 
       sliderDragRef.current = true
@@ -356,134 +257,14 @@ export function DocImageCompare(props: DocImageCompareProps) {
       window.addEventListener("touchmove", onTouchMove, { passive: false })
       window.addEventListener("touchend", onUp)
     },
-    [position, naturalSize, fitScale],
-  )
-
-  // ── wheel zoom (viewer) ──────────────────────────────────────────
-
-  useEffect(() => {
-    if (!render) return
-    const container = viewerContainerRef.current
-    if (!container || !naturalSize) return
-
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const rect = container.getBoundingClientRect()
-      const cx = e.clientX - rect.left
-      const cy = e.clientY - rect.top
-
-      const prevZoom = zoomRef.current
-      const factor = Math.exp(-e.deltaY * 0.0015)
-      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prevZoom * factor))
-      if (nextZoom === prevZoom) return
-
-      const prevScale = prevZoom * fitScale
-      const nextScale = nextZoom * fitScale
-      const pan = panRef.current
-
-      const imageX = (cx - container.clientWidth / 2 - pan.x) / prevScale
-      const imageY = (cy - container.clientHeight / 2 - pan.y) / prevScale
-
-      const nextPanX = cx - container.clientWidth / 2 - imageX * nextScale
-      const nextPanY = cy - container.clientHeight / 2 - imageY * nextScale
-
-      const prevPan = { x: pan.x, y: pan.y }
-
-      zoomRef.current = nextZoom
-      panRef.current = clampPan(nextPanX, nextPanY, nextScale)
-      setZoomUI(nextZoom)
-
-      if (naturalSize) {
-        const Nw = naturalSize.w
-        const cw = container.clientWidth
-        const visCx = (position / 100) * cw
-        const imageX2 = (visCx - cw / 2 - prevPan.x) / prevScale + Nw / 2
-        const newVisCx = (imageX2 - Nw / 2) * nextScale + cw / 2 + panRef.current.x
-        setPosition((newVisCx / cw) * 100)
-      }
-
-      updateTransform()
-    }
-
-    container.addEventListener("wheel", onWheel, { passive: false })
-    return () => container.removeEventListener("wheel", onWheel)
-  }, [render, fitScale, naturalSize, clampPan, updateTransform, position])
-
-  // ── pan drag (viewer) ────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!viewerDragging) return
-
-    const onMove = (e: MouseEvent) => {
-      e.preventDefault()
-      const dx = e.clientX - dragRef.current.startX
-      const dy = e.clientY - dragRef.current.startY
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) panMovedRef.current = true
-
-      const nextX = dragRef.current.startPanX + dx
-      const nextY = dragRef.current.startPanY + dy
-      const prevPanX = panRef.current.x
-      panRef.current = clampPan(nextX, nextY)
-      updateTransform()
-
-      const cw = viewerContainerRef.current?.clientWidth
-      if (cw) setPosition((p) => p + ((panRef.current.x - prevPanX) / cw) * 100)
-    }
-
-    const onUp = () => setViewerDragging(false)
-
-    window.addEventListener("mousemove", onMove)
-    window.addEventListener("mouseup", onUp)
-    return () => {
-      window.removeEventListener("mousemove", onMove)
-      window.removeEventListener("mouseup", onUp)
-    }
-  }, [viewerDragging, clampPan, updateTransform])
-
-  // ── zoom slider ──────────────────────────────────────────────────
-
-  const handleZoomSliderChange = useCallback(
-    (v: number | readonly number[]) => {
-      const value = Array.isArray(v) ? v[0] : v
-      const container = viewerContainerRef.current
-      const prevZoom = zoomRef.current
-      const nextZoom = value
-
-      if (container && naturalSize && prevZoom !== nextZoom) {
-        const cx = container.clientWidth / 2
-        const cy = container.clientHeight / 2
-        const prevScale = prevZoom * fitScale
-        const nextScale = nextZoom * fitScale
-        const prevPanSave = { x: panRef.current.x, y: panRef.current.y }
-
-        const imageX = (cx - container.clientWidth / 2 - prevPanSave.x) / prevScale
-        const imageY = (cy - container.clientHeight / 2 - prevPanSave.y) / prevScale
-
-        const nextPanX = cx - container.clientWidth / 2 - imageX * nextScale
-        const nextPanY = cy - container.clientHeight / 2 - imageY * nextScale
-
-        panRef.current = clampPan(nextPanX, nextPanY, nextScale)
-
-        const Nw = naturalSize.w
-        const cw = container.clientWidth
-        const visCx = (position / 100) * cw
-        const sliderImageX = (visCx - cw / 2 - prevPanSave.x) / prevScale + Nw / 2
-        const newVisCx = (sliderImageX - Nw / 2) * nextScale + cw / 2 + panRef.current.x
-        setPosition((newVisCx / cw) * 100)
-      }
-
-      zoomRef.current = nextZoom
-      setZoomUI(nextZoom)
-      updateTransform()
-    },
-    [fitScale, naturalSize, clampPan, updateTransform, position],
+    [position, naturalSize, fitScale, containerRef, zoomRef, panRef],
   )
 
   // ── clip-path ────────────────────────────────────────────────────
 
   const viewerClipPercent = (() => {
     if (!naturalSize) return position
-    const container = viewerContainerRef.current
+    const container = containerRef.current
     if (!container || !render) return position
     const cw = container.clientWidth
     const scale = zoomRef.current * fitScale
@@ -495,9 +276,9 @@ export function DocImageCompare(props: DocImageCompareProps) {
 
   const viewerClip = `inset(0 0 0 ${viewerClipPercent}%)`
 
-  // ── inline click handler ──────────────────────────────────────────
+  // ── open viewer (skip if inline slider was just dragged) ─────────
 
-  const handleInlineClick = useCallback(() => {
+  const handleOpenViewer = useCallback(() => {
     if (wasSliderDraggedRef.current) {
       wasSliderDraggedRef.current = false
       return
@@ -509,17 +290,20 @@ export function DocImageCompare(props: DocImageCompareProps) {
 
   const switchModeRef = useRef({ clickInit: false, clientX: 0, clientY: 0 })
 
-  const handleSwitchMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleSwitchMouseDown = useCallback((e: ReactMouseEvent) => {
     switchModeRef.current = { clickInit: true, clientX: e.clientX, clientY: e.clientY }
   }, [])
 
-  const handleSwitchClick = useCallback((e: React.MouseEvent) => {
-    if (!switchModeRef.current.clickInit) return
-    const dx = e.clientX - switchModeRef.current.clientX
-    const dy = e.clientY - switchModeRef.current.clientY
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) return
-    setSwitchIdx((i) => (i + 1) % images.length)
-  }, [images.length])
+  const handleSwitchClick = useCallback(
+    (e: ReactMouseEvent) => {
+      if (!switchModeRef.current.clickInit) return
+      const dx = e.clientX - switchModeRef.current.clientX
+      const dy = e.clientY - switchModeRef.current.clientY
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) return
+      setSwitchIdx((i) => (i + 1) % images.length)
+    },
+    [images.length],
+  )
 
   // ── switch mode: current image src ──────────────────────────────
 
@@ -527,18 +311,9 @@ export function DocImageCompare(props: DocImageCompareProps) {
 
   // ── select dropdown component ─────────────────────────────────────
 
-  const ImageSelect = ({
-    value,
-    onChange,
-  }: {
-    value: number
-    onChange: (v: number) => void
-  }) => (
+  const ImageSelect = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => (
     <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-      <SelectTrigger
-        size="sm"
-        className="!bg-background text-foreground border shadow-lg max-w-[140px]"
-      >
+      <SelectTrigger size="sm" className="!bg-background text-foreground border shadow-lg max-w-[140px]">
         <span className="flex flex-1 text-left truncate">{images[value]?.label ?? value}</span>
       </SelectTrigger>
       <SelectPrimitive.Portal>
@@ -576,15 +351,8 @@ export function DocImageCompare(props: DocImageCompareProps) {
             setSwitchIdx(i)
           }}
         >
-          <img
-            src={img.src}
-            alt={img.label}
-            draggable={false}
-            className="w-full h-full object-cover"
-          />
-          <span className="absolute bottom-0 left-0 right-0 text-[9px] text-center text-white bg-black/60 leading-tight">
-            {i + 1}
-          </span>
+          <img src={img.src} alt={img.label} draggable={false} className="w-full h-full object-cover" />
+          <span className="absolute bottom-0 left-0 right-0 text-[9px] text-center text-white bg-black/60 leading-tight">{i + 1}</span>
         </button>
       ))}
     </div>
@@ -594,20 +362,20 @@ export function DocImageCompare(props: DocImageCompareProps) {
 
   return (
     <>
-       <figure className="my-5 w-full">
+      <figure className="my-5 w-full">
         <div
           ref={inlineRef}
           className="relative cursor-zoom-in overflow-hidden rounded-lg border aspect-video"
-          onClick={handleInlineClick}
+          onClick={handleOpenViewer}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault()
-              openViewer()
+              handleOpenViewer()
             }
           }}
         >
           <img
-            ref={imgProbeRef}
+            ref={probeRef}
             src={previewMode === "switch" ? images[0]?.src : imgA.src}
             alt={alt}
             draggable={false}
@@ -629,10 +397,7 @@ export function DocImageCompare(props: DocImageCompareProps) {
                 style={{ imageRendering: forcePixelated ? "pixelated" : "auto" }}
               />
 
-              <div
-                className="absolute inset-0 overflow-hidden select-none"
-                style={{ clipPath: `inset(0 0 0 ${position}%)` }}
-              >
+              <div className="absolute inset-0 overflow-hidden select-none" style={{ clipPath: `inset(0 0 0 ${position}%)` }}>
                 <img
                   src={imgB.src}
                   alt={alt}
@@ -655,19 +420,13 @@ export function DocImageCompare(props: DocImageCompareProps) {
             </>
           )}
         </div>
-        {props.caption ? (
-          <figcaption className="mt-2 text-center text-sm text-muted-foreground">
-            {props.caption}
-          </figcaption>
-        ) : null}
+        {props.caption ? <figcaption className="mt-2 text-center text-sm text-muted-foreground">{props.caption}</figcaption> : null}
       </figure>
 
       {render
         ? createPortal(
             <div
-              className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity duration-200 ${
-                visible ? "opacity-100" : "opacity-0"
-              }`}
+              className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
               onClick={() => {
                 if (sliderJustEndedRef.current) {
                   sliderJustEndedRef.current = false
@@ -723,13 +482,10 @@ export function DocImageCompare(props: DocImageCompareProps) {
                 </>
               ) : null}
 
-              <div
-                ref={viewerContainerRef}
-                className="absolute inset-0 overflow-hidden touch-none"
-              >
+              <div ref={containerRef} className="absolute inset-0 overflow-hidden touch-none">
                 <div className="w-full h-full flex items-center justify-center">
                   <div
-                    ref={transformRef}
+                    ref={setTransformRef}
                     className="select-none will-change-transform"
                     style={{
                       width: naturalSize?.w,
@@ -743,26 +499,14 @@ export function DocImageCompare(props: DocImageCompareProps) {
                         if (isZoomed) {
                           e.preventDefault()
                           e.stopPropagation()
-                          dragRef.current = {
-                            startX: e.clientX,
-                            startY: e.clientY,
-                            startPanX: panRef.current.x,
-                            startPanY: panRef.current.y,
-                          }
-                          setViewerDragging(true)
+                          startDrag(e.clientX, e.clientY)
                         }
                         return
                       }
                       if (!isZoomed) return
                       e.preventDefault()
                       e.stopPropagation()
-                      dragRef.current = {
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        startPanX: panRef.current.x,
-                        startPanY: panRef.current.y,
-                      }
-                      setViewerDragging(true)
+                      startDrag(e.clientX, e.clientY)
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -774,7 +518,7 @@ export function DocImageCompare(props: DocImageCompareProps) {
                         panMovedRef.current = false
                         return
                       }
-                      const container = viewerContainerRef.current
+                      const container = containerRef.current
                       if (!container) return
                       const rect = container.getBoundingClientRect()
                       const cw = rect.width
@@ -880,14 +624,11 @@ export function DocImageCompare(props: DocImageCompareProps) {
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={() => {}}
               >
-                <p className="bg-background border shadow-lg rounded-lg text-center text-sm w-full p-1">{t('docs.image-viewer.mode')}</p>
-                <Tabs
-                  value={viewerMode}
-                  onValueChange={(v) => setViewerMode(v as "slider" | "switch")}
-                >
+                <p className="bg-background border shadow-lg rounded-lg text-center text-sm w-full p-1">{t("docs.image-viewer.mode")}</p>
+                <Tabs value={viewerMode} onValueChange={(v) => setViewerMode(v as "slider" | "switch")}>
                   <TabsList className="bg-background shadow-lg border rounded-lg p-[3px]">
-                    <TabsTrigger value="slider">{t('docs.image-viewer.slider')}</TabsTrigger>
-                    <TabsTrigger value="switch">{t('docs.image-viewer.switch')}</TabsTrigger>
+                    <TabsTrigger value="slider">{t("docs.image-viewer.slider")}</TabsTrigger>
+                    <TabsTrigger value="switch">{t("docs.image-viewer.switch")}</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
@@ -898,17 +639,8 @@ export function DocImageCompare(props: DocImageCompareProps) {
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={() => {}}
               >
-                <span className="w-12 text-right text-xs tabular-nums text-muted-foreground select-none">
-                  {Math.round(zoomUI * 100)}%
-                </span>
-                <Slider
-                  value={[zoomUI]}
-                  min={MIN_ZOOM}
-                  max={MAX_ZOOM}
-                  step={0.01}
-                  onValueChange={handleZoomSliderChange}
-                  className="w-32"
-                />
+                <span className="w-12 text-right text-xs tabular-nums text-muted-foreground select-none">{Math.round(zoomUI * 100)}%</span>
+                <Slider value={[zoomUI]} min={MIN_ZOOM} max={MAX_ZOOM} step={0.01} onValueChange={handleZoomSliderChange} className="w-32" />
               </div>
             </div>,
             document.body,

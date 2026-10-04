@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { type PointerEvent as ReactPointerEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { IconArrowsExchange } from "@tabler/icons-react"
@@ -17,17 +17,9 @@ import { NodeType } from "~/types/enums"
 import type { FolderReaderNodeOptions, LevelNodeOptions } from "~/types/options"
 import { AMPLIFY_DEFAULT, AMPLIFY_MAX, AMPLIFY_MIN, MAX_PROCESS_SIDE, type AmplifyMode, processImageData } from "~/lib/levels"
 import { baseName, toBlobUrl } from "~/lib/image-files"
-
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 16
+import { useCanvasViewport } from "./use-canvas-viewport"
 
 const CANVAS_BUTTON_STYLE = { backgroundColor: "var(--secondary)", color: "var(--secondary-foreground)" }
-
-interface ViewState {
-  scale: number
-  x: number
-  y: number
-}
 
 export function LevelsPreview() {
   const { t } = useTranslation()
@@ -51,13 +43,12 @@ export function LevelsPreview() {
   const [lowInput, setLowInput] = useState(0)
   const [highInput, setHighInput] = useState(255)
 
-  const [view, setView] = useState<ViewState>({ scale: 1, x: 0, y: 0 })
-  const panStateRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
-
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const canvasContainerRef = useRef<HTMLDivElement>(null)
   const selectedUrlRef = useRef<string | null>(null)
   const rafRef = useRef<number | null>(null)
+
+  const contentSize = useMemo(() => (rawData ? { width: rawData.width, height: rawData.height } : null), [rawData])
+  const { containerRef, view, beginPan, movePan, endPan } = useCanvasViewport({ contentSize, refitOnResize: true })
 
   const selectImage = useCallback((url: string, name: string) => {
     if (selectedUrlRef.current) URL.revokeObjectURL(selectedUrlRef.current)
@@ -141,68 +132,6 @@ export function LevelsPreview() {
     }
   }, [imageSrc])
 
-  const fitView = useCallback(() => {
-    const container = canvasContainerRef.current
-    if (!container || !rawData) return
-    const width = container.clientWidth
-    const height = container.clientHeight
-    if (!width || !height) return
-    const scale = Math.min(width / rawData.width, height / rawData.height)
-    setView({ scale, x: (width - rawData.width * scale) / 2, y: (height - rawData.height * scale) / 2 })
-  }, [rawData])
-
-  const clampView = useCallback(
-    (next: ViewState): ViewState => {
-      const container = canvasContainerRef.current
-      if (!container || !rawData) return next
-      const width = container.clientWidth
-      const height = container.clientHeight
-      const scaledWidth = rawData.width * next.scale
-      const scaledHeight = rawData.height * next.scale
-      const x = scaledWidth <= width ? (width - scaledWidth) / 2 : Math.min(0, Math.max(width - scaledWidth, next.x))
-      const y = scaledHeight <= height ? (height - scaledHeight) / 2 : Math.min(0, Math.max(height - scaledHeight, next.y))
-      return { ...next, x, y }
-    },
-    [rawData],
-  )
-
-  useEffect(() => {
-    if (!rawData) return
-    const frame = requestAnimationFrame(fitView)
-    const container = canvasContainerRef.current
-    const observer = new ResizeObserver(() => fitView())
-    if (container) observer.observe(container)
-    return () => {
-      cancelAnimationFrame(frame)
-      observer.disconnect()
-    }
-  }, [rawData, fitView])
-
-  useEffect(() => {
-    const container = canvasContainerRef.current
-    if (!container || !rawData) return
-
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault()
-      const rect = container.getBoundingClientRect()
-      const cursorX = event.clientX - rect.left
-      const cursorY = event.clientY - rect.top
-      setView((prev) => {
-        const factor = Math.exp(-event.deltaY * 0.0015)
-        const nextScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.scale * factor))
-        const ratio = nextScale / prev.scale
-        return clampView({
-          scale: nextScale,
-          x: cursorX - (cursorX - prev.x) * ratio,
-          y: cursorY - (cursorY - prev.y) * ratio,
-        })
-      })
-    }
-
-    container.addEventListener("wheel", onWheel, { passive: false })
-    return () => container.removeEventListener("wheel", onWheel)
-  }, [rawData, clampView])
-
   useEffect(() => {
     const canvas = canvasRef.current
     if (!rawData || !canvas) return
@@ -232,27 +161,7 @@ export function LevelsPreview() {
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
     if ((event.target as HTMLElement).closest("button")) return
-    panStateRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: view.x,
-      originY: view.y,
-    }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const pan = panStateRef.current
-    if (!pan || pan.pointerId !== event.pointerId) return
-    setView((prev) => clampView({ ...prev, x: pan.originX + (event.clientX - pan.startX), y: pan.originY + (event.clientY - pan.startY) }))
-  }
-
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const pan = panStateRef.current
-    if (!pan || pan.pointerId !== event.pointerId) return
-    panStateRef.current = null
-    event.currentTarget.releasePointerCapture(event.pointerId)
+    beginPan(event)
   }
 
   const applyToLevelNode = () => {
@@ -318,12 +227,12 @@ export function LevelsPreview() {
           </div>
 
           <div
-            ref={canvasContainerRef}
+            ref={containerRef}
             className="relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden rounded-lg border bg-muted/30 active:cursor-grabbing"
             onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
+            onPointerMove={movePan}
+            onPointerUp={endPan}
+            onPointerCancel={endPan}
           >
             <canvas
               ref={canvasRef}

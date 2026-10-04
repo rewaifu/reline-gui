@@ -15,7 +15,7 @@ import { useIsTauri } from "~/hooks/useIsTauri"
 import { NodesActionType } from "~/types/actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs.tsx"
 import { LevelsPreview } from "~/components/previews/levels-preview.tsx"
-import { ScreentonePreview } from "~/components/previews/screentone-preview.tsx"
+import { ScreentonePreview } from "~/components/previews/screentone-preview"
 
 hljs.registerLanguage("json", json)
 

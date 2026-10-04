@@ -1,22 +1,17 @@
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "~/lib/utils"
+import { type CanvasSize, useCanvasViewport, type ViewState } from "./use-canvas-viewport"
 
 export type CompareMode = "single" | "slider" | "side"
 
-interface ViewState {
-  scale: number
-  x: number
-  y: number
-}
-
-interface Size {
-  width: number
-  height: number
-}
-
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 16
 const PIXELATE_ZOOM = 3
+
+// How far past the image edges panning is allowed, as a fraction of the pane.
+// 0 = strict (image always covers the pane).
+const PAN_OVERSCROLL = 0.25
+
+// Allow zooming out well below 100%, so large images are easier to overview.
+const MIN_ZOOM = 0.05
 
 function useImage(src: string | null): HTMLImageElement | null {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
@@ -51,8 +46,8 @@ function CanvasLayer({
 }: {
   image: HTMLImageElement | null
   view: ViewState
-  size: Size
-  alignTo?: Size | null
+  size: CanvasSize
+  alignTo?: CanvasSize | null
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -98,106 +93,18 @@ export function PreviewCanvas({
   const after = useImage(afterSrc)
   const active = after ?? preview
 
-  const [view, setView] = useState<ViewState>({ scale: 1, x: 0, y: 0 })
-  const [size, setSize] = useState<Size>({ width: 0, height: 0 })
   const [sliderPos, setSliderPos] = useState(0.5)
-
-  const containerRef = useRef<HTMLDivElement>(null)
-  const panStateRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
   const dividerDragRef = useRef(false)
 
   const paneCount = mode === "side" ? 2 : 1
+  const activeSize = useMemo(() => (active ? { width: active.naturalWidth, height: active.naturalHeight } : null), [active])
 
-  const measure = useCallback(() => {
-    const container = containerRef.current
-    if (!container) return
-    setSize({ width: container.clientWidth / paneCount, height: container.clientHeight })
-  }, [paneCount])
-
-  const fitView = useCallback(() => {
-    const container = containerRef.current
-    if (!container || !active) return
-    const paneWidth = container.clientWidth / paneCount
-    const paneHeight = container.clientHeight
-    if (!paneWidth || !paneHeight) return
-    const scale = Math.min(paneWidth / active.naturalWidth, paneHeight / active.naturalHeight)
-    setView({ scale, x: (paneWidth - active.naturalWidth * scale) / 2, y: (paneHeight - active.naturalHeight * scale) / 2 })
-  }, [active, paneCount])
-
-  const clampView = useCallback(
-    (next: ViewState): ViewState => {
-      const container = containerRef.current
-      if (!container || !active) return next
-      const paneWidth = container.clientWidth / paneCount
-      const paneHeight = container.clientHeight
-      const scaledWidth = active.naturalWidth * next.scale
-      const scaledHeight = active.naturalHeight * next.scale
-      const x = scaledWidth <= paneWidth ? (paneWidth - scaledWidth) / 2 : Math.min(0, Math.max(paneWidth - scaledWidth, next.x))
-      const y = scaledHeight <= paneHeight ? (paneHeight - scaledHeight) / 2 : Math.min(0, Math.max(paneHeight - scaledHeight, next.y))
-      return { ...next, x, y }
-    },
-    [active, paneCount],
-  )
-
-  // Always point at the latest fitView without making it an effect dependency,
-  // so a new result image does not reset zoom/pan.
-  const fitViewRef = useRef(fitView)
-  fitViewRef.current = fitView
-  const fitKeyRef = useRef("")
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    measure()
-    if (!active) return
-    // Only auto-fit when the reference image changes or the compare layout changes;
-    // applying new parameters, resizing the window or toggling the panel keeps the view.
-    const fitKey = `${active.naturalWidth}x${active.naturalHeight}|${paneCount}`
-    const tryFit = () => {
-      const element = containerRef.current
-      if (!element || element.clientWidth <= 0 || element.clientHeight <= 0) return
-      if (fitKeyRef.current === fitKey) return
-      fitKeyRef.current = fitKey
-      fitViewRef.current()
-    }
-    const frame = requestAnimationFrame(tryFit)
-    const observer = new ResizeObserver(() => {
-      measure()
-      tryFit()
-    })
-    observer.observe(container)
-    return () => {
-      cancelAnimationFrame(frame)
-      observer.disconnect()
-    }
-  }, [active, measure, paneCount])
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container || !active) return
-
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault()
-      const rect = container.getBoundingClientRect()
-      const paneWidth = rect.width / paneCount
-      let cursorX = event.clientX - rect.left
-      if (paneCount === 2 && cursorX >= paneWidth) cursorX -= paneWidth
-      const cursorY = event.clientY - rect.top
-      setView((prev) => {
-        const factor = Math.exp(-event.deltaY * 0.0015)
-        const nextScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.scale * factor))
-        const ratio = nextScale / prev.scale
-        return clampView({
-          scale: nextScale,
-          x: cursorX - (cursorX - prev.x) * ratio,
-          y: cursorY - (cursorY - prev.y) * ratio,
-        })
-      })
-    }
-
-    container.addEventListener("wheel", onWheel, { passive: false })
-    return () => container.removeEventListener("wheel", onWheel)
-  }, [active, clampView, paneCount])
+  const { containerRef, view, size, beginPan, movePan, endPan } = useCanvasViewport({
+    contentSize: activeSize,
+    paneCount,
+    overscroll: PAN_OVERSCROLL,
+    minZoom: MIN_ZOOM,
+  })
 
   const updateSliderPos = (clientX: number) => {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -213,14 +120,7 @@ export function PreviewCanvas({
       updateSliderPos(event.clientX)
       return
     }
-    panStateRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: view.x,
-      originY: view.y,
-    }
-    event.currentTarget.setPointerCapture(event.pointerId)
+    beginPan(event)
   }
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -228,24 +128,15 @@ export function PreviewCanvas({
       updateSliderPos(event.clientX)
       return
     }
-    const pan = panStateRef.current
-    if (!pan || pan.pointerId !== event.pointerId) return
-    setView((prev) => clampView({ ...prev, x: pan.originX + (event.clientX - pan.startX), y: pan.originY + (event.clientY - pan.startY) }))
+    movePan(event)
   }
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     dividerDragRef.current = false
-    const pan = panStateRef.current
-    if (!pan || pan.pointerId !== event.pointerId) {
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-      return
-    }
-    panStateRef.current = null
-    event.currentTarget.releasePointerCapture(event.pointerId)
+    endPan(event)
   }
 
   const compareSrc = before ?? preview
-  const activeSize = useMemo(() => (active ? { width: active.naturalWidth, height: active.naturalHeight } : null), [active])
 
   return (
     <div
