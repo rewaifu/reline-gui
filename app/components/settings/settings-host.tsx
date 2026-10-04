@@ -1,6 +1,6 @@
-import { useBackendContext } from "~/components/backend-provider"
+import { useBackendContext } from "~/components/providers/backend-provider"
 import { SettingsDialog } from "~/components/settings/settings-dialog"
-import { useSettings } from "~/components/settings-provider"
+import { useSettings } from "~/components/providers/settings-provider"
 
 export function TauriSettingsHost() {
   const backend = useBackendContext()

@@ -12,10 +12,10 @@ import {
   IconPlayerPlay,
 } from "@tabler/icons-react"
 import { NodesContext } from "~/context/contexts"
-import { useBackendContext } from "~/components/backend-provider"
+import { useBackendContext } from "~/components/providers/backend-provider"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { cn } from "~/lib/utils"
-import { useLocalModels } from "~/components/local-models-provider"
+import { useLocalModels } from "~/components/providers/local-models-provider"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Input } from "~/components/ui/input"
@@ -47,8 +47,8 @@ import {
   suggestSsaaScale,
   type PreviewPipelineNode,
 } from "~/lib/screentone-preview"
-import { PreviewCanvas, type CompareMode } from "~/components/preview-canvas"
-import { ImagePicker } from "~/components/image-picker"
+import { PreviewCanvas, type CompareMode } from "~/components/previews/preview-canvas"
+import { ImagePicker } from "~/components/previews/image-picker"
 import { baseName, toBlobUrl } from "~/lib/image-files"
 
 const SMALL_IMAGE_HEIGHT = 3000

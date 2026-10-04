@@ -11,8 +11,8 @@ import { Separator } from "~/components/ui/separator"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { ensureNotificationPermission } from "~/lib/completion-feedback"
 import { normalizeWebPath } from "~/lib/paths"
-import { usePreferences } from "~/components/preferences-provider"
-import { useLocalModels } from "~/components/local-models-provider"
+import { usePreferences } from "~/components/providers/preferences-provider"
+import { useLocalModels } from "~/components/providers/local-models-provider"
 
 function PathField({
   id,

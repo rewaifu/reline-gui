@@ -4,7 +4,7 @@ import { IconDownload, IconCopy, IconFileUpload, IconCheck } from "@tabler/icons
 import { nodesToString, stringToNodes } from "~/lib/utils"
 import { toast } from "sonner"
 import { Card, CardHeader, Dialog, DialogTrigger, Button, CardContent } from "~/components/ui"
-import { FileUploadDialogContent } from "~/components/file-upload-dialog-content"
+import { FileUploadDialogContent } from "~/components/config/file-upload-dialog-content"
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area.tsx"
 import hljs from "highlight.js/lib/core"
 import json from "highlight.js/lib/languages/json"
@@ -14,8 +14,8 @@ import { usePrepareNodes } from "~/hooks/usePrepareNodes"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { NodesActionType } from "~/types/actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs.tsx"
-import { LevelsPreview } from "~/components/levels-preview.tsx"
-import { ScreentonePreview } from "~/components/screentone-preview.tsx"
+import { LevelsPreview } from "~/components/previews/levels-preview.tsx"
+import { ScreentonePreview } from "~/components/previews/screentone-preview.tsx"
 
 hljs.registerLanguage("json", json)
 

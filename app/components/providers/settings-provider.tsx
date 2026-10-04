@@ -10,10 +10,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setOpen(true)
   }, [])
 
-  const value: SettingsContextValue = useMemo(
-    () => ({ open, section, setOpen, openSettings }),
-    [open, section, openSettings],
-  )
+  const value: SettingsContextValue = useMemo(() => ({ open, section, setOpen, openSettings }), [open, section, openSettings])
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
 }
