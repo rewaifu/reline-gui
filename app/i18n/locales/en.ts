@@ -253,6 +253,7 @@ export const en = {
     updateLibs: "Update Libraries",
     updateLibsDesc: "~200 MB — Only resselt + reline",
     installDepsPrompt: "Install dependencies",
+    installDepsHint: "Install dependencies",
     installing: "Installing...",
     viewLogs: "Installation Logs",
     noLogs: "No logs yet",

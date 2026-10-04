@@ -51,7 +51,7 @@ export function DepsTab({ depsStatus, versions, installingDeps, statusMessage, l
   return (
     <div className="grid grid-cols-2 grid-rows-1 gap-5 flex-1 min-h-0">
       {/* Left column: deps, versions, install */}
-      <div className="flex flex-col gap-3 min-h-0 overflow-y-auto pr-1">
+      <div className="flex flex-col gap-3 min-h-0 overflow-hidden">
         {/* Status Items */}
         <div className="space-y-1.5">
           {statusItems.map((item) => (
@@ -116,21 +116,25 @@ export function DepsTab({ depsStatus, versions, installingDeps, statusMessage, l
           </div>
 
           {/* Progress message */}
-          {installingDeps && uvProgress && uvProgress.total > 0 ? (
-            <div className="space-y-1.5 rounded-lg border p-2.5">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className="capitalize">{t(`backend.progress.${uvProgress.stage}`, { defaultValue: uvProgress.stage })}</span>
-                <span className="tabular-nums">
-                  {uvProgress.current} / {uvProgress.total} ({uvPercentage}%)
-                </span>
-              </div>
-              <Progress value={uvPercentage} className="w-full" />
-              <p className="text-[10px] font-mono text-muted-foreground truncate">{uvProgress.raw_message}</p>
-            </div>
-          ) : installingDeps ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <IconLoader2 className="size-3.5 animate-spin shrink-0" />
-              <span className="truncate">{statusMessage || t("backend.installing")}</span>
+          {installingDeps ? (
+            <div className="min-h-16 space-y-1.5 rounded-lg border p-2.5">
+              {uvProgress && uvProgress.total > 0 ? (
+                <>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="capitalize">{t(`backend.progress.${uvProgress.stage}`, { defaultValue: uvProgress.stage })}</span>
+                    <span className="tabular-nums">
+                      {uvProgress.current} / {uvProgress.total} ({uvPercentage}%)
+                    </span>
+                  </div>
+                  <Progress value={uvPercentage} className="w-full" />
+                  <p className="text-[10px] font-mono text-muted-foreground truncate">{uvProgress.raw_message}</p>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <IconLoader2 className="size-3.5 animate-spin shrink-0" />
+                  <span className="truncate">{statusMessage || t("backend.installing")}</span>
+                </div>
+              )}
             </div>
           ) : null}
         </div>

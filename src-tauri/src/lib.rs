@@ -1,17 +1,40 @@
 use git2::Repository;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::io::Write;
 use std::net::TcpListener;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri::Manager;
-use tauri_plugin_shell::process::CommandChild;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 use tokio::fs;
+
+// ─── Small helpers ────────────────────────────────────────────────────────────
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn path_str(path: &Path) -> Result<&str, String> {
+    path.to_str()
+        .ok_or_else(|| format!("invalid path (not valid UTF-8): {}", path.display()))
+}
+
+// Kills the child process when dropped, so an in-flight `uv` install does not
+// outlive the app (or a cancelled command future).
+struct ChildGuard(Option<CommandChild>);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Some(child) = self.0.take() {
+            let _ = child.kill();
+        }
+    }
+}
 
 // ─── Stage / Status ───────────────────────────────────────────────────────────
 
@@ -79,7 +102,7 @@ fn push_log(app: &tauri::AppHandle, level: &str, message: &str) {
         message: message.to_string(),
     };
     let state = app.state::<BackendLogs>();
-    state.0.lock().unwrap().push(entry.clone());
+    lock(&state.0).push(entry.clone());
     let _ = app.emit("backend-log", entry);
 }
 
@@ -143,41 +166,65 @@ fn parse_and_emit_uv_progress(app: &tauri::AppHandle, raw_line: &str) {
     }
 }
 
-// ─── Debug log file ───────────────────────────────────────────────────────────
+// ─── Log files (size-capped, one backup) ──────────────────────────────────────
+
+const MAX_LOG_BYTES: u64 = 10 * 1024 * 1024;
+
+static UV_LOG_BYTES: AtomicU64 = AtomicU64::new(0);
+static RELINE_LOG_BYTES: AtomicU64 = AtomicU64::new(0);
 
 fn debug_log_path() -> Option<PathBuf> {
     app_data_dir().ok().map(|d| d.join("uv_debug.log"))
 }
 
-fn append_debug_log(bytes: &[u8]) {
-    let Some(path) = debug_log_path() else { return };
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = f.write_all(bytes);
-        let _ = f.flush();
-    }
-}
-
-fn append_debug_log_header(args: &[&str]) {
-    let Some(path) = debug_log_path() else { return };
-    let header = format!("\n=== uv {} ===\n", args.join(" "));
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = f.write_all(header.as_bytes());
-        let _ = f.flush();
-    }
-}
-
-// ─── reline_ws log file ──────────────────────────────────────────────────────
-
 fn reline_ws_log_path() -> Option<PathBuf> {
     app_data_dir().ok().map(|d| d.join("reline_ws.log"))
 }
 
+// When the file reaches the cap, rename it to `<name>.1` (replacing the previous
+// backup) and start a fresh file.
+fn rotate_log(path: &Path) {
+    let mut backup = path.as_os_str().to_owned();
+    backup.push(".1");
+    let backup = PathBuf::from(backup);
+    let _ = std::fs::remove_file(&backup);
+    let _ = std::fs::rename(path, &backup);
+}
+
+fn append_log(path: &Path, bytes: &[u8], written: &AtomicU64) {
+    let mut current = written.load(Ordering::Relaxed);
+    if current == 0 {
+        current = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    }
+    if current >= MAX_LOG_BYTES {
+        rotate_log(path);
+        current = 0;
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if f.write_all(bytes).is_ok() {
+            let _ = f.flush();
+            written.store(current + bytes.len() as u64, Ordering::Relaxed);
+        }
+    }
+}
+
+fn append_debug_log(bytes: &[u8]) {
+    if let Some(path) = debug_log_path() {
+        append_log(&path, bytes, &UV_LOG_BYTES);
+    }
+}
+
+fn append_debug_log_header(args: &[&str]) {
+    if let Some(path) = debug_log_path() {
+        let header = format!("\n=== uv {} ===\n", args.join(" "));
+        append_log(&path, header.as_bytes(), &UV_LOG_BYTES);
+    }
+}
+
 fn append_reline_ws_log(line: &str) {
-    let Some(path) = reline_ws_log_path() else { return };
-    let line_with_ts = format!("{} {}\n", timestamp(), line.trim_end());
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = f.write_all(line_with_ts.as_bytes());
-        let _ = f.flush();
+    if let Some(path) = reline_ws_log_path() {
+        let line_with_ts = format!("{} {}\n", timestamp(), line.trim_end());
+        append_log(&path, line_with_ts.as_bytes(), &RELINE_LOG_BYTES);
     }
 }
 
@@ -200,37 +247,20 @@ fn exe_dir() -> Result<PathBuf, String> {
         .ok_or_else(|| "failed to get exe parent dir".to_string())
 }
 
-fn xdg_data_dir() -> PathBuf {
-    let base = std::env::var("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("/tmp"))
-                .join(".local")
-                .join("share")
-        });
-    base.join("easy_reline")
-}
-
 fn app_data_dir() -> Result<PathBuf, String> {
-    #[cfg(target_os = "windows")]
-    {
-        return exe_dir();
+    if let Some(base) = dirs::data_local_dir() {
+        let dir = base.join("reline-configurator");
+        if std::fs::create_dir_all(&dir).is_ok() {
+            return Ok(dir);
+        }
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        if std::env::var("APPIMAGE").is_ok() {
-            return Ok(xdg_data_dir());
-        }
-
-        let exe_d = exe_dir()?;
-        if is_dir_writable(&exe_d) {
-            return Ok(exe_d);
-        }
-
-        Ok(xdg_data_dir())
+    let exe_d = exe_dir()?;
+    if is_dir_writable(&exe_d) {
+        return Ok(exe_d);
     }
+
+    Err("could not determine a writable data directory".to_string())
 }
 
 fn is_dir_writable(dir: &PathBuf) -> bool {
@@ -433,6 +463,11 @@ fn extract_zip(bytes: &[u8], bin_name: &str, dest: &PathBuf) -> Result<(), Strin
 // ─── NVIDIA GPU check ─────────────────────────────────────────────────────────
 
 fn check_nvidia_gpu() -> bool {
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(detect_nvidia_gpu)
+}
+
+fn detect_nvidia_gpu() -> bool {
     #[cfg(target_os = "windows")]
     {
         if let Ok(out) = std::process::Command::new("wmic")
@@ -473,80 +508,6 @@ fn check_nvidia_gpu() -> bool {
     {
         false
     }
-}
-
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ConfigReline {
-    pub in_dir: String,
-    pub out_dir: String,
-    pub model_path: String,
-    pub model_tile_size: u32,
-    pub model_scale: Option<u32>,
-    pub model_dtype: String,
-    pub model_allow_cpu_scale: bool,
-    pub color_fix: bool,
-    pub target_size: Option<u32>,
-    pub resize_mode: String,
-    pub resize_down_format: String,
-    pub recursive: bool,
-}
-
-fn default_config() -> ConfigReline {
-    ConfigReline {
-        in_dir: "".into(),
-        out_dir: "".into(),
-        model_path: "".into(),
-        model_tile_size: 512,
-        model_scale: None,
-        model_dtype: "F32".into(),
-        model_allow_cpu_scale: true,
-        color_fix: true,
-        target_size: None,
-        resize_mode: "width".into(),
-        resize_down_format: "linear".into(),
-        recursive: true,
-    }
-}
-
-fn config_path() -> Result<PathBuf, String> {
-    Ok(get_workspace_path()?.join("config.json"))
-}
-
-#[tauri::command]
-async fn open_reline_config() -> ConfigReline {
-    let config_path = match config_path() {
-        Ok(p) => p,
-        Err(_) => return default_config(),
-    };
-    if let Ok(data) = fs::read_to_string(&config_path).await {
-        if !data.is_empty() {
-            if let Ok(cfg) = serde_json::from_str::<ConfigReline>(&data) {
-                return cfg;
-            }
-        }
-    }
-    let cfg = default_config();
-    if let Some(parent) = config_path.parent() {
-        let _ = fs::create_dir_all(parent).await;
-    }
-    let _ = fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap()).await;
-    cfg
-}
-
-#[tauri::command]
-async fn save_config_reline(config: ConfigReline) -> bool {
-    let config_path = match config_path() {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
-    if let Some(parent) = config_path.parent() {
-        let _ = fs::create_dir_all(parent).await;
-    }
-    fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap())
-        .await
-        .is_ok()
 }
 
 // ─── Deps status / versions ───────────────────────────────────────────────────
@@ -605,7 +566,7 @@ fn check_deps() -> DepsStatus {
 }
 
 #[tauri::command]
-async fn check_versions(app: tauri::AppHandle) -> DepsVersions {
+async fn check_versions(app: tauri::AppHandle, uv_path: Option<PathBuf>) -> DepsVersions {
     let empty = DepsVersions {
         torch_version: None,
         torch_cuda: false,
@@ -613,9 +574,12 @@ async fn check_versions(app: tauri::AppHandle) -> DepsVersions {
         reline_version: None,
     };
 
-    let uv_path = match find_or_install_uv(&app).await {
-        Ok(p) => p,
-        Err(_) => return empty,
+    let uv_path = match uv_path {
+        Some(p) => p,
+        None => match find_or_install_uv(&app).await {
+            Ok(p) => p,
+            Err(_) => return empty,
+        },
     };
 
     let workspace = match get_workspace_path() {
@@ -627,9 +591,14 @@ async fn check_versions(app: tauri::AppHandle) -> DepsVersions {
         return empty;
     }
 
+    let uv_str = match path_str(&uv_path) {
+        Ok(s) => s,
+        Err(_) => return empty,
+    };
+
     let out = match app
         .shell()
-        .command(uv_path.to_str().unwrap())
+        .command(uv_str)
         .args(["pip", "freeze"])
         .current_dir(&workspace)
         .output()
@@ -673,13 +642,14 @@ async fn spawn_and_stream(
 
     let cmd = app
         .shell()
-        .command(uv_path.to_str().unwrap())
+        .command(path_str(uv_path)?)
         .args(final_args)
         .current_dir(workspace);
 
-    let (mut rx, _child) = cmd
+    let (mut rx, child) = cmd
         .spawn()
         .map_err(|e| format!("spawn failed: {e}"))?;
+    let _guard = ChildGuard(Some(child));
 
     let mut stderr_buffer = String::new();
 
@@ -753,10 +723,16 @@ async fn install_deps(app: tauri::AppHandle, full: bool) -> Result<(), String> {
             if workspace.exists() {
                 std::fs::remove_dir_all(&workspace).map_err(|e| e.to_string())?;
             }
-            unsafe {
-                git2::opts::set_verify_owner_validation(false).unwrap();
-            }
-            if let Err(e) = Repository::clone(repo_url, &workspace) {
+            let clone_workspace = workspace.clone();
+            let clone_result = tokio::task::spawn_blocking(move || {
+                unsafe {
+                    let _ = git2::opts::set_verify_owner_validation(false);
+                }
+                Repository::clone(repo_url, &clone_workspace)
+            })
+            .await
+            .map_err(|e| format!("Clone task failed: {e}"))?;
+            if let Err(e) = clone_result {
                 let msg = format!("Clone failed: {e:?}");
                 emit_status(&app, Stage::Error, &msg, None);
                 return Err(msg);
@@ -771,7 +747,7 @@ async fn install_deps(app: tauri::AppHandle, full: bool) -> Result<(), String> {
             emit_status(&app, Stage::CreatingVenv, "Creating virtual environment...", None);
             let out = app
                 .shell()
-                .command(uv_path.to_str().unwrap())
+                .command(path_str(&uv_path)?)
                 .args(["venv", ".venv"])
                 .current_dir(&workspace)
                 .output()
@@ -811,25 +787,19 @@ async fn install_deps(app: tauri::AppHandle, full: bool) -> Result<(), String> {
         .await?;
     }
 
-    spawn_and_stream(
-        &app,
-        &uv_path,
-        &[
-            "pip",
-            "install",
-            "-e",
-            ".",
-            "--index-strategy",
-            "unsafe-best-match",
-            "--no-cache",
-            "--link-mode=copy",
-        ],
-        &workspace,
-    )
-    .await?;
+    // First install: install the project itself in editable mode (also pulls deps).
+    // "Update libs" (full = false): refresh only the dependencies from pyproject,
+    // so the local project is never rebuilt/reinstalled.
+    let install_args: &[&str] = if full {
+        &["pip", "install", "-e", ".", "--index-strategy", "unsafe-best-match", "--no-cache", "--link-mode=copy"]
+    } else {
+        &["pip", "install", "-r", "pyproject.toml", "--index-strategy", "unsafe-best-match", "--no-cache", "--link-mode=copy"]
+    };
+
+    spawn_and_stream(&app, &uv_path, install_args, &workspace).await?;
 
     // Verify torch CUDA
-    let versions = check_versions(app.clone()).await;
+    let versions = check_versions(app.clone(), Some(uv_path)).await;
     if let Some(ref v) = versions.torch_version {
         if versions.torch_cuda {
             push_log(&app, "info", &format!("Torch {} with CUDA ✓", v));
@@ -850,6 +820,30 @@ async fn install_deps(app: tauri::AppHandle, full: bool) -> Result<(), String> {
 
 // ─── Initialize (start backend) ───────────────────────────────────────────────
 
+fn handle_backend_event(app: &tauri::AppHandle, stopping: &AtomicBool, event: CommandEvent) {
+    match event {
+        CommandEvent::Stdout(line) => {
+            let text = String::from_utf8_lossy(&line);
+            append_reline_ws_log(&text);
+            push_log(app, "stdout", &text);
+        }
+        CommandEvent::Stderr(line) => {
+            let text = String::from_utf8_lossy(&line);
+            append_reline_ws_log(&text);
+            push_log(app, "stderr", &text);
+        }
+        CommandEvent::Terminated(status) => {
+            if stopping.load(Ordering::SeqCst) {
+                push_log(app, "info", "Backend stopped by user");
+            } else {
+                push_log(app, "error", &format!("Backend terminated: {:?}", status.code));
+                emit_status(app, Stage::Error, "Backend process terminated unexpectedly", None);
+            }
+        }
+        _ => {}
+    }
+}
+
 #[tauri::command]
 async fn initialize(
     app: tauri::AppHandle,
@@ -857,8 +851,8 @@ async fn initialize(
     port_state: tauri::State<'_, BackendPort>,
     port: Option<u16>,
 ) -> Result<(), String> {
-    kill_backend(&backend_state);
-    *port_state.0.lock().unwrap() = None;
+    kill_backend(&app, &backend_state);
+    *lock(&port_state.0) = None;
 
     let deps = check_deps_sync();
     if !deps.uv_installed || !deps.repo_cloned || !deps.venv_created || !deps.deps_installed {
@@ -870,64 +864,111 @@ async fn initialize(
     let workspace = get_workspace_path()?;
     let python_bin = venv_python(&workspace);
 
-    let port = match port {
-        Some(p) => {
-            if p < 1024 {
-                let msg = format!("Invalid port {p}. Use a port between 1024 and 65535.");
-                emit_status(&app, Stage::Error, &msg, None);
-                return Err(msg);
-            }
-            if TcpListener::bind(("127.0.0.1", p)).is_err() {
-                let msg = format!("Port {p} is already in use.");
-                emit_status(&app, Stage::Error, &msg, None);
-                return Err(msg);
-            }
-            p
+    let requested_port = port;
+
+    if let Some(p) = requested_port {
+        if p < 1024 {
+            let msg = format!("Invalid port {p}. Use a port between 1024 and 65535.");
+            emit_status(&app, Stage::Error, &msg, None);
+            return Err(msg);
         }
-        None => match find_free_port(8000, 9000) {
+        if TcpListener::bind(("127.0.0.1", p)).is_err() {
+            let msg = format!("Port {p} is already in use.");
+            emit_status(&app, Stage::Error, &msg, None);
+            return Err(msg);
+        }
+    }
+
+    let python_str = path_str(&python_bin)?;
+
+    let mut attempts = 0u32;
+    let (mut rx, child, port, first_events) = loop {
+        let port = match requested_port {
             Some(p) => p,
-            None => {
-                let msg = "No free port in range 8000-9000".to_string();
+            None => match find_free_port(8000, 9000) {
+                Some(p) => p,
+                None => {
+                    let msg = "No free port in range 8000-9000".to_string();
+                    emit_status(&app, Stage::Error, &msg, None);
+                    return Err(msg);
+                }
+            },
+        };
+
+        emit_status(
+            &app,
+            Stage::Starting,
+            format!("Starting server on port {port}..."),
+            None,
+        );
+
+        let port_str = port.to_string();
+        let (mut rx, child) = app
+            .shell()
+            .command(python_str)
+            .args([
+                "-m",
+                "uvicorn",
+                "app:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                &port_str,
+            ])
+            .current_dir(&workspace)
+            .spawn()
+            .map_err(|e| {
+                let msg = format!("uvicorn spawn failed: {e}");
                 emit_status(&app, Stage::Error, &msg, None);
-                return Err(msg);
+                msg
+            })?;
+
+        // Collect early output for a short grace period. If the process dies
+        // right away (e.g. the port was grabbed in between), retry with another
+        // free port. Otherwise assume it is booting (importing torch can take a
+        // while) and hand the buffered lines over to the log streamer.
+        let deadline = std::time::Instant::now() + Duration::from_millis(1500);
+        let mut buffered: Vec<CommandEvent> = Vec::new();
+        let mut terminated = false;
+        loop {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                break;
             }
-        },
+            match tokio::time::timeout(remaining, rx.recv()).await {
+                Ok(Some(CommandEvent::Terminated(_))) => {
+                    terminated = true;
+                    break;
+                }
+                Ok(Some(event)) => buffered.push(event),
+                Ok(None) => {
+                    terminated = true;
+                    break;
+                }
+                Err(_) => break,
+            }
+        }
+
+        if terminated {
+            let _ = child.kill();
+            if requested_port.is_none() && attempts < 5 {
+                attempts += 1;
+                continue;
+            }
+            let msg = format!("Backend failed to start on port {port} (process exited)");
+            emit_status(&app, Stage::Error, &msg, None);
+            return Err(msg);
+        }
+
+        break (rx, child, port, buffered);
     };
 
-    emit_status(
-        &app,
-        Stage::Starting,
-        format!("Starting server on port {port}..."),
-        None,
-    );
-
-    let port_str = port.to_string();
-    let (mut rx, child) = app
-        .shell()
-        .command(python_bin.to_str().unwrap())
-        .args([
-            "-m",
-            "uvicorn",
-            "app:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            &port_str,
-        ])
-        .current_dir(&workspace)
-        .spawn()
-        .map_err(|e| {
-            let msg = format!("uvicorn spawn failed: {e}");
-            emit_status(&app, Stage::Error, &msg, None);
-            msg
-        })?;
-
     let stopping = Arc::new(AtomicBool::new(false));
-    *backend_state.0.lock().unwrap() = Some(BackendHandle {
+    *lock(&backend_state.0) = Some(BackendHandle {
         child,
         stopping: stopping.clone(),
     });
-    *port_state.0.lock().unwrap() = Some(port);
+    *lock(&port_state.0) = Some(port);
 
     emit_status(
         &app,
@@ -938,33 +979,11 @@ async fn initialize(
 
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
+        for event in first_events {
+            handle_backend_event(&app_clone, &stopping, event);
+        }
         while let Some(event) = rx.recv().await {
-            match event {
-                tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
-                    let text = String::from_utf8_lossy(&line);
-                    append_reline_ws_log(&text);
-                    push_log(&app_clone, "stdout", &text);
-                }
-                tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
-                    let text = String::from_utf8_lossy(&line);
-                    append_reline_ws_log(&text);
-                    push_log(&app_clone, "stderr", &text);
-                }
-                tauri_plugin_shell::process::CommandEvent::Terminated(status) => {
-                    if stopping.load(Ordering::SeqCst) {
-                        push_log(&app_clone, "info", "Backend stopped by user");
-                    } else {
-                        push_log(&app_clone, "error", &format!("Backend terminated: {:?}", status.code));
-                        emit_status(
-                            &app_clone,
-                            Stage::Error,
-                            "Backend process terminated unexpectedly",
-                            None,
-                        );
-                    }
-                }
-                _ => {}
-            }
+            handle_backend_event(&app_clone, &stopping, event);
         }
     });
 
@@ -979,15 +998,15 @@ fn stop_backend(
     backend_state: tauri::State<'_, BackendProcess>,
     port_state: tauri::State<'_, BackendPort>,
 ) -> Result<(), String> {
-    kill_backend(&backend_state);
-    *port_state.0.lock().unwrap() = None;
+    kill_backend(&app, &backend_state);
+    *lock(&port_state.0) = None;
     emit_status(&app, Stage::Idle, "Backend stopped", None);
     Ok(())
 }
 
 #[tauri::command]
 fn get_backend_port(state: tauri::State<'_, BackendPort>) -> Option<u16> {
-    *state.0.lock().unwrap()
+    *lock(&state.0)
 }
 
 #[tauri::command]
@@ -1005,28 +1024,24 @@ fn open_url(url: String) -> Result<(), String> {
     tauri_plugin_opener::open_url(&url, None::<&str>).map_err(|e| e.to_string())
 }
 
-fn kill_backend(state: &BackendProcess) {
-    if let Some(handle) = state.0.lock().unwrap().take() {
+fn kill_backend(app: &tauri::AppHandle, state: &BackendProcess) {
+    if let Some(handle) = lock(&state.0).take() {
         handle.stopping.store(true, Ordering::SeqCst);
         let _ = handle.child.kill();
-        push_log_simple("Backend process killed");
+        push_log(app, "info", "Backend process killed");
     }
-}
-
-fn push_log_simple(message: &str) {
-    println!("[backend] {message}");
 }
 
 // ─── Log commands ─────────────────────────────────────────────────────────────
 
 #[tauri::command]
 fn get_logs(state: tauri::State<'_, BackendLogs>) -> Vec<LogEntry> {
-    state.0.lock().unwrap().clone()
+    lock(&state.0).clone()
 }
 
 #[tauri::command]
 fn clear_logs(state: tauri::State<'_, BackendLogs>) {
-    state.0.lock().unwrap().clear();
+    lock(&state.0).clear();
 }
 
 // ─── Custom titlebar ──────────────────────────────────────────────────────────
@@ -1085,8 +1100,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                let backend = window.app_handle().state::<BackendProcess>();
-                kill_backend(&backend);
+                let handle = window.app_handle();
+                let backend = handle.state::<BackendProcess>();
+                kill_backend(handle, &backend);
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -1096,8 +1112,6 @@ pub fn run() {
             check_port_free,
             open_folder,
             open_url,
-            open_reline_config,
-            save_config_reline,
             check_deps,
             check_versions,
             install_deps,

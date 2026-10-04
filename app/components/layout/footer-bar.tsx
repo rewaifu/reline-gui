@@ -1,4 +1,13 @@
-import { IconBrandDiscordFilled, IconBrandGithub, IconFolder, IconLoader2, IconPlayerPlay, IconPlayerStop, IconSettings } from "@tabler/icons-react"
+import {
+  IconBrandDiscordFilled,
+  IconBrandGithub,
+  IconExternalLink,
+  IconFolder,
+  IconLoader2,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconSettings,
+} from "@tabler/icons-react"
 import { useContext, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useBackendContext } from "~/components/providers/backend-provider"
@@ -82,6 +91,7 @@ export function TauriFooter() {
     pipelineActive,
     pipelineCompleted,
     progress,
+    depsStatus,
     depsReady,
     errorInfo,
     metrics,
@@ -162,6 +172,12 @@ export function TauriFooter() {
 
       <div className="flex min-w-0 flex-1 items-center gap-3 pl-1">
         <Progress value={progress} className="w-[200px] shrink-0" indicatorClassName={isError ? "bg-red-500" : "bg-green-500"} />
+        {depsStatus != null && !depsReady && !installingDeps ? (
+          <Button variant="link" size="xs" className="shrink-0 whitespace-nowrap text-white hover:text-white/80" onClick={() => openSettings("deps")}>
+            {t("backend.installDepsHint")}
+            <IconExternalLink className="size-3.5" />
+          </Button>
+        ) : null}
         {pipelineActive && metrics != null ? (
           showPercent ? (
             <button

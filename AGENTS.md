@@ -94,16 +94,18 @@ The app has a desktop variant via Tauri V2. The Rust backend at `src-tauri/src/l
 
 | Command | Signature | Description |
 |---|---|---|
-| `initialize` | `async fn initialize(app, backend_state, port_state) -> Result<(), String>` | Checks deps installed, starts uvicorn. Emits `backend-status` events throughout. |
+| `initialize` | `async fn initialize(app, backend_state, port_state, port: Option<u16>) -> Result<(), String>` | Checks deps installed, starts uvicorn. Emits `backend-status` events throughout. |
 | `stop_backend` | `fn stop_backend(app, backend_state, port_state) -> Result<(), String>` | Kills backend process, emits `Stage::Idle`. |
 | `get_backend_port` | `fn get_backend_port(state) -> Option<u16>` | Returns current backend port or `null`. |
-| `open_reline_config` | `async fn open_reline_config() -> ConfigReline` | Reads `config.json` from disk. |
-| `save_config_reline` | `async fn save_config_reline(config) -> bool` | Writes `config.json` to disk. |
+| `check_port_free` | `fn check_port_free(port: u16) -> bool` | Returns whether the port can be bound. |
+| `open_folder` | `fn open_folder(path: String) -> Result<(), String>` | Opens a folder in the OS file manager. |
+| `open_url` | `fn open_url(url: String) -> Result<(), String>` | Opens a URL in the default browser. |
 | `check_deps` | `fn check_deps() -> DepsStatus` | Checks uv, repo, venv, uvicorn presence + NVIDIA GPU. Does NOT launch Python. |
-| `check_versions` | `async fn check_versions(app) -> DepsVersions` | Runs `uv pip freeze`, parses torch/resselt/reline versions. Torch CUDA = `+cu` in version string. |
+| `check_versions` | `async fn check_versions(app, uv_path: Option<PathBuf>) -> DepsVersions` | Runs `uv pip freeze`, parses torch/resselt/reline versions. Torch CUDA = `+cu` in version string. |
 | `install_deps` | `async fn install_deps(app, full: bool) -> Result<(), String>` | **full=true**: uv → clone → venv → torch(Win) → pip install. **full=false**: only `pip install -e .`. Streams stdout/stderr via `backend-log`. |
 | `get_logs` | `fn get_logs(state) -> Vec<LogEntry>` | Returns collected session logs. |
 | `clear_logs` | `fn clear_logs(state)` | Clears log buffer. |
+| `get_window_mode` | `fn get_window_mode() -> bool` | Whether the custom (frameless) titlebar is used on this platform. |
 
 ### Events
 
@@ -131,22 +133,26 @@ interface LogEntry {
 
 ### State (Rust)
 
-- `BackendProcess(Mutex<Option<CommandChild>>)` — holds spawned uvicorn child process
+- `BackendProcess(Mutex<Option<BackendHandle>>)` — holds the spawned uvicorn child plus its `stopping` flag
 - `BackendPort(Mutex<Option<u16>>)` — holds allocated port (8000–9000 range)
 - `BackendLogs(Mutex<Vec<LogEntry>>)` — session log buffer
 - On `Destroyed` window event: backend is killed automatically
 
 ### Tauri plugins
 
-`tauri_plugin_shell`, `tauri_plugin_fs`, `tauri_plugin_opener`, `tauri_plugin_dialog` in `Cargo.toml`.
+`tauri_plugin_shell`, `tauri_plugin_fs`, `tauri_plugin_opener`, `tauri_plugin_dialog`, `tauri_plugin_notification` in `Cargo.toml`.
 
 ### Config
 
-`src-tauri/tauri.conf.json` — window 800x600, title "Reline Configurator", `frontendDist: "../dist"`, dev URL `http://localhost:5173`.
+`src-tauri/tauri.conf.json` — version 3.0.0, window 1200x700 (min 1200x700, `visible: false`, shown in `setup`), title "Reline Configurator", `frontendDist: "../dist"`, dev URL `http://localhost:5173`.
+
+### Data dir
+
+`app_data_dir()` resolves to `dirs::data_local_dir()/reline-configurator` (on Windows `%LOCALAPPDATA%\reline-configurator`), falling back to the executable directory if that path is missing or not writable. The Python workspace (`reline_ws`), the bundled `uv`, and the logs (`uv_debug.log`, `reline_ws.log`) all live there.
 
 ### Frontend UI (Tauri mode)
 
-**`FooterBar`** component at `app/components/footer-bar.tsx` conditionally renders:
+**`FooterBar`** component at `app/components/layout/footer-bar.tsx` conditionally renders:
 
 - **Non-Tauri**: regular footer (Colab, GitHub, Discord links)
 - **Tauri**: `h-15` bar with Run/Stop buttons on the left:

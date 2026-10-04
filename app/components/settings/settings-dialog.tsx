@@ -24,7 +24,7 @@ interface SettingsDialogProps {
   onInstall?: (full: boolean) => Promise<void>
 }
 
-const APP_VERSION = "2.0.0"
+const APP_VERSION = "3.0.0"
 
 function resolveTab(section: SettingsSection | undefined, isTauri: boolean): string {
   if (section === "sound") return isTauri ? "sound" : "prefs"

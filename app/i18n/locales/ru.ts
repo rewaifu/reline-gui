@@ -253,6 +253,7 @@ export const ru = {
     updateLibs: "Обновить библиотеки",
     updateLibsDesc: "~200 MB — Только resselt + reline",
     installDepsPrompt: "Установить зависимости",
+    installDepsHint: "Установите зависимости",
     installing: "Установка...",
     viewLogs: "Логи установки",
     noLogs: "Логов пока нет",
