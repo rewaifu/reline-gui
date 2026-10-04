@@ -1,28 +1,14 @@
-import { type FC, useState, type Dispatch, useId } from "react"
+import { useId, useState } from "react"
 import { NodesContext } from "~/context/contexts"
 import type { NodeType } from "~/types/enums"
 import { DEFAULT_NODE_OPTIONS, NODE_ICONS } from "~/constants"
 import type { NodeOptions, StackNode } from "~/types/node"
-import { CvtColorNodeBody, FolderReaderNodeBody, FolderWriterNodeBody, LevelNodeBody, SharpNodeBody } from "~/components/nodes"
-import { UpscaleNodeBody } from "~/components/nodes"
-import { ResizeNodeBody } from "~/components/nodes/resize-node"
-import { ScreentoneNodeBody } from "~/components/nodes/screentone-node"
+import { NODE_BODY_COMPONENTS } from "~/components/nodes/node-body-components"
 import { IconSelector } from "@tabler/icons-react"
 import { Button, Card, CardContent, CardHeader } from "~/components/ui"
 import { useTranslation } from "react-i18next"
 import type { NodesAction } from "~/types/actions"
 import { NodesActionType } from "~/types/actions"
-
-const nodeBodyComponents: { [key in NodeType]: FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }> } = {
-  level: LevelNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-  folder_reader: FolderReaderNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-  folder_writer: FolderWriterNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-  cvt_color: CvtColorNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-  sharp: SharpNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-  upscale: UpscaleNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-  resize: ResizeNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-  screentone: ScreentoneNodeBody as FC<{ id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }>,
-}
 
 type DemoNodeProps = {
   type: string
@@ -33,7 +19,7 @@ export function DemoNode({ type }: DemoNodeProps) {
   const nodeType = type as NodeType
 
   const Icon = NODE_ICONS[nodeType]
-  const NodeBodyComponent = nodeBodyComponents[nodeType]
+  const NodeBodyComponent = NODE_BODY_COMPONENTS[nodeType]
 
   const idSuffix = useId().replace(/:/g, "")
 

@@ -6,42 +6,7 @@ import { usePreferences } from "~/components/preferences-provider"
 import { NodesContext } from "~/context/contexts"
 import { playCompletionSound, sendCompletionNotification } from "~/lib/completion-feedback"
 import { nodesToString } from "~/lib/utils"
-
-type BackendStage = "idle" | "cloning" | "creating_venv" | "installing" | "starting" | "running" | "error"
-
-interface BackendStatusEvent {
-  stage: BackendStage
-  message: string
-  port: number | null
-}
-
-interface DepsStatus {
-  uv_installed: boolean
-  repo_cloned: boolean
-  venv_created: boolean
-  deps_installed: boolean
-  has_nvidia_gpu: boolean
-}
-
-interface DepsVersions {
-  torch_version: string | null
-  torch_cuda: boolean
-  resselt_version: string | null
-  reline_version: string | null
-}
-
-interface LogEntry {
-  timestamp: string
-  level: string
-  message: string
-}
-
-export interface UvProgress {
-  stage: string
-  current: number
-  total: number
-  raw_message: string
-}
+import type { BackendStage, BackendStatusEvent, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 
 export interface PipelineMetrics {
   processed: number
