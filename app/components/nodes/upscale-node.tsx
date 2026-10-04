@@ -1,4 +1,4 @@
-import {useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode} from "react"
+import {Fragment, useCallback, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode} from "react"
 import {ModelsContext, NodesContext, NodesDispatchContext} from "~/context/contexts"
 import {DType, TilerType} from "~/types/enums"
 import {Label} from "../ui/label"
@@ -10,17 +10,23 @@ import type {UpscaleNodeOptions} from "~/types/options"
 import {NodesActionType, type NodesAction} from "~/types/actions"
 import {
     Combobox,
+    ComboboxCollection,
     ComboboxContent,
     ComboboxEmpty,
+    ComboboxGroup,
     ComboboxInput,
     ComboboxItem,
+    ComboboxLabel,
     ComboboxList,
+    ComboboxSeparator,
 } from "~/components/ui/combobox"
+import { groupModels, type ModelGroup } from "~/lib/model-groups"
 import {FieldGroup, FieldLabel, Field} from "~/components/ui/field.tsx"
 import {Separator} from "~/components/ui/separator.tsx"
 import {useTranslation} from "react-i18next"
 import {cn} from "~/lib/utils"
 import {useIsTauri} from "~/hooks/useIsTauri"
+import {matchModel, useLocalModels} from "~/components/local-models-provider"
 import {IconFile, IconFolderOpen} from "@tabler/icons-react"
 import {Button} from "~/components/ui/button"
 
@@ -30,7 +36,9 @@ export function ModelsCombobox({
                                     items: itemsProp,
                                     renderItem,
                                     renderValue,
+                                    getGroupName,
                                     disabled,
+                                    invalid,
                                     placeholder: placeholderProp,
                                 }: {
     value?: string
@@ -38,31 +46,59 @@ export function ModelsCombobox({
     items?: string[]
     renderItem?: (item: string) => ReactNode
     renderValue?: (value: string) => string
+    getGroupName?: (item: string) => string
     disabled?: boolean
+    invalid?: boolean
     placeholder?: string
 }) {
     const {t} = useTranslation()
     const models = useContext(ModelsContext)
     const items = itemsProp ?? models
+    const [inputValue, setInputValue] = useState(value ?? "")
+    const groupedItems = useMemo(() => groupModels(items, getGroupName), [items, getGroupName])
+
+    useEffect(() => {
+        setInputValue(value ?? "")
+    }, [value])
 
     return (
         <Combobox
-            items={items}
+            items={groupedItems}
             value={value ?? null}
+            inputValue={inputValue}
+            onInputValueChange={(nextValue) => {
+                setInputValue(nextValue)
+            }}
             onValueChange={(val) => {
                 if (typeof val === "string") {
                     onChange(val)
                 }
             }}
         >
-            <ComboboxInput placeholder={placeholderProp ?? t('nodes.upscale.search')} showTrigger disabled={disabled} renderValue={renderValue} />
+            <ComboboxInput
+                placeholder={placeholderProp ?? t('nodes.upscale.search')}
+                showTrigger
+                disabled={disabled}
+                aria-invalid={invalid || undefined}
+                renderValue={renderValue}
+            />
             <ComboboxContent>
                 <ComboboxEmpty>{t('nodes.upscale.no-models-found')}</ComboboxEmpty>
                 <ComboboxList>
-                    {(model) => (
-                        <ComboboxItem key={model} value={model}>
-                            {renderItem ? renderItem(model) : model}
-                        </ComboboxItem>
+                    {(group: ModelGroup, index: number) => (
+                        <Fragment key={group.value}>
+                            {index > 0 && <ComboboxSeparator />}
+                            <ComboboxGroup items={group.items}>
+                                <ComboboxLabel>{group.value}</ComboboxLabel>
+                                <ComboboxCollection>
+                                    {(model: string) => (
+                                        <ComboboxItem key={model} value={model}>
+                                            {renderItem ? renderItem(model) : model}
+                                        </ComboboxItem>
+                                    )}
+                                </ComboboxCollection>
+                            </ComboboxGroup>
+                        </Fragment>
                     )}
                 </ComboboxList>
             </ComboboxContent>
@@ -96,37 +132,21 @@ export function UpscaleNodeBody({id, dispatch: dispatchProp, idSuffix}: { id: nu
     const models = useContext(ModelsContext)
     const sid = (baseId: string) => idSuffix ? `${baseId}-${idSuffix}` : `${baseId}-${id}`
     const isTauri = useIsTauri()
-    const [localModels, setLocalModels] = useState<string[]>([])
-    const MODELS_FOLDER_KEY = "upscale-models-folder"
-    const [modelsFolder, setModelsFolder] = useState<string>(() => localStorage.getItem(MODELS_FOLDER_KEY) ?? "")
+    const { modelsFolder, setModelsFolder, localModels } = useLocalModels()
 
     useEffect(() => {
-        if (!isTauri || !modelsFolder) return
-        const scanFolder = async () => {
-            try {
-                const { readDir } = await import("@tauri-apps/plugin-fs")
-                const entries = await readDir(modelsFolder)
-                const folder = modelsFolder.replace(/\\/g, '/')
-                const modelFiles = entries
-                    .filter(e => e.name && /\.(pt|pth|safetensors)$/i.test(e.name))
-                    .map(e => `${folder}/${e.name}`)
-                setLocalModels(modelFiles)
-                if (!options.is_own_model && modelFiles.length > 0 && !modelFiles.includes(options.model)) {
-                    changeValue({ model: modelFiles[0] })
-                }
-            } catch (err) {
-                console.error("Failed to read models folder:", err)
-            }
+        if (!isTauri || options.is_own_model || !options.model) return
+        const matched = matchModel(options.model, localModels)
+        if (matched && matched !== options.model) {
+            changeValue({ model: matched })
         }
-        scanFolder()
-    }, [isTauri, modelsFolder])
+    }, [isTauri, options.is_own_model, options.model, localModels])
 
     const handleBrowseFolder = async () => {
         try {
             const { open } = await import("@tauri-apps/plugin-dialog")
             const folder = await open({ directory: true, multiple: false, title: t('nodes.upscale.browse-models-folder') })
             if (folder) {
-                localStorage.setItem(MODELS_FOLDER_KEY, folder as string)
                 setModelsFolder(folder as string)
             }
         } catch (err) {
@@ -150,14 +170,16 @@ export function UpscaleNodeBody({id, dispatch: dispatchProp, idSuffix}: { id: nu
         }
     }
 
-    const displayModelName = (fullPath: string) => {
+    const displayModelName = useCallback((fullPath: string) => {
         const basename = fullPath.replace(/^.*[\\/]/, '')
         return basename.replace(/\.(pt|pth|safetensors)$/i, '')
-    }
+    }, [])
 
     const modelScale = useMemo(() => extractModelScale(options.model), [options.model])
     const showWarning = target && options.target_scale !== undefined && modelScale !== null && options.target_scale > modelScale
     const showUnknownScaleWarning = target && options.target_scale !== undefined && modelScale === null && options.target_scale !== 1
+    const matchedModel = isTauri ? matchModel(options.model, localModels) : undefined
+    const modelMissing = isTauri && !options.is_own_model && !!modelsFolder && !!options.model && !matchedModel
 
     const changeValue = (newOptions: Partial<UpscaleNodeOptions>) => {
         dispatch({
@@ -193,23 +215,30 @@ export function UpscaleNodeBody({id, dispatch: dispatchProp, idSuffix}: { id: nu
                         )}
                     </div>
                 ) : isTauri ? (
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                            <ModelsCombobox
-                                items={localModels}
-                                renderItem={displayModelName}
-                                renderValue={displayModelName}
-                                value={modelsFolder && localModels.includes(options.model) ? options.model : undefined}
-                                onChange={(model) => {
-                                    changeValue({model: model})
-                                }}
-                                disabled={!modelsFolder}
-                                placeholder={!modelsFolder ? t('nodes.upscale.select-folder') : undefined}
-                            />
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                                <ModelsCombobox
+                                    items={localModels}
+                                    renderItem={displayModelName}
+                                    renderValue={displayModelName}
+                                    getGroupName={displayModelName}
+                                    value={matchedModel}
+                                    invalid={modelMissing}
+                                    onChange={(model) => {
+                                        changeValue({model: model})
+                                    }}
+                                    disabled={!modelsFolder}
+                                    placeholder={!modelsFolder ? t('nodes.upscale.select-folder') : undefined}
+                                />
+                            </div>
+                            <Button variant="outline" size="icon" onClick={handleBrowseFolder}>
+                                <IconFolderOpen className="size-4" />
+                            </Button>
                         </div>
-                        <Button variant="outline" size="icon" onClick={handleBrowseFolder}>
-                            <IconFolderOpen className="size-4" />
-                        </Button>
+                        {modelMissing && (
+                            <p className="text-sm text-destructive">{t('nodes.upscale.model-not-found')}</p>
+                        )}
                     </div>
                 ) : (
                     <ModelsCombobox

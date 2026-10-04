@@ -9,7 +9,7 @@ Single-page React app for building Reline manga upscaling pipeline configs (JSON
 - **Styling**: Tailwind CSS 4 (`@tailwindcss/vite` plugin, no `tailwind.config.*`); CSS variables in `app/index.css` under `@theme`
 - **UI**: shadcn/ui (base-nova style) in `app/components/ui/`; icons from `@tabler/icons-react`
 - **Lint/Format**: Biome 1.9 — semicolons `asNeeded` (codebase uses **no semicolons**), trailing commas `all`, line width 150, indent 2 spaces
-- **i18n**: `i18next` + `react-i18next` + `i18next-browser-languagedetector`; locales at `app/i18n/locales/{en,ru}.json`
+- **i18n**: `i18next` + `react-i18next` + `i18next-browser-languagedetector`; locales at `app/i18n/locales/{en,ru}.ts` (HMR-aware, no page reload)
 
 ## Path aliases
 

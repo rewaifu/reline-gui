@@ -1,9 +1,8 @@
 import {IconArrowUp, IconArrowDown, IconX, IconChevronDown, IconChevronRight, IconSelector, IconCheck, IconGripVertical} from "@tabler/icons-react"
-import {type FC, useContext, useState} from "react"
+import {useCallback, useContext, useLayoutEffect, useRef, useState} from "react"
 import {NodesContext, NodesDispatchContext} from "~/context/contexts"
 import {NodeType} from "~/types/enums"
-import {DEFAULT_NODE_OPTIONS, NODE_ICONS} from "~/constants"
-import {CvtColorNodeBody, FolderReaderNodeBody, FolderWriterNodeBody, LevelNodeBody, SharpNodeBody} from "./nodes"
+import {NODE_ICONS} from "~/constants"
 import {
     Collapsible,
     CollapsibleContent,
@@ -13,26 +12,14 @@ import {
     CardHeader,
     CardContent
 } from "~/components/ui"
-import {UpscaleNodeBody} from "~/components/nodes"
 import {Popover, PopoverContent, PopoverTrigger} from "./ui/popover"
-import {Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList} from "./ui/command"
+import {Command, CommandEmpty, CommandGroup, CommandItem, CommandList} from "./ui/command"
 import {cn} from "~/lib/utils"
-import {ResizeNodeBody} from "./nodes/resize-node"
-import {ScreentoneNodeBody} from "./nodes/screentone-node"
+import {NODE_BODY_COMPONENTS} from "./nodes/node-body-components"
+import {usePreferences} from "~/components/preferences-provider"
 import {NodesActionType} from "~/types/actions"
 import {useSortable} from "@dnd-kit/react/sortable";
 import {useTranslation} from "react-i18next"
-
-const nodeBodyComponents: { [key in NodeType]: FC<{ id: number }> } = {
-    level: LevelNodeBody as FC<{ id: number }>,
-    folder_reader: FolderReaderNodeBody as FC<{ id: number }>,
-    folder_writer: FolderWriterNodeBody as FC<{ id: number }>,
-    cvt_color: CvtColorNodeBody as FC<{ id: number }>,
-    sharp: SharpNodeBody as FC<{ id: number }>,
-    upscale: UpscaleNodeBody as FC<{ id: number }>,
-    resize: ResizeNodeBody as FC<{ id: number }>,
-    screentone: ScreentoneNodeBody as FC<{ id: number }>,
-}
 
 function Combobox({allValues, initialValue, onChange}: {
     allValues: string[];
@@ -92,11 +79,12 @@ export function NodeResolver({id, index}: { id: number; index: number }) {
     const nodes = useContext(NodesContext)
     const data = nodes.find((node) => node.id === id)
     const dispatch = useContext(NodesDispatchContext)
+    const {getDefaultNodeOptions} = usePreferences()
     if (!data) {
         return null
     }
 
-    const NodeBodyComponent = nodeBodyComponents[data.type]
+    const NodeBodyComponent = NODE_BODY_COMPONENTS[data.type]
     const {ref, handleRef, isDragSource} = useSortable({
         id: `node-${data.id}`,
         data: {
@@ -106,6 +94,46 @@ export function NodeResolver({id, index}: { id: number; index: number }) {
         group: "nodes",
         feedback: "default",
     })
+    const nodeRef = useRef<HTMLDivElement | null>(null)
+    const keepInViewRef = useRef(false)
+    const beforeTopRef = useRef<number | null>(null)
+
+    const setNodeRef = useCallback(
+        (element: HTMLDivElement | null) => {
+            ref(element)
+            nodeRef.current = element
+        },
+        [ref],
+    )
+
+    const moveNode = (delta: number) => {
+        beforeTopRef.current = nodeRef.current?.getBoundingClientRect().top ?? null
+        keepInViewRef.current = true
+        dispatch({
+            type: NodesActionType.MOVE,
+            payload: {
+                from: index,
+                to: index + delta,
+            },
+        })
+    }
+
+    const previousIndexRef = useRef(index)
+
+    useLayoutEffect(() => {
+        const indexChanged = previousIndexRef.current !== index
+        previousIndexRef.current = index
+        if (!indexChanged || !keepInViewRef.current) return
+        keepInViewRef.current = false
+        const before = beforeTopRef.current
+        beforeTopRef.current = null
+        if (before === null || !nodeRef.current) return
+        const delta = nodeRef.current.getBoundingClientRect().top - before
+        if (delta === 0) return
+        const scroller = nodeRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+        scroller?.scrollBy({ top: delta, behavior: "smooth" })
+    }, [index])
+
     const onTypeChange = (value: string) => {
         dispatch({
             type: NodesActionType.CHANGE,
@@ -113,13 +141,13 @@ export function NodeResolver({id, index}: { id: number; index: number }) {
                 id: data.id,
                 type: value as NodeType,
                 collapsed: data.collapsed,
-                options: DEFAULT_NODE_OPTIONS[value as NodeType],
+                options: getDefaultNodeOptions(value as NodeType),
             },
         })
     }
     return (
         <div
-            ref={ref}
+            ref={setNodeRef}
             className={cn(
                 "transition-opacity",
                 isDragSource && "opacity-70"
@@ -160,15 +188,7 @@ export function NodeResolver({id, index}: { id: number; index: number }) {
                             size="icon"
                             disabled={index === 0}
                             className="ml-auto hidden md:flex"
-                            onClick={() => {
-                                dispatch({
-                                    type: NodesActionType.MOVE,
-                                    payload: {
-                                        from: index,
-                                        to: index - 1,
-                                    },
-                                })
-                            }}
+                            onClick={() => moveNode(-1)}
                         >
                             <IconArrowUp className="size-4"/>
                         </Button>
@@ -177,15 +197,7 @@ export function NodeResolver({id, index}: { id: number; index: number }) {
                             size="icon"
                             className="hidden md:flex"
                             disabled={index === nodes.length - 1}
-                            onClick={() => {
-                                dispatch({
-                                    type: NodesActionType.MOVE,
-                                    payload: {
-                                        from: index,
-                                        to: index + 1,
-                                    },
-                                })
-                            }}
+                            onClick={() => moveNode(1)}
                         >
                             <IconArrowDown className="size-4"/>
                         </Button>

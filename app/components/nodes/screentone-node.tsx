@@ -85,34 +85,34 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
         changeValue({[key]: updated} as any)
     }
 
+    const channelLabels = mode === "cmyk" ? ["C", "M", "Y", "K"] : mode === "rgb" ? ["R", "G", "B"] : []
+
     const renderDotOptionsArray = () => {
-        return [...Array(channelCount)].map((_, i) => (
-            <div key={i} className="border rounded-xl p-4 flex flex-col gap-4">
-                <Label className="self-center font-normal">{t('nodes.screentone.channel')} {i + 1}</Label>
-                <Separator />
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1 flex flex-col gap-2">
-                        <Label>{t('nodes.screentone.dot-type')}</Label>
-                        <Select
-                            onValueChange={(value) => updateArrayField("dot_type", i, value as DotType)}
-                            value={dotTypes[i]}
-                        >
-                            <SelectTrigger className="w-full min-w-[180px]">
-                                <SelectValue>{t(`nodes.screentone.dot-type-options.${dotTypes[i]}`)}</SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    {Object.values(DotType).map((type) => (
-                                        <SelectItem key={type} value={type}>
-                                            {t(`nodes.screentone.dot-type-options.${type}`)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="flex-1">
-                        <div className="translate-y-2">
+        return (
+            <div className="flex flex-wrap gap-4">
+                {[...Array(channelCount)].map((_, i) => (
+                    <div key={i} className="grow shrink basis-[11rem] min-w-[11rem] border rounded-xl p-4 flex flex-col gap-4">
+                        <Label className="self-center font-medium">
+                            {channelLabels[i] ?? `${t('nodes.screentone.channel')} ${i + 1}`}
+                        </Label>
+                        <Separator />
+                        <div className="flex flex-col gap-4 min-w-0">
+                            <div className="flex flex-col gap-2">
+                                <Label>{t('nodes.screentone.dot-size')}</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="number"
+                                        className="min-w-0"
+                                        step={1}
+                                        min={0}
+                                        value={dotSizes[i]}
+                                        onChange={(e) => updateArrayField("dot_size", i, Number.parseInt(e.target.value))}
+                                    />
+                                    {getAutoDot(dotSizes[i]) !== null && (
+                                        <span className="text-sm text-muted-foreground shrink-0">~{getAutoDot(dotSizes[i])}</span>
+                                    )}
+                                </div>
+                            </div>
                             <NumberInput
                                 min={0}
                                 max={360}
@@ -121,30 +121,31 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                                 value={angles[i]}
                                 onChange={(value) => updateArrayField("angle", i, Math.trunc(value))}
                             />
+                            <div className="flex flex-col gap-2 min-w-0">
+                                <Label>{t('nodes.screentone.dot-type')}</Label>
+                                <Select
+                                    onValueChange={(value) => updateArrayField("dot_type", i, value as DotType)}
+                                    value={dotTypes[i]}
+                                >
+                                    <SelectTrigger className="w-full min-w-0">
+                                        <SelectValue>{t(`nodes.screentone.dot-type-options.${dotTypes[i]}`)}</SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            {Object.values(DotType).map((type) => (
+                                                <SelectItem key={type} value={type}>
+                                                    {t(`nodes.screentone.dot-type-options.${type}`)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </div>
-
-                    <div className="flex-1 flex flex-col gap-2">
-                        <Label>{t('nodes.screentone.dot-size')}</Label>
-                        <div className="flex items-center gap-2">
-                            <Input
-                                type="number"
-                                className="min-w-[100px]"
-                                step={1}
-                                min={0}
-                                value={dotSizes[i]}
-                                onChange={(e) => updateArrayField("dot_size", i, Number.parseInt(e.target.value))}
-                            />
-                            {getAutoDot(dotSizes[i]) !== null && (
-                                <span className="text-sm text-muted-foreground">~{getAutoDot(dotSizes[i])}</span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-
+                ))}
             </div>
-        ))
+        )
     }
     const filterOptions = Object.values(FilterType)
 

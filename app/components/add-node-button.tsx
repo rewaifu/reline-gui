@@ -4,16 +4,18 @@ import {Popover, PopoverContent, PopoverTrigger} from "~/components/ui/popover"
 import {NodeType} from "~/types/enums"
 import {useContext, useState} from "react"
 import {NodesContext, NodesDispatchContext} from "~/context/contexts"
-import {DEFAULT_NODE_OPTIONS, NODE_ICONS} from "~/constants"
+import {NODE_ICONS} from "~/constants"
 import {Button} from "./ui/button"
 import {NodesActionType} from "~/types/actions"
 import {useTranslation} from "react-i18next"
+import {usePreferences} from "~/components/preferences-provider"
 
 export function AddNodeButton() {
     const {t} = useTranslation()
     const [open, setOpen] = useState(false)
     const dispatch = useContext(NodesDispatchContext)
     const nodes = useContext(NodesContext)
+    const {getDefaultNodeOptions} = usePreferences()
     const nextNodeId = nodes.reduce((maxId, node) => Math.max(maxId, node.id), -1) + 1
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -38,7 +40,7 @@ export function AddNodeButton() {
                                                 payload: {
                                                     id: nextNodeId,
                                                     type: currentValue as NodeType,
-                                                    options: DEFAULT_NODE_OPTIONS[currentValue as NodeType],
+                                                    options: getDefaultNodeOptions(currentValue as NodeType),
                                                     collapsed: false,
                                                 },
                                             })

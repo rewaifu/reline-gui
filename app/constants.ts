@@ -90,21 +90,22 @@ export const DEFAULT_CANNY_TYPE = CannyType.UNSHARP
 
 const tauriPlatform: "web" | "windows" | "linux" = (() => {
   if (typeof window === "undefined") return "web"
-  const p = (window as any).__TAURI_INTERNALS__?.metadata?.platform
-  if (p === "windows") return "windows"
-  if (p === "linux") return "linux"
+  const internals = (window as { __TAURI_INTERNALS__?: { plugins?: { path?: { sep?: string } } } }).__TAURI_INTERNALS__
+  const sep = internals?.plugins?.path?.sep
+  if (sep === "\\") return "windows"
+  if (sep === "/") return "linux"
   return "web"
 })()
 
 export const DEFAULT_READER_PATH = {
   web: "/content/drive/MyDrive/raws",
-  windows: "C:\\raws",
+  windows: "C:/Raws",
   linux: "~/raws",
 }[tauriPlatform]
 
 export const DEFAULT_WRITER_PATH = {
   web: "/content/drive/MyDrive/raws/output",
-  windows: "C:\\raws\\output",
+  windows: "C:/Raws/output",
   linux: "~/raws/output",
 }[tauriPlatform]
 

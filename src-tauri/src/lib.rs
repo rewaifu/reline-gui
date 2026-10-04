@@ -1,8 +1,11 @@
 use git2::Repository;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri::Manager;
@@ -80,10 +83,113 @@ fn push_log(app: &tauri::AppHandle, level: &str, message: &str) {
     let _ = app.emit("backend-log", entry);
 }
 
+// ─── UV progress parsing ──────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Clone)]
+struct UvProgress {
+    stage: String,
+    current: u32,
+    total: u32,
+    raw_message: String,
+}
+
+fn ansi_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").unwrap())
+}
+
+fn progress_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)(Prepared|Installed|Downloaded|Downloading|Built|Unpacked)\s+(\d+)(?:\s+of\s+|\s*/\s*)\s*(\d+)",
+        )
+        .unwrap()
+    })
+}
+
+fn normalize_stage(verb: &str) -> &str {
+    match verb {
+        "prepared" => "preparing",
+        "downloaded" | "downloading" => "downloading",
+        "built" => "building",
+        "unpacked" => "unpacking",
+        _ => verb,
+    }
+}
+
+fn emit_uv_progress(app: &tauri::AppHandle, stage: &str, current: u32, total: u32, raw_message: String) {
+    let _ = app.emit(
+        "uv-progress-update",
+        UvProgress {
+            stage: stage.to_string(),
+            current,
+            total,
+            raw_message,
+        },
+    );
+}
+
+fn parse_and_emit_uv_progress(app: &tauri::AppHandle, raw_line: &str) {
+    let clean = ansi_regex().replace_all(raw_line, "");
+    if let Some(caps) = progress_regex().captures(&clean) {
+        let verb = caps[1].to_lowercase();
+        let stage = normalize_stage(&verb);
+        let current: u32 = caps[2].parse().unwrap_or(0);
+        let total: u32 = caps[3].parse().unwrap_or(0);
+        if total > 0 {
+            emit_uv_progress(app, stage, current, total, clean.trim().to_string());
+        }
+    }
+}
+
+// ─── Debug log file ───────────────────────────────────────────────────────────
+
+fn debug_log_path() -> Option<PathBuf> {
+    app_data_dir().ok().map(|d| d.join("uv_debug.log"))
+}
+
+fn append_debug_log(bytes: &[u8]) {
+    let Some(path) = debug_log_path() else { return };
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(bytes);
+        let _ = f.flush();
+    }
+}
+
+fn append_debug_log_header(args: &[&str]) {
+    let Some(path) = debug_log_path() else { return };
+    let header = format!("\n=== uv {} ===\n", args.join(" "));
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(header.as_bytes());
+        let _ = f.flush();
+    }
+}
+
+// ─── reline_ws log file ──────────────────────────────────────────────────────
+
+fn reline_ws_log_path() -> Option<PathBuf> {
+    app_data_dir().ok().map(|d| d.join("reline_ws.log"))
+}
+
+fn append_reline_ws_log(line: &str) {
+    let Some(path) = reline_ws_log_path() else { return };
+    let line_with_ts = format!("{} {}\n", timestamp(), line.trim_end());
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(line_with_ts.as_bytes());
+        let _ = f.flush();
+    }
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
-struct BackendProcess(Mutex<Option<CommandChild>>);
+struct BackendProcess(Mutex<Option<BackendHandle>>);
 struct BackendPort(Mutex<Option<u16>>);
+
+struct BackendHandle {
+    child: CommandChild,
+    stopping: Arc<AtomicBool>,
+}
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
@@ -559,27 +665,51 @@ async fn spawn_and_stream(
     args: &[&str],
     workspace: &PathBuf,
 ) -> Result<(), String> {
+    let mut final_args = vec!["--color", "always"];
+    final_args.extend_from_slice(args);
+
+    append_debug_log_header(args);
+    emit_uv_progress(app, "reset", 0, 0, String::new());
+
     let cmd = app
         .shell()
         .command(uv_path.to_str().unwrap())
-        .args(args)
+        .args(final_args)
         .current_dir(workspace);
 
     let (mut rx, _child) = cmd
         .spawn()
         .map_err(|e| format!("spawn failed: {e}"))?;
 
+    let mut stderr_buffer = String::new();
+
     while let Some(event) = rx.recv().await {
         match event {
             tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
+                append_debug_log(&line);
                 let text = String::from_utf8_lossy(&line);
+                parse_and_emit_uv_progress(app, &text);
                 push_log(app, "stdout", &text);
             }
             tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
+                append_debug_log(&line);
                 let text = String::from_utf8_lossy(&line);
-                push_log(app, "stderr", &text);
+                stderr_buffer.push_str(&text);
+
+                while let Some(pos) = stderr_buffer.find(|c| c == '\n' || c == '\r') {
+                    let line_content: String = stderr_buffer.drain(..=pos).collect();
+                    let line_trimmed = line_content.trim_end_matches(['\r', '\n']).to_string();
+                    if !line_trimmed.is_empty() {
+                        parse_and_emit_uv_progress(app, &line_trimmed);
+                        push_log(app, "stderr", &line_trimmed);
+                    }
+                }
             }
             tauri_plugin_shell::process::CommandEvent::Terminated(status) => {
+                if !stderr_buffer.trim().is_empty() {
+                        push_log(app, "stderr", stderr_buffer.trim());
+                }
+
                 if status.code != Some(0) {
                     let msg = format!("Command failed with exit code: {:?}", status.code);
                     push_log(app, "error", &msg);
@@ -590,6 +720,8 @@ async fn spawn_and_stream(
             _ => {}
         }
     }
+
+    emit_uv_progress(app, "done", 0, 0, String::new());
 
     Ok(())
 }
@@ -723,6 +855,7 @@ async fn initialize(
     app: tauri::AppHandle,
     backend_state: tauri::State<'_, BackendProcess>,
     port_state: tauri::State<'_, BackendPort>,
+    port: Option<u16>,
 ) -> Result<(), String> {
     kill_backend(&backend_state);
     *port_state.0.lock().unwrap() = None;
@@ -737,13 +870,28 @@ async fn initialize(
     let workspace = get_workspace_path()?;
     let python_bin = venv_python(&workspace);
 
-    let port = match find_free_port(8000, 9000) {
-        Some(p) => p,
-        None => {
-            let msg = "No free port in range 8000-9000".to_string();
-            emit_status(&app, Stage::Error, &msg, None);
-            return Err(msg);
+    let port = match port {
+        Some(p) => {
+            if p < 1024 {
+                let msg = format!("Invalid port {p}. Use a port between 1024 and 65535.");
+                emit_status(&app, Stage::Error, &msg, None);
+                return Err(msg);
+            }
+            if TcpListener::bind(("127.0.0.1", p)).is_err() {
+                let msg = format!("Port {p} is already in use.");
+                emit_status(&app, Stage::Error, &msg, None);
+                return Err(msg);
+            }
+            p
         }
+        None => match find_free_port(8000, 9000) {
+            Some(p) => p,
+            None => {
+                let msg = "No free port in range 8000-9000".to_string();
+                emit_status(&app, Stage::Error, &msg, None);
+                return Err(msg);
+            }
+        },
     };
 
     emit_status(
@@ -774,7 +922,11 @@ async fn initialize(
             msg
         })?;
 
-    *backend_state.0.lock().unwrap() = Some(child);
+    let stopping = Arc::new(AtomicBool::new(false));
+    *backend_state.0.lock().unwrap() = Some(BackendHandle {
+        child,
+        stopping: stopping.clone(),
+    });
     *port_state.0.lock().unwrap() = Some(port);
 
     emit_status(
@@ -790,20 +942,26 @@ async fn initialize(
             match event {
                 tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
                     let text = String::from_utf8_lossy(&line);
+                    append_reline_ws_log(&text);
                     push_log(&app_clone, "stdout", &text);
                 }
                 tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
                     let text = String::from_utf8_lossy(&line);
+                    append_reline_ws_log(&text);
                     push_log(&app_clone, "stderr", &text);
                 }
                 tauri_plugin_shell::process::CommandEvent::Terminated(status) => {
-                    push_log(&app_clone, "error", &format!("Backend terminated: {:?}", status.code));
-                    emit_status(
-                        &app_clone,
-                        Stage::Error,
-                        "Backend process terminated unexpectedly",
-                        None,
-                    );
+                    if stopping.load(Ordering::SeqCst) {
+                        push_log(&app_clone, "info", "Backend stopped by user");
+                    } else {
+                        push_log(&app_clone, "error", &format!("Backend terminated: {:?}", status.code));
+                        emit_status(
+                            &app_clone,
+                            Stage::Error,
+                            "Backend process terminated unexpectedly",
+                            None,
+                        );
+                    }
                 }
                 _ => {}
             }
@@ -832,9 +990,25 @@ fn get_backend_port(state: tauri::State<'_, BackendPort>) -> Option<u16> {
     *state.0.lock().unwrap()
 }
 
+#[tauri::command]
+fn check_port_free(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    tauri_plugin_opener::open_url(&url, None::<&str>).map_err(|e| e.to_string())
+}
+
 fn kill_backend(state: &BackendProcess) {
-    if let Some(child) = state.0.lock().unwrap().take() {
-        let _ = child.kill();
+    if let Some(handle) = state.0.lock().unwrap().take() {
+        handle.stopping.store(true, Ordering::SeqCst);
+        let _ = handle.child.kill();
         push_log_simple("Backend process killed");
     }
 }
@@ -855,6 +1029,38 @@ fn clear_logs(state: tauri::State<'_, BackendLogs>) {
     state.0.lock().unwrap().clear();
 }
 
+// ─── Custom titlebar ──────────────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+fn use_custom_titlebar() -> bool {
+    false
+}
+
+#[cfg(not(target_os = "macos"))]
+fn use_custom_titlebar() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let desktop = std::env::var("XDG_CURRENT_DESKTOP")
+            .unwrap_or_default()
+            .to_lowercase();
+        let session = std::env::var("XDG_SESSION_TYPE")
+            .unwrap_or_default()
+            .to_lowercase();
+        let is_kde = desktop.split([':', ';']).any(|part| part.trim() == "kde");
+        let is_x11 = session == "x11"
+            || (session.is_empty() && std::env::var("WAYLAND_DISPLAY").is_err());
+        if is_kde && is_x11 {
+            return false;
+        }
+    }
+    true
+}
+
+#[tauri::command]
+fn get_window_mode() -> bool {
+    use_custom_titlebar()
+}
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -864,10 +1070,17 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             app.manage(BackendProcess(Mutex::new(None)));
             app.manage(BackendPort(Mutex::new(None)));
             app.manage(BackendLogs(Mutex::new(Vec::new())));
+            if let Some(window) = app.get_webview_window("main") {
+                if use_custom_titlebar() {
+                    let _ = window.set_decorations(false);
+                }
+                let _ = window.show();
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -880,6 +1093,9 @@ pub fn run() {
             initialize,
             stop_backend,
             get_backend_port,
+            check_port_free,
+            open_folder,
+            open_url,
             open_reline_config,
             save_config_reline,
             check_deps,
@@ -887,6 +1103,7 @@ pub fn run() {
             install_deps,
             get_logs,
             clear_logs,
+            get_window_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

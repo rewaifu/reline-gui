@@ -1,5 +1,5 @@
 [package]
-name = "reline-configurator"
+name = "reline-gui"
 version = "2.2.0"
 description = "GUI configurator for Reline library"
 authors = ["rewaifu"]
@@ -28,6 +28,7 @@ tauri-plugin-fs = "2"
 git2 = "0.20.4"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2.6.0"
+tauri-plugin-notification = "2.5.1"
 tokio = { version = "1.49.0", features = ["fs"] }
 reqwest = { version = "0.13.2", default-features = false, features = [
     "rustls",
@@ -38,3 +39,4 @@ tar = "0.4"
 zip = { version = "8.1.0", default-features = false, features = ["deflate"] }
 which = "8.0.0"
 dirs = "6.0.0"
+regex = "1"

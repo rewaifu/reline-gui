@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "reline-configurator",
+  "productName": "Reline Configurator",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.rewaifu.reline-gui",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -18,7 +18,8 @@
         "minWidth": 1200,
         "minHeight": 700,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "visible": false
       }
     ],
     "security": {
