@@ -2,14 +2,13 @@ import { useContext, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { IconCheck, IconCopy, IconDownload, IconFileUpload } from "@tabler/icons-react"
+import { ConfigCombobox } from "~/components/config/config-combobox"
 import { FileUploadDialogContent } from "~/components/config/file-upload-dialog-content"
 import { Button } from "~/components/ui/button"
 import { Dialog, DialogTrigger } from "~/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select"
 import { Separator } from "~/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import { NodesContext, NodesDispatchContext } from "~/context/contexts"
-import { CONFIG_PRESETS, getPresetById } from "~/lib/config-presets.ts"
 import { nodesToString, stringToNodes } from "~/lib/utils.ts"
 import { usePrepareNodes } from "~/hooks/usePrepareNodes"
 import { NodesActionType } from "~/types/actions.ts"
@@ -21,21 +20,6 @@ export function ConfigToolbar() {
   const prepareNodes = usePrepareNodes()
 
   const [isCopied, setIsCopied] = useState(false)
-  const [selectedPreset, setSelectedPreset] = useState<string>("default")
-
-  const handlePresetChange = (value: string | null) => {
-    if (!value) return
-    setSelectedPreset(value)
-    const preset = getPresetById(value)
-    if (preset) {
-      const preparedNodes = prepareNodes(preset.nodes)
-      dispatch({
-        type: NodesActionType.IMPORT,
-        payload: preparedNodes,
-      })
-      toast.success(t("toasts.preset-loaded", { name: preset.name }))
-    }
-  }
 
   const handleCopy = () => {
     navigator.clipboard.writeText(nodesToString(nodes)).then(() => {
@@ -86,18 +70,7 @@ export function ConfigToolbar() {
     <div className="h-10 md:hidden bg-card rounded-xl ring-1 ring-foreground/10 p-1 mx-3">
       <div className="flex flex-row gap-1 items-center justify-center">
         <div className="flex flex-row gap-4 items-center">
-          <Select value={selectedPreset} onValueChange={handlePresetChange}>
-            <SelectTrigger size="sm" className="min-w-40 text-s self-center">
-              <SelectValue placeholder={t("config-presets.select")} />
-            </SelectTrigger>
-            <SelectContent align="start">
-              {CONFIG_PRESETS.map((preset) => (
-                <SelectItem key={preset.id} value={preset.id}>
-                  {preset.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ConfigCombobox />
           <Separator orientation="vertical" className="mr-0.5" />
         </div>
         <Dialog>

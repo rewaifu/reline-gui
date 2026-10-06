@@ -14,6 +14,7 @@ import { NodesSection } from "~/components/layout/nodes-section.tsx"
 import { AppHeader } from "~/components/layout/app-header"
 import { FooterBar, TauriFooter } from "~/components/layout/footer-bar"
 import { BackendProvider } from "~/components/providers/backend-provider"
+import { ConfigsProvider } from "~/components/providers/configs-provider"
 import { PreferencesProvider } from "~/components/providers/preferences-provider"
 import { LocalModelsProvider } from "~/components/providers/local-models-provider"
 import { ModelDownloadsProvider } from "~/components/providers/model-downloads-provider"
@@ -63,7 +64,9 @@ function HomePage() {
       <AppHeader />
       <NodesContext.Provider value={nodes}>
         <NodesDispatchContext.Provider value={dispatch}>
-          <ModelsContext.Provider value={models}>{isTauri ? <BackendProvider>{content}</BackendProvider> : content}</ModelsContext.Provider>
+          <ConfigsProvider>
+            <ModelsContext.Provider value={models}>{isTauri ? <BackendProvider>{content}</BackendProvider> : content}</ModelsContext.Provider>
+          </ConfigsProvider>
         </NodesDispatchContext.Provider>
       </NodesContext.Provider>
     </main>

@@ -1,10 +1,10 @@
-import { Card, CardHeader, CardContent } from "~/components/ui"
+import { Card, CardHeader, CardContent, Separator } from "~/components/ui"
 import React, { useContext } from "react"
 import type { ComponentProps } from "react"
 import { NodesContext, NodesDispatchContext } from "~/context/contexts.ts"
 import { NodeResolver } from "~/components/nodes/node-resolver.tsx"
 import { AddNodeButton } from "~/components/nodes/add-node-button.tsx"
-import { PresetSelect } from "~/components/config/preset-select.tsx"
+import { ConfigCombobox } from "~/components/config/config-combobox"
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area.tsx"
 import { useTranslation } from "react-i18next"
 import { DragDropProvider, useDroppable, PointerSensor, KeyboardSensor } from "@dnd-kit/react"
@@ -63,8 +63,10 @@ export function NodesSection() {
       <CardHeader className="flex flex-row items-center mx-2 h-[25px] md:h-[32px]">
         <h2 className="scroll-m-20 text-xl font-semibold tracking-tight select-none">{t("home-page.nodes")}</h2>
         <div className="flex flex-row items-center ml-auto gap-2">
-          <div className="hidden md:flex">
-            <PresetSelect />
+          <div className="hidden md:flex flex-row items-center gap-4">
+            <p className="select-none text-sm translate-x-1">{t("config-presets.presets")}</p>
+            <ConfigCombobox />
+            <Separator orientation="vertical" />
           </div>
           <AddNodeButton />
         </div>

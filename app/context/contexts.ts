@@ -2,6 +2,7 @@ import { type Dispatch, createContext } from "react"
 import type { UseBackendReturn } from "~/hooks/useBackend"
 import type { NodesAction } from "~/types/actions.ts"
 import type { DownloadState } from "~/types/backend"
+import type { ActiveConfig, ConfigBase, UserConfig } from "~/types/config"
 import type { NodeType } from "~/types/enums"
 import type { NodeOptions, StackNode } from "~/types/node"
 
@@ -9,6 +10,25 @@ export const NodesContext = createContext<StackNode[]>([])
 export const NodesDispatchContext = createContext<Dispatch<NodesAction>>(() => {})
 export const ModelsContext = createContext<string[]>([])
 export const DocsNavigationContext = createContext<(slug: string) => void>(() => {})
+
+export type CreateDialogMode = "full" | "name-only"
+
+export interface ConfigsContextValue {
+  userConfigs: UserConfig[]
+  activeConfig: ActiveConfig
+  activeName: string
+  dirty: boolean
+  createDialogOpen: boolean
+  createDialogMode: CreateDialogMode
+  loadConfig: (target: ActiveConfig) => void
+  createConfig: (name: string, base: ConfigBase) => void
+  saveActiveConfig: () => void
+  renameConfig: (id: string, name: string) => void
+  deleteConfig: (id: string) => void
+  openCreateDialog: (mode?: CreateDialogMode) => void
+}
+
+export const ConfigsContext = createContext<ConfigsContextValue | null>(null)
 
 export type NodeDefaults = Partial<Record<NodeType, Partial<NodeOptions>>>
 
