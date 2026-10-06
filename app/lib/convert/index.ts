@@ -65,7 +65,12 @@ const convertToStackMapper: ToStackConvertMapper = {
 export const convertToPure = (nodes: StackNode[]) => {
   const result = []
   for (let i = 0; i < nodes.length; ) {
-    const [converted, nextIndex] = convertToPureMapper[nodes[i].type](nodes, i)
+    const node = nodes[i]
+    if (node.enabled === false) {
+      i += 1
+      continue
+    }
+    const [converted, nextIndex] = convertToPureMapper[node.type](nodes, i)
     result.push(...converted)
     i = nextIndex
   }

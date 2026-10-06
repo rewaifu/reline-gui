@@ -4,6 +4,7 @@ import { NodesContext, NodesDispatchContext } from "~/context/contexts"
 import { NodeType } from "~/types/enums"
 import { NODE_ICONS } from "~/constants"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger, Button, Card, CardHeader, CardContent } from "~/components/ui"
+import { Switch } from "~/components/ui/switch"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "~/components/ui/command"
 import { cn } from "~/lib/utils"
@@ -137,6 +138,7 @@ export function NodeResolver({ id, index }: { id: number; index: number }) {
         id: data.id,
         type: value as NodeType,
         collapsed: data.collapsed,
+        enabled: data.enabled,
         options: getDefaultNodeOptions(value as NodeType),
       },
     })
@@ -155,7 +157,7 @@ export function NodeResolver({ id, index }: { id: number; index: number }) {
           })
         }}
       >
-        <Card className="rounded-xl">
+        <Card className={cn("rounded-xl", data.enabled === false && "opacity-60")}>
           <CardHeader className="flex flex-row px-2 md:px-4">
             <Button
               ref={handleRef}
@@ -167,6 +169,19 @@ export function NodeResolver({ id, index }: { id: number; index: number }) {
             >
               <IconGripVertical />
             </Button>
+            <Switch
+              checked={data.enabled !== false}
+              onCheckedChange={(checked) => {
+                dispatch({
+                  type: NodesActionType.CHANGE,
+                  payload: {
+                    ...data,
+                    enabled: checked,
+                  },
+                })
+              }}
+              className="self-center mr-1 md:mr-2"
+            />
             <Combobox initialValue={data.type} allValues={Object.values(NodeType)} onChange={onTypeChange} />
             <CollapsibleTrigger
               render={
