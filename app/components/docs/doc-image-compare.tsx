@@ -90,6 +90,26 @@ export function DocImageCompare(props: DocImageCompareProps) {
 
   const inlineRef = useRef<HTMLDivElement>(null)
 
+  const imgARef = useRef<HTMLImageElement | null>(null)
+  const imgBRef = useRef<HTMLImageElement | null>(null)
+  const transformStrRef = useRef("")
+
+  const applyTransform = useCallback((transform: string) => {
+    transformStrRef.current = transform
+    if (imgARef.current) imgARef.current.style.transform = transform
+    if (imgBRef.current) imgBRef.current.style.transform = transform
+  }, [])
+
+  const setImgARef = useCallback((el: HTMLImageElement | null) => {
+    imgARef.current = el
+    if (el && transformStrRef.current) el.style.transform = transformStrRef.current
+  }, [])
+
+  const setImgBRef = useCallback((el: HTMLImageElement | null) => {
+    imgBRef.current = el
+    if (el && transformStrRef.current) el.style.transform = transformStrRef.current
+  }, [])
+
   const sliderDragRef = useRef(false)
   const wasSliderDraggedRef = useRef(false)
   const sliderJustEndedRef = useRef(false)
@@ -104,7 +124,6 @@ export function DocImageCompare(props: DocImageCompareProps) {
     isZoomed,
     fitScale,
     containerRef,
-    transformRef,
     probeRef,
     zoomRef,
     panRef,
@@ -115,9 +134,11 @@ export function DocImageCompare(props: DocImageCompareProps) {
     handleZoomSliderChange,
   } = useImageViewer({
     onOpen: () => {
+      transformStrRef.current = ""
       setPosition(50)
       setSwitchIdx(0)
     },
+    onTransformApplied: applyTransform,
     onZoomApplied: (ctx) => {
       const Nw = ctx.naturalSize.w
       const cw = ctx.container.clientWidth
@@ -137,13 +158,6 @@ export function DocImageCompare(props: DocImageCompareProps) {
       }
     },
   })
-
-  const setTransformRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      transformRef.current = el
-    },
-    [transformRef],
-  )
 
   // ── shared slider drag (inline) ───────────────────────────────────
 
@@ -260,22 +274,6 @@ export function DocImageCompare(props: DocImageCompareProps) {
     [position, naturalSize, fitScale, containerRef, zoomRef, panRef],
   )
 
-  // ── clip-path ────────────────────────────────────────────────────
-
-  const viewerClipPercent = (() => {
-    if (!naturalSize) return position
-    const container = containerRef.current
-    if (!container || !render) return position
-    const cw = container.clientWidth
-    const scale = zoomRef.current * fitScale
-    const pan = panRef.current
-    const sliderCx = (position / 100) * cw
-    const imageX = (sliderCx - cw / 2 - pan.x) / scale + naturalSize.w / 2
-    return Math.max(0, Math.min(100, (imageX / naturalSize.w) * 100))
-  })()
-
-  const viewerClip = `inset(0 0 0 ${viewerClipPercent}%)`
-
   // ── open viewer (skip if inline slider was just dragged) ─────────
 
   const handleOpenViewer = useCallback(() => {
@@ -303,6 +301,26 @@ export function DocImageCompare(props: DocImageCompareProps) {
       setSwitchIdx((i) => (i + 1) % images.length)
     },
     [images.length],
+  )
+
+  // ── hit-test: is the pointer over the (transformed) image? ──────
+  // Clicks outside the image must reach the portal root so it can close.
+  const isPointInsideImage = useCallback(
+    (clientX: number, clientY: number) => {
+      const container = containerRef.current
+      if (!container || !naturalSize) return false
+      const rect = container.getBoundingClientRect()
+      const scale = zoomRef.current * fitScale
+      const pan = panRef.current
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      const halfW = (naturalSize.w * scale) / 2
+      const halfH = (naturalSize.h * scale) / 2
+      const cx = rect.width / 2 + pan.x
+      const cy = rect.height / 2 + pan.y
+      return x >= cx - halfW && x <= cx + halfW && y >= cy - halfH && y <= cy + halfH
+    },
+    [containerRef, naturalSize, fitScale, zoomRef, panRef],
   )
 
   // ── switch mode: current image src ──────────────────────────────
@@ -483,114 +501,96 @@ export function DocImageCompare(props: DocImageCompareProps) {
               ) : null}
 
               <div ref={containerRef} className="absolute inset-0 overflow-hidden touch-none">
-                <div className="w-full h-full flex items-center justify-center">
-                  <div
-                    ref={setTransformRef}
-                    className="select-none will-change-transform"
+                {/* image A — carries its own pan/zoom transform */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <img
+                    ref={setImgARef}
+                    src={viewerMode === "switch" ? switchSrc : imgA.src}
+                    alt={alt}
+                    draggable={false}
+                    className="max-w-none max-h-none shrink-0 block select-none"
                     style={{
                       width: naturalSize?.w,
                       height: naturalSize?.h,
                       transformOrigin: "center center",
                       backfaceVisibility: "hidden",
+                      imageRendering: zoomRef.current > 1 || forcePixelated ? "pixelated" : "auto",
                     }}
-                    onMouseDown={(e) => {
-                      if (viewerMode === "switch") {
-                        handleSwitchMouseDown(e)
-                        if (isZoomed) {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          startDrag(e.clientX, e.clientY)
-                        }
-                        return
-                      }
-                      if (!isZoomed) return
-                      e.preventDefault()
-                      e.stopPropagation()
-                      startDrag(e.clientX, e.clientY)
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (viewerMode === "switch") {
-                        handleSwitchClick(e)
-                        return
-                      }
-                      if (panMovedRef.current) {
-                        panMovedRef.current = false
-                        return
-                      }
-                      const container = containerRef.current
-                      if (!container) return
-                      const rect = container.getBoundingClientRect()
-                      const cw = rect.width
-                      const rawPct = ((e.clientX - rect.left) / cw) * 100
-                      if (naturalSize) {
-                        const Nw = naturalSize.w
-                        const scale = zoomRef.current * fitScale
-                        const pan = panRef.current
-                        const imgLeft = cw / 2 + pan.x - (Nw * scale) / 2
-                        const imgRight = cw / 2 + pan.x + (Nw * scale) / 2
-                        const cx = (rawPct / 100) * cw
-                        const clampedX = Math.max(imgLeft, Math.min(imgRight, cx))
-                        setPosition((clampedX / cw) * 100)
-                      } else {
-                        setPosition(Math.max(0, Math.min(100, rawPct)))
-                      }
-                    }}
-                    onKeyDown={() => {}}
-                  >
-                    {/* bottom layer */}
-                    <img
-                      src={viewerMode === "switch" ? switchSrc : imgA.src}
-                      alt={alt}
-                      draggable={false}
-                      className="max-w-none max-h-none shrink-0 block"
-                      style={{
-                        width: naturalSize?.w,
-                        height: naturalSize?.h,
-                        imageRendering: zoomRef.current > 1 || forcePixelated ? "pixelated" : "auto",
-                      }}
-                    />
+                  />
+                </div>
 
-                    {/* top layer — hidden in switch mode */}
-                    {viewerMode === "slider" ? (
-                      <div
-                        className="overflow-hidden"
+                {/* image B — clipped in screen space in slider mode */}
+                {viewerMode === "slider" ? (
+                  <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 0 0 ${position}%)` }}>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <img
+                        ref={setImgBRef}
+                        src={imgB.src}
+                        alt={alt}
+                        draggable={false}
+                        className="max-w-none max-h-none shrink-0 block select-none"
                         style={{
-                          clipPath: viewerClip,
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
                           width: naturalSize?.w,
                           height: naturalSize?.h,
-                        }}
-                      >
-                        <img
-                          src={imgB.src}
-                          alt={alt}
-                          draggable={false}
-                          className="max-w-none max-h-none shrink-0 block"
-                          style={{
-                            width: naturalSize?.w,
-                            height: naturalSize?.h,
-                            imageRendering: zoomRef.current > 1 || forcePixelated ? "pixelated" : "auto",
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="overflow-hidden"
-                        style={{
-                          clipPath: "inset(0 0 0 100%)",
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: naturalSize?.w,
-                          height: naturalSize?.h,
+                          transformOrigin: "center center",
+                          backfaceVisibility: "hidden",
+                          imageRendering: zoomRef.current > 1 || forcePixelated ? "pixelated" : "auto",
                         }}
                       />
-                    )}
+                    </div>
                   </div>
-                </div>
+                ) : null}
+
+                {/* interaction overlay — pan / click to move slider */}
+                <div
+                  className="absolute inset-0"
+                  onMouseDown={(e) => {
+                    if (!isPointInsideImage(e.clientX, e.clientY)) return
+                    if (viewerMode === "switch") {
+                      handleSwitchMouseDown(e)
+                      if (isZoomed) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        startDrag(e.clientX, e.clientY)
+                      }
+                      return
+                    }
+                    if (!isZoomed) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    startDrag(e.clientX, e.clientY)
+                  }}
+                  onClick={(e) => {
+                    if (!isPointInsideImage(e.clientX, e.clientY)) return
+                    e.stopPropagation()
+                    if (viewerMode === "switch") {
+                      handleSwitchClick(e)
+                      return
+                    }
+                    if (panMovedRef.current) {
+                      panMovedRef.current = false
+                      return
+                    }
+                    const container = containerRef.current
+                    if (!container) return
+                    const rect = container.getBoundingClientRect()
+                    const cw = rect.width
+                    const rawPct = ((e.clientX - rect.left) / cw) * 100
+                    if (naturalSize) {
+                      const Nw = naturalSize.w
+                      const scale = zoomRef.current * fitScale
+                      const pan = panRef.current
+                      const imgLeft = cw / 2 + pan.x - (Nw * scale) / 2
+                      const imgRight = cw / 2 + pan.x + (Nw * scale) / 2
+                      const cx = (rawPct / 100) * cw
+                      const clampedX = Math.max(imgLeft, Math.min(imgRight, cx))
+                      setPosition((clampedX / cw) * 100)
+                    } else {
+                      setPosition(Math.max(0, Math.min(100, rawPct)))
+                    }
+                  }}
+                  onKeyDown={() => {}}
+                />
 
                 {/* slider handle — only in slider mode */}
                 {viewerMode === "slider" ? (

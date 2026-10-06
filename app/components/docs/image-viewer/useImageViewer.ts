@@ -31,6 +31,7 @@ interface UseImageViewerOptions {
   onOpen?: () => void
   onZoomApplied?: (ctx: ZoomAppliedContext) => void
   onPanApplied?: (ctx: PanAppliedContext) => void
+  onTransformApplied?: (transform: string) => void
   onKeyDown?: (event: KeyboardEvent) => void
 }
 
@@ -91,6 +92,8 @@ export function useImageViewer(options: UseImageViewerOptions = {}) {
   onZoomRef.current = options.onZoomApplied
   const onPanRef = useRef(options.onPanApplied)
   onPanRef.current = options.onPanApplied
+  const onTransformRef = useRef(options.onTransformApplied)
+  onTransformRef.current = options.onTransformApplied
   const onKeyRef = useRef(options.onKeyDown)
   onKeyRef.current = options.onKeyDown
 
@@ -104,14 +107,13 @@ export function useImageViewer(options: UseImageViewerOptions = {}) {
   )
 
   const updateTransform = useCallback(() => {
-    const el = transformRef.current
-    if (!el) return
-
     const { x, y } = panRef.current
-    el.style.transform = `
-      translate3d(${x}px, ${y}px, 0)
-      scale(${zoomRef.current * fitScale})
-    `
+    const transform = `translate3d(${x}px, ${y}px, 0) scale(${zoomRef.current * fitScale})`
+
+    const el = transformRef.current
+    if (el) el.style.transform = transform
+
+    onTransformRef.current?.(transform)
   }, [fitScale])
 
   useEffect(() => {
