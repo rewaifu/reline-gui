@@ -1,9 +1,9 @@
-import { useReducer } from "react"
+import { useMemo, useReducer, useState } from "react"
 import { ThemeProvider } from "next-themes"
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query"
 import { Toaster } from "~/components/ui/sonner"
 import { TooltipProvider } from "~/components/ui/tooltip"
-import { NodesContext, NodesDispatchContext, ModelsContext } from "~/context/contexts"
+import { ActiveNodeContext, NodesContext, NodesDispatchContext, ModelsContext } from "~/context/contexts"
 import { nodesReducer } from "~/context/reducer"
 import { MODELS } from "~/constants"
 import { modelsQueryOptions } from "~/lib/queries"
@@ -33,6 +33,8 @@ function HomePage() {
   const prepareNodes = usePrepareNodes()
 
   const [nodes, dispatch] = useReducer(nodesReducer, undefined, () => loadInitialNodes(prepareNodes))
+  const [activeNodeId, setActiveNodeId] = useState<number | null>(null)
+  const activeNodeValue = useMemo(() => ({ activeNodeId, setActiveNodeId }), [activeNodeId])
 
   const content = (
     <>
@@ -64,9 +66,11 @@ function HomePage() {
       <AppHeader />
       <NodesContext.Provider value={nodes}>
         <NodesDispatchContext.Provider value={dispatch}>
-          <ConfigsProvider>
-            <ModelsContext.Provider value={models}>{isTauri ? <BackendProvider>{content}</BackendProvider> : content}</ModelsContext.Provider>
-          </ConfigsProvider>
+          <ActiveNodeContext.Provider value={activeNodeValue}>
+            <ConfigsProvider>
+              <ModelsContext.Provider value={models}>{isTauri ? <BackendProvider>{content}</BackendProvider> : content}</ModelsContext.Provider>
+            </ConfigsProvider>
+          </ActiveNodeContext.Provider>
         </NodesDispatchContext.Provider>
       </NodesContext.Provider>
     </main>

@@ -1,7 +1,8 @@
-import React, { useContext, useEffect, useRef, useState } from "react"
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react"
 import { NodesContext, NodesDispatchContext } from "~/context/contexts.ts"
 import { IconDownload, IconCopy, IconFileUpload, IconCheck } from "@tabler/icons-react"
-import { nodesToString, stringToNodes } from "~/lib/utils.ts"
+import { cn, nodesToString, scrollIntoViewWithOffset, stringToNodes } from "~/lib/utils.ts"
+import { convertToPureWithSources } from "~/lib/convert"
 import { toast } from "sonner"
 import { Card, CardHeader, Dialog, DialogTrigger, Button, CardContent } from "~/components/ui"
 import { FileUploadDialogContent } from "~/components/config/file-upload-dialog-content.tsx"
@@ -12,6 +13,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "~/components/ui/tooltip
 import { useTranslation } from "react-i18next"
 import { usePrepareNodes } from "~/hooks/usePrepareNodes.ts"
 import { useIsTauri } from "~/hooks/useIsTauri.ts"
+import { useActiveNode } from "~/hooks/useActiveNode.ts"
 import { NodesActionType } from "~/types/actions.ts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs.tsx"
 import { LevelsPreview } from "~/components/previews/levels-preview.tsx"
@@ -26,18 +28,27 @@ export function CodeSection() {
   const isTauri = useIsTauri()
   const [isCopied, setIsCopied] = useState(false)
   const [activeTab, setActiveTab] = useState("code")
-  const codeRef = useRef<HTMLElement>(null)
   const prepareNodes = usePrepareNodes()
-  const code = nodesToString(nodes)
+  const { activeNodeId, setActiveNodeId } = useActiveNode()
+  const blockRefs = useRef<(HTMLSpanElement | null)[]>([])
+
+  const codeBlocks = useMemo(() => {
+    const entries = convertToPureWithSources(nodes)
+    return entries.map(({ node, sourceId }, index) => {
+      const indented = JSON.stringify(node, null, 2)
+        .split("\n")
+        .map((line) => `  ${line}`)
+        .join("\n")
+      const text = index < entries.length - 1 ? `${indented},` : indented
+      return { sourceId, html: hljs.highlight(text, { language: "json" }).value }
+    })
+  }, [nodes])
 
   useEffect(() => {
-    if (activeTab !== "code" || !code) return
-    const el = codeRef.current
-    if (el) {
-      el.removeAttribute("data-highlighted")
-      hljs.highlightElement(el)
-    }
-  }, [code, activeTab])
+    if (activeNodeId === null || activeTab !== "code") return
+    const el = blockRefs.current.find((node) => node?.dataset.nodeId === String(activeNodeId))
+    if (el) scrollIntoViewWithOffset(el)
+  }, [activeNodeId, activeTab])
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col gap-0">
       <Card className="flex flex-col h-full min-h-0">
@@ -162,12 +173,47 @@ export function CodeSection() {
             <ScrollArea className="relative rounded-xl border h-full bg-background overflow-hidden">
               <div className="m-4">
                 <pre>
-                  <code ref={codeRef} className="language-json bg-transparent! p-0!">
-                    {code}
+                  <code className="language-json bg-transparent! p-0!">
+                    {codeBlocks.length === 0 ? (
+                      "[]"
+                    ) : (
+                      <>
+                        {"["}
+                        {codeBlocks.map((block, index) => {
+                          const isGroupStart = index === 0 || codeBlocks[index - 1].sourceId !== block.sourceId
+                          const isGroupEnd = index === codeBlocks.length - 1 || codeBlocks[index + 1].sourceId !== block.sourceId
+                          const isActive = block.sourceId === activeNodeId
+                          return (
+                            // biome-ignore lint/a11y/useKeyWithClickEvents: selecting a node from its code block is a pointer convenience; keyboard users select from the node list
+                            <span
+                              key={`${block.sourceId}-${index}`}
+                              ref={(el) => {
+                                blockRefs.current[index] = el
+                              }}
+                              data-node-id={block.sourceId}
+                              onClick={() => {
+                                setActiveNodeId(block.sourceId)
+                                const card = document.querySelector<HTMLElement>(`[data-node-card-id="${block.sourceId}"]`)
+                                if (card) scrollIntoViewWithOffset(card)
+                              }}
+                              className={cn(
+                                "block cursor-pointer p-0! transition-colors",
+                                isActive ? "bg-primary/15!" : "bg-transparent!",
+                                isActive && isGroupStart && "rounded-t-sm",
+                                isActive && isGroupEnd && "rounded-b-sm",
+                              )}
+                              // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON is generated locally from the user's own config and highlighted with highlight.js
+                              dangerouslySetInnerHTML={{ __html: block.html }}
+                            />
+                          )
+                        })}
+                        {"]"}
+                      </>
+                    )}
                   </code>
                 </pre>
               </div>
-              <ScrollBar className="mr-1 mt-2 pb-4" />
+              <ScrollBar className="mr-1 my-4 pb-8" />
             </ScrollArea>
           </TabsContent>
           <TabsContent value="levels" className="h-full">

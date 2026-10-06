@@ -7,12 +7,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger, Button, Card, Card
 import { Switch } from "~/components/ui/switch"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "~/components/ui/command"
-import { cn } from "~/lib/utils"
+import { cn, scrollIntoViewWithOffset } from "~/lib/utils"
 import { NODE_BODY_COMPONENTS } from "./node-body-components"
 import { usePreferences } from "~/components/providers/preferences-provider"
 import { NodesActionType } from "~/types/actions"
 import { useSortable } from "@dnd-kit/react/sortable"
 import { useTranslation } from "react-i18next"
+import { useActiveNode } from "~/hooks/useActiveNode"
 
 function Combobox({
   allValues,
@@ -78,6 +79,7 @@ export function NodeResolver({ id, index }: { id: number; index: number }) {
   const data = nodes.find((node) => node.id === id)
   const dispatch = useContext(NodesDispatchContext)
   const { getDefaultNodeOptions } = usePreferences()
+  const { activeNodeId, setActiveNodeId } = useActiveNode()
   if (!data) {
     return null
   }
@@ -144,83 +146,97 @@ export function NodeResolver({ id, index }: { id: number; index: number }) {
     })
   }
   return (
-    <div ref={setNodeRef} className={cn("transition-opacity", isDragSource && "opacity-70")}>
-      <Collapsible
-        open={!data.collapsed}
-        onOpenChange={(isOpen) => {
-          dispatch({
-            type: NodesActionType.CHANGE,
-            payload: {
-              ...data,
-              collapsed: !isOpen,
-            },
-          })
+    <>
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: clicking anywhere in the node card selects it for code highlighting; keyboard users can select from the code blocks */}
+      <div
+        ref={setNodeRef}
+        data-node-card-id={data.id}
+        className={cn("transition-opacity", isDragSource && "opacity-70")}
+        onClick={(event) => {
+          setActiveNodeId(data.id)
+          const target = event.target as HTMLElement
+          if (target.closest("[data-node-body]")) return
+          if (target.closest('button, input, select, textarea, label, a, [role="combobox"], [role="slider"], [data-slot="switch"]')) return
+          if (nodeRef.current) scrollIntoViewWithOffset(nodeRef.current)
         }}
       >
-        <Card className={cn("rounded-xl", data.enabled === false && "opacity-60")}>
-          <CardHeader className="flex flex-row px-2 md:px-4">
-            <Button
-              ref={handleRef}
-              className="mr-0 md:mr-1 cursor-grab active:cursor-grabbing"
-              variant="ghost"
-              size="icon"
-              aria-label="Drag node"
-              style={{ touchAction: "none" }}
-            >
-              <IconGripVertical />
-            </Button>
-            <Switch
-              checked={data.enabled !== false}
-              onCheckedChange={(checked) => {
-                dispatch({
-                  type: NodesActionType.CHANGE,
-                  payload: {
-                    ...data,
-                    enabled: checked,
-                  },
-                })
-              }}
-              className="self-center mr-1 md:mr-2"
-            />
-            <Combobox initialValue={data.type} allValues={Object.values(NodeType)} onChange={onTypeChange} />
-            <CollapsibleTrigger
-              render={
-                <Button className="ml-0 md:ml-1" variant="ghost" size="icon">
-                  {data.collapsed ? <IconChevronRight /> : <IconChevronDown />}
-                </Button>
-              }
-            />
-            <Button variant="ghost" size="icon" disabled={index === 0} className="ml-auto hidden md:flex" onClick={() => moveNode(-1)}>
-              <IconArrowUp className="size-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="hidden md:flex" disabled={index === nodes.length - 1} onClick={() => moveNode(1)}>
-              <IconArrowDown className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto md:ml-0"
-              onClick={() => {
-                dispatch({
-                  type: NodesActionType.DELETE,
-                  payload: data.id,
-                })
-              }}
-            >
-              <IconX className="size-4" />
-            </Button>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="px-3 md:px-4">
-              <Card>
-                <CardContent className="px-5">
-                  <NodeBodyComponent id={id} />
-                </CardContent>
-              </Card>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-    </div>
+        <Collapsible
+          open={!data.collapsed}
+          onOpenChange={(isOpen) => {
+            dispatch({
+              type: NodesActionType.CHANGE,
+              payload: {
+                ...data,
+                collapsed: !isOpen,
+              },
+            })
+          }}
+        >
+          <Card className={cn("rounded-xl", data.enabled === false && "opacity-60", data.id === activeNodeId && "ring-2 ring-primary")}>
+            <CardHeader className="flex flex-row px-2 md:px-4">
+              <Button
+                ref={handleRef}
+                className="mr-0 md:mr-1 cursor-grab active:cursor-grabbing"
+                variant="ghost"
+                size="icon"
+                aria-label="Drag node"
+                style={{ touchAction: "none" }}
+              >
+                <IconGripVertical />
+              </Button>
+              <Switch
+                checked={data.enabled !== false}
+                onCheckedChange={(checked) => {
+                  dispatch({
+                    type: NodesActionType.CHANGE,
+                    payload: {
+                      ...data,
+                      enabled: checked,
+                    },
+                  })
+                }}
+                className="self-center mr-1 md:mr-2"
+              />
+              <Combobox initialValue={data.type} allValues={Object.values(NodeType)} onChange={onTypeChange} />
+              <CollapsibleTrigger
+                render={
+                  <Button className="ml-0 md:ml-1" variant="ghost" size="icon">
+                    {data.collapsed ? <IconChevronRight /> : <IconChevronDown />}
+                  </Button>
+                }
+              />
+              <Button variant="ghost" size="icon" disabled={index === 0} className="ml-auto hidden md:flex" onClick={() => moveNode(-1)}>
+                <IconArrowUp className="size-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="hidden md:flex" disabled={index === nodes.length - 1} onClick={() => moveNode(1)}>
+                <IconArrowDown className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-auto md:ml-0"
+                onClick={() => {
+                  dispatch({
+                    type: NodesActionType.DELETE,
+                    payload: data.id,
+                  })
+                }}
+              >
+                <IconX className="size-4" />
+              </Button>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="px-3 md:px-4" data-node-body>
+                <Card>
+                  <CardContent className="px-5">
+                    <NodeBodyComponent id={id} />
+                  </CardContent>
+                </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      </div>
+    </>
   )
 }

@@ -11,6 +11,13 @@ export const NodesDispatchContext = createContext<Dispatch<NodesAction>>(() => {
 export const ModelsContext = createContext<string[]>([])
 export const DocsNavigationContext = createContext<(slug: string) => void>(() => {})
 
+export interface ActiveNodeContextValue {
+  activeNodeId: number | null
+  setActiveNodeId: (id: number) => void
+}
+
+export const ActiveNodeContext = createContext<ActiveNodeContextValue | null>(null)
+
 export type CreateDialogMode = "full" | "name-only"
 
 export interface ConfigsContextValue {

@@ -104,7 +104,7 @@ export function NodesSection() {
               </div>
               <EdgeDropZone id={EDGE_DROP_ZONE_END} />
             </div>
-            <ScrollBar className="mr-1 my-2 pb-4 z-20 hidden md:flex" />
+            <ScrollBar className="mr-1 my-4 pb-8 z-20 hidden md:flex" />
           </ScrollArea>
         </DragDropProvider>
       </CardContent>

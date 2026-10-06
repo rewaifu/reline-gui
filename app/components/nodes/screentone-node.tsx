@@ -216,7 +216,7 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                                 }}
                                 value={options.dot_type as DotType}
                             >
-                                <SelectTrigger className="min-w-[180px] w-full">
+                                <SelectTrigger className="min-w-[100px] w-full">
                                     <SelectValue>{t(`nodes.screentone.dot-type-options.${options.dot_type as DotType}`)}</SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
