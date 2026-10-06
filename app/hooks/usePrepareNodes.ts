@@ -6,7 +6,7 @@ import { migrateNodes } from "~/lib/config-migration"
 import { applyPathOverrides } from "~/lib/node-overrides"
 import { NodeType } from "~/types/enums"
 import type { StackNode } from "~/types/node"
-import type { UpscaleNodeOptions } from "~/types/options"
+import type { FolderReaderNodeOptions, UpscaleNodeOptions } from "~/types/options"
 
 function applyLocalModelMatches(nodes: StackNode[], localModels: string[]): StackNode[] {
   if (localModels.length === 0) return nodes
@@ -23,6 +23,15 @@ function applyLocalModelMatches(nodes: StackNode[], localModels: string[]): Stac
   })
 }
 
+function stripUnarchive(nodes: StackNode[]): StackNode[] {
+  return nodes.map((node) => {
+    if (node.type !== NodeType.FOLDER_READER) return node
+    const options = node.options as FolderReaderNodeOptions
+    if (!options.unarchive) return node
+    return { ...node, options: { ...options, unarchive: false } }
+  })
+}
+
 export function usePrepareNodes(): (nodes: StackNode[]) => StackNode[] {
   const { defaultReaderPath, defaultWriterPath } = usePreferences()
   const isTauri = useIsTauri()
@@ -31,7 +40,7 @@ export function usePrepareNodes(): (nodes: StackNode[]) => StackNode[] {
   return useCallback(
     (nodes: StackNode[]) => {
       const prepared = applyPathOverrides(migrateNodes(nodes), { defaultReaderPath, defaultWriterPath })
-      return isTauri ? applyLocalModelMatches(prepared, localModels) : prepared
+      return isTauri ? applyLocalModelMatches(stripUnarchive(prepared), localModels) : prepared
     },
     [defaultReaderPath, defaultWriterPath, isTauri, localModels],
   )

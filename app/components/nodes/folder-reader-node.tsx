@@ -110,18 +110,20 @@ export function FolderReaderNodeBody({id, dispatch: dispatchProp, idSuffix}: { i
                         <FieldLabel htmlFor={sid("recursive-check")}>{t('nodes.folder-reader.recursive')}</FieldLabel>
                     </Field>
                 </FieldGroup>
-                <FieldGroup className="w-35">
-                    <Field orientation="horizontal">
-                        <Checkbox
-                            id={sid("unarchive-check")}
-                            checked={options.unarchive}
-                            onCheckedChange={(value) => {
-                                changeValue({unarchive: !!value})
-                            }}
-                        />
-                        <FieldLabel htmlFor={sid("unarchive-check")}>{t('nodes.folder-reader.unarchive')}</FieldLabel>
-                    </Field>
-                </FieldGroup>
+                {!isTauri && (
+                    <FieldGroup className="w-35">
+                        <Field orientation="horizontal">
+                            <Checkbox
+                                id={sid("unarchive-check")}
+                                checked={options.unarchive}
+                                onCheckedChange={(value) => {
+                                    changeValue({unarchive: !!value})
+                                }}
+                            />
+                            <FieldLabel htmlFor={sid("unarchive-check")}>{t('nodes.folder-reader.unarchive')}</FieldLabel>
+                        </Field>
+                    </FieldGroup>
+                )}
             </div>
 
         </div>
