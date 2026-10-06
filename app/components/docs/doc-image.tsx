@@ -1,10 +1,12 @@
-import { type MouseEvent as ReactMouseEvent, useCallback } from "react"
+import { type MouseEvent as ReactMouseEvent, useCallback, useState } from "react"
 
 import { createPortal } from "react-dom"
 import { IconX } from "@tabler/icons-react"
 
 import { Button } from "~/components/ui/button.tsx"
 import { Slider } from "~/components/ui/slider.tsx"
+import { Skeleton } from "~/components/ui/skeleton.tsx"
+import { getDocsImageSize } from "~/docs/image-sizes.ts"
 import { MAX_ZOOM, MIN_ZOOM, useImageViewer } from "./image-viewer/useImageViewer"
 
 type DocImageProps = {
@@ -14,6 +16,9 @@ type DocImageProps = {
 }
 
 export function DocImage({ src, alt, caption }: DocImageProps) {
+  const [loaded, setLoaded] = useState(false)
+  const size = getDocsImageSize(src)
+
   const {
     render,
     visible,
@@ -52,7 +57,20 @@ export function DocImage({ src, alt, caption }: DocImageProps) {
   return (
     <>
       <figure className="my-5 w-full">
-        <img src={src} alt={alt} className="w-full rounded-lg border cursor-zoom-in" onClick={openViewer} draggable={false} />
+        <div className="relative w-full">
+          <img
+            src={src}
+            alt={alt}
+            width={size?.width}
+            height={size?.height}
+            className={`block w-full h-auto rounded-lg border cursor-zoom-in transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+            onClick={openViewer}
+            onLoad={() => setLoaded(true)}
+            onError={() => setLoaded(true)}
+            draggable={false}
+          />
+          {loaded ? null : <Skeleton className="absolute inset-0 rounded-lg border" />}
+        </div>
         {caption ? <figcaption className="mt-2 text-center text-sm text-muted-foreground">{caption}</figcaption> : null}
       </figure>
 

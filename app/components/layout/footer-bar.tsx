@@ -55,16 +55,10 @@ export function FooterBar() {
             {colab}
           </Button>
         </a>
-        <a href="https://github.com/rewaifu/reline_local" target="_blank" className="hidden md:flex" rel="noreferrer">
+        <a href="https://github.com/rewaifu/reline-web/releases/latest" target="_blank" className="hidden md:flex" rel="noreferrer">
           <Button variant="outline" size="sm">
             <IconBrandGithub />
-            Reline Local
-          </Button>
-        </a>
-        <a href="https://github.com/breadyk/reline-local-GUI" target="_blank" className="hidden md:flex" rel="noreferrer">
-          <Button variant="outline" size="sm">
-            <IconBrandGithub />
-            Reline Local GUI
+            Reline GUI
           </Button>
         </a>
       </div>
