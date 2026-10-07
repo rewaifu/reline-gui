@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react"
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "~/lib/utils"
 import { type CanvasSize, useCanvasViewport, type ViewState } from "./use-canvas-viewport"
 
@@ -81,12 +81,14 @@ export function PreviewCanvas({
   afterSrc,
   mode,
   className,
+  children,
 }: {
   previewSrc: string | null
   beforeSrc: string | null
   afterSrc: string | null
   mode: CompareMode
   className?: string
+  children?: ReactNode
 }) {
   const preview = useImage(previewSrc)
   const before = useImage(beforeSrc)
@@ -114,6 +116,7 @@ export function PreviewCanvas({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
+    if ((event.target as HTMLElement).closest("button")) return
     if (mode === "slider" && after && (event.target as HTMLElement).closest("[data-divider]")) {
       dividerDragRef.current = true
       event.currentTarget.setPointerCapture(event.pointerId)
@@ -172,6 +175,7 @@ export function PreviewCanvas({
       ) : (
         <CanvasLayer image={active} view={view} size={size} />
       )}
+      {children}
     </div>
   )
 }

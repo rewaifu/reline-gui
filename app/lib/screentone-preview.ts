@@ -1,4 +1,4 @@
-import { CvtType, DType, FilterType, HalftoneMode, ReaderNodeMode, TilerType } from "~/types/enums"
+import { CvtType, DType, FilterType, HalftoneMode, ReaderNodeMode, ResizeType, TilerType } from "~/types/enums"
 import type { CannyType, DotType } from "~/types/enums"
 import { DEFAULT_TILE_SIZE } from "~/constants"
 
@@ -97,6 +97,26 @@ export interface EditorConfigParams {
   dotSize: number
   ssaaScale?: number
   disableAutoDot: boolean
+  resizeEnabled: boolean
+  resizeFilter: FilterType
+  resizeType: ResizeType
+  resizeWidth: number
+  resizeHeight: number
+  resizePercent: number
+}
+
+function buildResizeOptions({
+  resizeFilter,
+  resizeType,
+  resizeWidth,
+  resizeHeight,
+  resizePercent,
+}: Pick<EditorConfigParams, "resizeFilter" | "resizeType" | "resizeWidth" | "resizeHeight" | "resizePercent">): Record<string, unknown> {
+  const options: Record<string, unknown> = { filter: resizeFilter, spread: false }
+  if (resizeType === ResizeType.BY_WIDTH || resizeType === ResizeType.ABSOLUTE) options.width = resizeWidth
+  if (resizeType === ResizeType.BY_HEIGHT || resizeType === ResizeType.ABSOLUTE) options.height = resizeHeight
+  if (resizeType === ResizeType.PERCENT) options.percent = resizePercent
+  return options
 }
 
 export function buildEditorConfig({
@@ -109,7 +129,17 @@ export function buildEditorConfig({
   dotSize,
   ssaaScale,
   disableAutoDot,
+  resizeEnabled,
+  resizeFilter,
+  resizeType,
+  resizeWidth,
+  resizeHeight,
+  resizePercent,
 }: EditorConfigParams): PreviewPipelineNode[] {
+  const resizeNodes: PreviewPipelineNode[] = resizeEnabled
+    ? [{ type: "resize", options: buildResizeOptions({ resizeFilter, resizeType, resizeWidth, resizeHeight, resizePercent }) }]
+    : []
+
   return [
     { type: "file_reader", options: { path: inputPath, mode: ReaderNodeMode.GRAY } },
     {
@@ -136,6 +166,7 @@ export function buildEditorConfig({
         disable_auto_dot: disableAutoDot,
       },
     },
+    ...resizeNodes,
     { type: "file_writer", options: { path: outputPath } },
   ]
 }

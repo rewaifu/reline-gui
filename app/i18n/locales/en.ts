@@ -193,6 +193,8 @@ export const en = {
     "toggle-panel": "Hide/show parameters",
     apply: "Apply",
     applying: "Applying...",
+    "apply-to-node": "Apply to {{node}} node",
+    applied: "Halftone applied to node",
     "no-deps": "Install dependencies in settings",
     "no-models": "Select a models folder in settings",
     "load-error": "Failed to read the image",

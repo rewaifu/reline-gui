@@ -17,10 +17,13 @@ import { Label } from "~/components/ui/label"
 import { NumberInput } from "~/components/ui/number-input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select"
 import { Separator } from "~/components/ui/separator"
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "~/components/ui/combobox"
 import { cn } from "~/lib/utils"
-import { CannyType, DotType } from "~/types/enums"
+import { CannyType, DotType, FilterType, ResizeType } from "~/types/enums"
 import { AMBER_STYLE } from "./shared"
 import type { ScreentonePreviewController } from "./useScreentonePreview"
+
+const CANVAS_BUTTON_STYLE = { backgroundColor: "var(--secondary)", color: "var(--secondary-foreground)" }
 
 export function ScreentoneEditorStage({ preview }: { preview: ScreentonePreviewController }) {
   const { t } = useTranslation()
@@ -49,7 +52,21 @@ export function ScreentoneEditorStage({ preview }: { preview: ScreentonePreviewC
     setSsaaScale,
     disableAutoDot,
     setDisableAutoDot,
+    resizeEnabled,
+    setResizeEnabled,
+    resizeFilter,
+    setResizeFilter,
+    resizeType,
+    setResizeType,
+    resizeWidth,
+    setResizeWidth,
+    resizeHeight,
+    setResizeHeight,
+    resizePercent,
+    setResizePercent,
     apply,
+    applyToScreentoneNode,
+    hasScreentoneNode,
     editorInput,
     controlsDisabled,
   } = preview
@@ -93,7 +110,13 @@ export function ScreentoneEditorStage({ preview }: { preview: ScreentonePreviewC
         </div>
       </div>
 
-      <PreviewCanvas previewSrc={previewSrc} beforeSrc={selected?.url ?? null} afterSrc={afterSrc} mode={compareMode} />
+      <PreviewCanvas previewSrc={previewSrc} beforeSrc={selected?.url ?? null} afterSrc={afterSrc} mode={compareMode}>
+        {hasScreentoneNode && (
+          <Button variant="outline" size="sm" style={CANVAS_BUTTON_STYLE} className="absolute bottom-2 right-2 z-10" onClick={applyToScreentoneNode}>
+            {t("screentone-preview.apply-to-node", { node: t("nodes.node-type-options.screentone") })}
+          </Button>
+        )}
+      </PreviewCanvas>
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-4">
@@ -206,6 +229,98 @@ export function ScreentoneEditorStage({ preview }: { preview: ScreentonePreviewC
                   {t("screentone-preview.auto-dot")}
                 </Label>
               </div>
+            </div>
+
+            <Separator />
+
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2 select-none">
+                <Checkbox id="screentone-preview-resize" checked={resizeEnabled} onCheckedChange={(value) => setResizeEnabled(!!value)} />
+                <Label htmlFor="screentone-preview-resize" className="cursor-pointer text-sm whitespace-nowrap">
+                  {t("nodes.node-type-options.resize")}
+                </Label>
+              </div>
+
+              {resizeEnabled && (
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="flex w-[180px] flex-col gap-2">
+                    <Label>{t("nodes.resize.filter")}</Label>
+                    <Combobox items={Object.values(FilterType)} value={resizeFilter} onValueChange={(value) => setResizeFilter(value as FilterType)}>
+                      <ComboboxInput placeholder={t("nodes.resize.select-filter")} showTrigger />
+                      <ComboboxContent>
+                        <ComboboxEmpty>{t("nodes.resize.no-items-found")}</ComboboxEmpty>
+                        <ComboboxList>
+                          {(opt) => (
+                            <ComboboxItem key={opt} value={opt}>
+                              {opt}
+                            </ComboboxItem>
+                          )}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label>{t("nodes.resize.resize-type")}</Label>
+                    <Select value={resizeType} onValueChange={(value) => setResizeType(value as ResizeType)}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue>{t(`nodes.resize.resize-type-options.${resizeType}`)}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {Object.values(ResizeType).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {t(`nodes.resize.resize-type-options.${type}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(resizeType === ResizeType.BY_WIDTH || resizeType === ResizeType.ABSOLUTE) && (
+                    <div className="flex flex-col gap-2">
+                      <Label>{t("nodes.resize.width")}</Label>
+                      <Input
+                        type="number"
+                        className="w-[180px]"
+                        step="1"
+                        min="1"
+                        value={resizeWidth}
+                        onChange={(event) => setResizeWidth(Number.parseInt(event.target.value))}
+                      />
+                    </div>
+                  )}
+
+                  {(resizeType === ResizeType.BY_HEIGHT || resizeType === ResizeType.ABSOLUTE) && (
+                    <div className="flex flex-col gap-2">
+                      <Label>{t("nodes.resize.height")}</Label>
+                      <Input
+                        type="number"
+                        className="w-[180px]"
+                        step="1"
+                        min="1"
+                        value={resizeHeight}
+                        onChange={(event) => setResizeHeight(Number.parseInt(event.target.value))}
+                      />
+                    </div>
+                  )}
+
+                  {resizeType === ResizeType.PERCENT && (
+                    <div className="flex flex-col gap-2">
+                      <Label>{t("nodes.resize.percent")}</Label>
+                      <Input
+                        type="number"
+                        className="w-[180px]"
+                        step="0.1"
+                        min="0"
+                        value={resizePercent}
+                        onChange={(event) => setResizePercent(Number.parseFloat(event.target.value))}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <Button

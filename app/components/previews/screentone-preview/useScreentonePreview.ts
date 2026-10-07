@@ -17,10 +17,12 @@ import {
   suggestDotSize,
   suggestSsaaScale,
 } from "~/lib/screentone-preview"
-import { NodesContext } from "~/context/contexts"
+import { NodesContext, NodesDispatchContext } from "~/context/contexts"
 import { isPipelineCancelled } from "~/hooks/useBackend"
-import { CannyType, type DType, DotType, NodeType, type TilerType } from "~/types/enums"
-import type { FolderReaderNodeOptions } from "~/types/options"
+import { CannyType, type DType, DotType, FilterType, NodeType, ResizeType, type TilerType } from "~/types/enums"
+import { DEFAULT_RESIZE_HEIGHT, DEFAULT_RESIZE_PERCENT, DEFAULT_RESIZE_WIDTH } from "~/constants"
+import { NodesActionType } from "~/types/actions"
+import type { FolderReaderNodeOptions, ScreentoneNodeOptions } from "~/types/options"
 import { SMALL_IMAGE_HEIGHT, type SelectedImage, type Stage } from "./shared"
 
 export function useScreentonePreview() {
@@ -29,10 +31,12 @@ export function useScreentonePreview() {
   const { runPreviewPipeline, cancelPreviewPipeline, handleHardStop, busy, depsReady, canQueue } = useBackendContext()
   const { forceStopBackend } = usePreferences()
   const nodes = useContext(NodesContext)
+  const dispatch = useContext(NodesDispatchContext)
   const { localModels } = useLocalModels()
 
   const readerNode = nodes.find((node) => node.type === NodeType.FOLDER_READER)
   const readerPath = readerNode ? (readerNode.options as FolderReaderNodeOptions).path : ""
+  const screentoneNode = nodes.find((node) => node.type === NodeType.SCREENTONE)
 
   const [stage, setStage] = useState<Stage>("select")
   const [selected, setSelected] = useState<SelectedImage | null>(null)
@@ -50,6 +54,13 @@ export function useScreentonePreview() {
   const [dotSize, setDotSize] = useState(7)
   const [ssaaScale, setSsaaScale] = useState<number | undefined>(undefined)
   const [disableAutoDot, setDisableAutoDot] = useState(false)
+
+  const [resizeEnabled, setResizeEnabled] = useState(false)
+  const [resizeFilter, setResizeFilter] = useState<FilterType>(FilterType.SHAMMING4)
+  const [resizeType, setResizeType] = useState<ResizeType>(ResizeType.BY_WIDTH)
+  const [resizeWidth, setResizeWidth] = useState(DEFAULT_RESIZE_WIDTH)
+  const [resizeHeight, setResizeHeight] = useState(DEFAULT_RESIZE_HEIGHT)
+  const [resizePercent, setResizePercent] = useState(DEFAULT_RESIZE_PERCENT)
 
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [afterSrc, setAfterSrc] = useState<string | null>(null)
@@ -262,14 +273,41 @@ export function useScreentonePreview() {
           dotSize,
           ssaaScale,
           disableAutoDot,
+          resizeEnabled,
+          resizeFilter,
+          resizeType,
+          resizeWidth,
+          resizeHeight,
+          resizePercent,
         }),
       )
       applyAfter(await loadOwnedUrl(outPath))
+      setPanelOpen(false)
     } catch (error) {
       toast.error(t("screentone-preview.error"), { description: String(error) })
     } finally {
       setApplying(false)
     }
+  }
+
+  const applyToScreentoneNode = () => {
+    if (!screentoneNode) return
+    dispatch({
+      type: NodesActionType.CHANGE,
+      payload: {
+        ...screentoneNode,
+        options: {
+          ...(screentoneNode.options as ScreentoneNodeOptions),
+          dot_size: dotSize,
+          angle: Math.trunc(angle),
+          dot_type: dotType,
+          ssaa_scale: ssaaScale,
+          ssaa_filter: PREVIEW_DEFAULTS.ssaaFilter,
+          disable_auto_dot: disableAutoDot ? true : undefined,
+        },
+      },
+    })
+    toast.success(t("screentone-preview.applied"))
   }
 
   return {
@@ -308,6 +346,18 @@ export function useScreentonePreview() {
     setSsaaScale,
     disableAutoDot,
     setDisableAutoDot,
+    resizeEnabled,
+    setResizeEnabled,
+    resizeFilter,
+    setResizeFilter,
+    resizeType,
+    setResizeType,
+    resizeWidth,
+    setResizeWidth,
+    resizeHeight,
+    setResizeHeight,
+    resizePercent,
+    setResizePercent,
     // preview sources / compare
     previewSrc,
     afterSrc,
@@ -334,6 +384,8 @@ export function useScreentonePreview() {
     requestSkip,
     performSkip,
     apply,
+    applyToScreentoneNode,
+    hasScreentoneNode: !!screentoneNode,
   }
 }
 
