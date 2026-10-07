@@ -1,4 +1,4 @@
-import {useContext, useEffect, useState, type Dispatch} from "react"
+import {useContext, useEffect, useState, type Dispatch, type ReactNode} from "react"
 import type { NodesAction } from "~/types/actions.ts"
 import {NodesContext, NodesDispatchContext} from "~/context/contexts.ts"
 import {Label} from "../ui/label"
@@ -23,7 +23,7 @@ import {Separator} from "~/components/ui/separator.tsx";
 import {Field, FieldGroup, FieldLabel} from "~/components/ui/field.tsx";
 import { Button } from "~/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
-import { IconLoader2, IconWand } from "@tabler/icons-react"
+import { IconAlertTriangle, IconLoader2, IconWand } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { usePreferences } from "~/components/providers/preferences-provider"
@@ -38,6 +38,15 @@ function AutoDotHint({ hint, className }: { hint: { text: string; tooltip: strin
                 <p>{hint.tooltip}</p>
             </TooltipContent>
         </Tooltip>
+    )
+}
+
+function WarningMessage({ children }: { children: ReactNode }) {
+    return (
+        <p className="flex items-start gap-1.5 text-sm text-yellow-600 select-none dark:text-yellow-400">
+            <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>{children}</span>
+        </p>
     )
 }
 
@@ -140,6 +149,13 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
         return Array(length).fill(value)
     }
 
+    const getEffectiveDot = (dot: number): number => {
+        const ssaa = options.ssaa_scale
+        if (!ssaa || ssaa <= 1) return dot
+        if (options.disable_auto_dot === true) return dot / ssaa
+        return Math.floor(dot * ssaa)
+    }
+
     const getAutoDotHint = (dot: number): { text: string; tooltip: string } | null => {
         const ssaa = options.ssaa_scale
         if (!ssaa || ssaa <= 1) return null
@@ -158,6 +174,12 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
     const dotSizes = ensureArray(options.dot_size, channelCount, 6)
     const angles = ensureArray(options.angle, channelCount, 45)
     const dotTypes = ensureArray(options.dot_type, channelCount, DotType.CIRCLE)
+
+    const isSmallDot = (dot: number) => Number.isFinite(dot) && getEffectiveDot(dot) < 7
+    const smallDotWarning = dotSizes.some(isSmallDot)
+    const ssaaEnabled = options.ssaa_scale != null && options.ssaa_scale > 1
+    const dotWarningText = ssaaEnabled ? t('nodes.screentone.dot-size-ssaa-warning') : t('nodes.screentone.dot-size-no-ssaa-warning')
+    const largeSsaaWarning = options.ssaa_scale != null && options.ssaa_scale > 4
 
     const updateArrayField = <T, >(
         key: keyof ScreentoneNodeOptions,
@@ -190,6 +212,7 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                                         className="min-w-0"
                                         step={1}
                                         min={0}
+                                        aria-invalid={isSmallDot(dotSizes[i]) || undefined}
                                         value={dotSizes[i]}
                                         onChange={(e) => updateArrayField("dot_size", i, Number.parseInt(e.target.value))}
                                     />
@@ -296,9 +319,15 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
             <Separator/>
 
             {(mode === "rgb" || mode === "cmyk") ? (
-                renderDotOptionsArray()
+                <>
+                    {renderDotOptionsArray()}
+                    {smallDotWarning && (
+                        <WarningMessage>{dotWarningText}</WarningMessage>
+                    )}
+                </>
             ) : (
-                <div className="flex flex-col md:flex-row gap-4 w-full md:items-center">
+                <>
+                    <div className="flex flex-col md:flex-row gap-4 w-full md:items-center">
                     <div className="flex-1">
                         <div className="flex flex-col gap-2">
                             <Label>{t('nodes.screentone.dot-type')}</Label>
@@ -349,6 +378,7 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                                     className="min-w-[100px]"
                                     step="1"
                                     min="0"
+                                    aria-invalid={isSmallDot(options.dot_size as number) || undefined}
                                     value={options.dot_size as number}
                                     onChange={(e) => {
                                         changeValue({
@@ -363,8 +393,11 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                             </div>
                         </div>
                     </div>
-                </div>
-
+                    </div>
+                    {smallDotWarning && (
+                        <WarningMessage>{dotWarningText}</WarningMessage>
+                    )}
+                </>
             )}
             <Separator/>
             <div className="flex flex-col md:flex-row gap-4">
@@ -376,9 +409,16 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                             className="min-w-[180px]"
                             step="0.1"
                             min="1"
+                            aria-invalid={largeSsaaWarning || undefined}
                             decrementDisabled={options.ssaa_scale == null}
                             placeholder={t('nodes.screentone.ssaa-scale-placeholder')}
                             value={options.ssaa_scale ?? ""}
+                            onBlur={() => {
+                                const value = options.ssaa_scale
+                                if (value != null && value < 1.1) {
+                                    changeValue({ssaa_scale: undefined})
+                                }
+                            }}
                             onChange={(e) => {
                                 const raw = e.target.value
 
@@ -427,6 +467,9 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                     </div>
                 </div>
             </div>
+            {largeSsaaWarning && (
+                <WarningMessage>{t('nodes.screentone.ssaa-scale-large-warning')}</WarningMessage>
+            )}
             <FieldGroup>
                 <Field orientation="horizontal">
                     <Checkbox

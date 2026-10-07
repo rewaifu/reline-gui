@@ -86,6 +86,9 @@ export const en = {
       "auto-not-image": "Only image files are supported",
       "auto-dot-multiplied-tooltip": "Exact dot size with SSAA. Calculated using the following formula: Dot Size × SSAA Scale.",
       "auto-dot-effective-tooltip": "Approximate dot size without SSAA.",
+      "dot-size-no-ssaa-warning": "Without SSAA, sharp transitions may appear on gradients.",
+      "dot-size-ssaa-warning": "With a small dot, sharp transitions may appear on gradients.",
+      "ssaa-scale-large-warning": "Large values may cause out-of-memory errors and are often excessive.",
     },
     sharp: {
       "low-input": "Low input",
