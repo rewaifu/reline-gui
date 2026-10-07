@@ -5,6 +5,7 @@ import { nodesToString } from "~/lib/utils"
 import { PROCESSING_STAGES } from "./constants"
 import type { BackendState } from "./state"
 import type { RunKind } from "./types"
+import {t} from "i18next";
 
 export function useBackendSocket(state: BackendState) {
   const {
@@ -117,14 +118,16 @@ export function useBackendSocket(state: BackendState) {
               setPipelineActive(false)
               setPipelineCompleted(true)
               setProgress(100)
-              setStatusMessage("Pipeline completed")
+              setStatusMessage(t("backend.pipelineComplete"))
               setMetrics((prev) => (prev ? { ...prev, processed: prev.total, etaSeconds: 0 } : prev))
-              toast.success("Pipeline completed")
+              toast.success(t("backend.pipelineComplete"))
               if (preferencesRef.current.playSoundOnComplete) {
                 playCompletionSound(preferencesRef.current.completionSound)
               }
               if (preferencesRef.current.notifyOnComplete) {
-                void sendCompletionNotification("Reline Configurator", "Pipeline completed")
+                void sendCompletionNotification("Reline Configurator", t("backend.pipelineComplete"), {
+                  onlyWhenMinimized: preferencesRef.current.notifyMode === "when-minimized",
+                })
               }
             }
           } else if (msg.status === "error") {

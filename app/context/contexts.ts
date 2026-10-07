@@ -39,10 +39,16 @@ export const ConfigsContext = createContext<ConfigsContextValue | null>(null)
 
 export type NodeDefaults = Partial<Record<NodeType, Partial<NodeOptions>>>
 
+export type NotifyMode = "always" | "when-minimized"
+
 export interface Preferences {
   playSoundOnComplete: boolean
   notifyOnComplete: boolean
+  notifyMode: NotifyMode
   completionSound: string
+  screentoneUseSsaa: boolean
+  screentoneMinProduct: number
+  screentoneFractionalDot: boolean
   nodeDefaults: NodeDefaults
   defaultReaderPath: string
   defaultWriterPath: string
@@ -52,7 +58,11 @@ export interface Preferences {
 export interface PreferencesContextValue extends Preferences {
   setPlaySoundOnComplete: (value: boolean) => void
   setNotifyOnComplete: (value: boolean) => void
+  setNotifyMode: (value: NotifyMode) => void
   setCompletionSound: (value: string) => void
+  setScreentoneUseSsaa: (value: boolean) => void
+  setScreentoneMinProduct: (value: number) => void
+  setScreentoneFractionalDot: (value: boolean) => void
   setDefaultReaderPath: (value: string) => void
   setDefaultWriterPath: (value: string) => void
   setModelsFolder: (value: string) => void

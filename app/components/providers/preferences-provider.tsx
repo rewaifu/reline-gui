@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { DEFAULT_NODE_OPTIONS } from "~/constants"
-import { PreferencesContext, type NodeDefaults, type Preferences, type PreferencesContextValue } from "~/context/contexts"
+import { PreferencesContext, type NodeDefaults, type NotifyMode, type Preferences, type PreferencesContextValue } from "~/context/contexts"
 import { isTauriRuntime } from "~/lib/completion-feedback"
 import { normalizeWebPath } from "~/lib/paths"
 import { NodeType } from "~/types/enums"
@@ -15,7 +15,11 @@ export const DEFAULT_COMPLETION_SOUND = "/fart.mp3"
 const DEFAULT_PREFERENCES: Preferences = {
   playSoundOnComplete: true,
   notifyOnComplete: false,
+  notifyMode: "always",
   completionSound: DEFAULT_COMPLETION_SOUND,
+  screentoneUseSsaa: true,
+  screentoneMinProduct: 10,
+  screentoneFractionalDot: false,
   nodeDefaults: {},
   defaultReaderPath: "",
   defaultWriterPath: "",
@@ -65,8 +69,24 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPreferences((prev) => ({ ...prev, notifyOnComplete: value }))
   }, [])
 
+  const setNotifyMode = useCallback((value: NotifyMode) => {
+    setPreferences((prev) => ({ ...prev, notifyMode: value }))
+  }, [])
+
   const setCompletionSound = useCallback((value: string) => {
     setPreferences((prev) => ({ ...prev, completionSound: value }))
+  }, [])
+
+  const setScreentoneUseSsaa = useCallback((value: boolean) => {
+    setPreferences((prev) => ({ ...prev, screentoneUseSsaa: value }))
+  }, [])
+
+  const setScreentoneMinProduct = useCallback((value: number) => {
+    setPreferences((prev) => ({ ...prev, screentoneMinProduct: value }))
+  }, [])
+
+  const setScreentoneFractionalDot = useCallback((value: boolean) => {
+    setPreferences((prev) => ({ ...prev, screentoneFractionalDot: value }))
   }, [])
 
   const setDefaultReaderPath = useCallback((value: string) => {
@@ -123,7 +143,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       ...preferences,
       setPlaySoundOnComplete,
       setNotifyOnComplete,
+      setNotifyMode,
       setCompletionSound,
+      setScreentoneUseSsaa,
+      setScreentoneMinProduct,
+      setScreentoneFractionalDot,
       setDefaultReaderPath,
       setDefaultWriterPath,
       setModelsFolder,
@@ -136,7 +160,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       preferences,
       setPlaySoundOnComplete,
       setNotifyOnComplete,
+      setNotifyMode,
       setCompletionSound,
+      setScreentoneUseSsaa,
+      setScreentoneMinProduct,
+      setScreentoneFractionalDot,
       setDefaultReaderPath,
       setDefaultWriterPath,
       setModelsFolder,

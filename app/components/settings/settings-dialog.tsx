@@ -58,14 +58,14 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col sm:max-w-none w-[min(1000px,calc(100vw-2rem))] h-[min(640px,calc(100vh-2rem))]">
+      <DialogContent className="flex flex-col gap-5 p-5 sm:max-w-none w-[min(1000px,calc(100vw-2rem))] h-[min(640px,calc(100vh-2rem))]">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 min-h-0">
           <DialogHeader>
-            <DialogTitle>{t("backend.settings")}</DialogTitle>
+            <DialogTitle className="-mt-1 mb-1 select-none">{t("backend.settings")}</DialogTitle>
             <DialogDescription className="sr-only">{t("backend.dependencies")}</DialogDescription>
           </DialogHeader>
 
-          <TabsList className="w-full">
+          <TabsList className="w-full mb-2 select-none">
             {isTauri && <TabsTrigger value="deps">{t("backend.tabs.dependencies")}</TabsTrigger>}
             <TabsTrigger value="prefs">{t("backend.tabs.preferences")}</TabsTrigger>
             <TabsTrigger value="nodes">{t("backend.tabs.nodes")}</TabsTrigger>
@@ -98,8 +98,8 @@ export function SettingsDialog({
             </TabsContent>
           )}
 
-          <DialogFooter className="items-center sm:justify-between">
-            <span className="text-xs text-muted-foreground tabular-nums">v{APP_VERSION}</span>
+          <DialogFooter className="-mx-5 -mb-5 p-5 items-center sm:justify-between">
+            <span className="text-xs text-muted-foreground tabular-nums select-none">v{APP_VERSION}</span>
             <Button variant="outline" size="xs" onClick={() => onOpenChange(false)}>
               {t("backend.close")}
             </Button>

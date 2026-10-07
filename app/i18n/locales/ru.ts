@@ -67,6 +67,12 @@ export const ru = {
       "ssaa-scale-placeholder": "Нет",
       "ssaa-filter": "Фильтр SSAA",
       "disable-auto-dot": "Отключить автоматический расчёт Точки для SSAA",
+      "auto-params": "Подобрать параметры",
+      "auto-no-path": "Укажите путь к папке в первом узле Чтение",
+      "auto-failed": "Не удалось определить параметры полутона по изображениям в папке",
+      "auto-applied": "Определена высота {{height}} px → точка {{dot}}",
+      "auto-dot-multiplied-tooltip": "Точный размер точки при SSAA. Рассчитывается по следующей формуле: Размер точки × Коэффициент SSAA.",
+      "auto-dot-effective-tooltip": "Примерный размер точки без SSAA.",
     },
     sharp: {
       "low-input": "Нижний ввод",
@@ -241,6 +247,7 @@ export const ru = {
   backend: {
     settings: "Настройки",
     dependencies: "Зависимости",
+    pipelineComplete:"Обработка завершена",
     tabs: {
       dependencies: "Зависимости",
       preferences: "Параметры",
@@ -249,9 +256,20 @@ export const ru = {
     },
     preferences: {
       completionTitle: "По завершению пайплайна",
+      completionDesc: "Действия, выполняемые после завершения обработки пайплайном.",
       playSound: "Проигрывать звук",
       notify: "Показывать системное уведомление",
       notificationDenied: "В разрешении на уведомления отказано",
+      notifyMode: "Когда уведомлять",
+      "notify-mode-options": {
+        always: "Всегда",
+        "when-minimized": "Только когда окно свёрнуто",
+      },
+      screentoneTitle: "Полутон",
+      screentoneDesc: "Параметры для кнопки «Подобрать параметры» в узле Полутона. Размер точки считается от высоты скана.",
+      screentoneUseSsaa: "Использовать SSAA",
+      screentoneFractionalDot: "Больший диапазон размера точки засчёт SSAA",
+      screentoneMinProduct: "Минимальный точный размер точки при SSAA",
       pathsTitle: "Пути по умолчанию",
       pathsDesc: "Переопределяют пути в импортируемых конфигах и пресетах.",
       readerPath: "Путь чтения (folder reader)",

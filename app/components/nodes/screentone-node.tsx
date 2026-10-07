@@ -1,12 +1,12 @@
-import {useContext, useEffect, type Dispatch} from "react"
+import {useContext, useEffect, useState, type Dispatch} from "react"
 import type { NodesAction } from "~/types/actions.ts"
 import {NodesContext, NodesDispatchContext} from "~/context/contexts.ts"
 import {Label} from "../ui/label"
 import {Input} from "../ui/input"
-import type {ScreentoneNodeOptions} from "~/types/options"
+import type {FolderReaderNodeOptions, ScreentoneNodeOptions} from "~/types/options"
 import {NodesActionType} from "~/types/actions.ts"
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from "~/components/ui/select.tsx"
-import {DotType, HalftoneMode, FilterType} from "~/types/enums.ts"
+import {DotType, HalftoneMode, FilterType, NodeType} from "~/types/enums.ts"
 import {NumberInput} from "~/components/ui/number-input.tsx"
 import {DEFAULT_CANNY_TYPE, DEFAULT_HALFTONE_SSAA_FILTER} from "~/constants";
 import {
@@ -21,10 +21,31 @@ import {Checkbox} from "~/components/ui";
 import {useTranslation} from "react-i18next"
 import {Separator} from "~/components/ui/separator.tsx";
 import {Field, FieldGroup, FieldLabel} from "~/components/ui/field.tsx";
+import { Button } from "~/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
+import { IconLoader2, IconWand } from "@tabler/icons-react"
+import { toast } from "sonner"
+import { useIsTauri } from "~/hooks/useIsTauri"
+import { usePreferences } from "~/components/providers/preferences-provider"
+import { computeAutoParams, detectDominantHeight } from "~/lib/screentone-auto"
+
+function AutoDotHint({ hint, className }: { hint: { text: string; tooltip: string }; className?: string }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger render={<span className={className}>{hint.text}</span>} />
+            <TooltipContent>
+                <p>{hint.tooltip}</p>
+            </TooltipContent>
+        </Tooltip>
+    )
+}
 
 export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }) {
     const {t} = useTranslation()
     const nodes = useContext(NodesContext)
+    const isTauri = useIsTauri()
+    const { screentoneUseSsaa, screentoneMinProduct, screentoneFractionalDot } = usePreferences()
+    const [scanning, setScanning] = useState(false)
     const node = nodes.find((item) => item.id === id)
     if (!node) {
         return null
@@ -56,6 +77,43 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
         })
     }
 
+    const showAutoParams = isTauri && !idSuffix && dispatchProp === undefined
+
+    const handleAutoParams = async () => {
+        if (scanning) return
+        const reader = nodes.find((item) => item.type === NodeType.FOLDER_READER)
+        const readerPath = reader ? (reader.options as FolderReaderNodeOptions).path : ""
+        if (!readerPath.trim()) {
+            toast.error(t('nodes.screentone.auto-no-path'))
+            return
+        }
+        setScanning(true)
+        try {
+            const detected = await detectDominantHeight(readerPath)
+            if (!detected) {
+                toast.error(t('nodes.screentone.auto-failed'))
+                return
+            }
+            const params = computeAutoParams(detected.height, {
+                useSsaa: screentoneUseSsaa,
+                minProduct: screentoneMinProduct,
+                fractionalDot: screentoneFractionalDot,
+            })
+            const currentDot = options.dot_size
+            changeValue({
+                dot_size: Array.isArray(currentDot) ? currentDot.map(() => params.dot_size) : params.dot_size,
+                ssaa_scale: params.ssaa_scale,
+                disable_auto_dot: params.disable_auto_dot,
+            })
+            toast.success(t('nodes.screentone.auto-applied', { height: detected.height, dot: params.dot_size }))
+        } catch (error) {
+            console.error("Failed to auto-detect screentone params:", error)
+            toast.error(t('nodes.screentone.auto-failed'))
+        } finally {
+            setScanning(false)
+        }
+    }
+
     const mode = options.halftone_mode
     const channelCount = mode === "cmyk" ? 4 : mode === "rgb" ? 3 : 1
 
@@ -64,10 +122,19 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
         return Array(length).fill(value)
     }
 
-    const getAutoDot = (dot: number): number | null => {
-        if (!options.ssaa_scale || options.ssaa_scale <= 1) return null
-        if (options.disable_auto_dot === true) return null
-        return Math.floor(dot * options.ssaa_scale)
+    const getAutoDotHint = (dot: number): { text: string; tooltip: string } | null => {
+        const ssaa = options.ssaa_scale
+        if (!ssaa || ssaa <= 1) return null
+        if (options.disable_auto_dot === true) {
+            return {
+                text: `~${(dot / ssaa).toFixed(1)}`,
+                tooltip: t('nodes.screentone.auto-dot-effective-tooltip')
+            }
+        }
+        return {
+            text: `~${Math.floor(dot * ssaa)}`,
+            tooltip: t('nodes.screentone.auto-dot-multiplied-tooltip')
+        }
     }
 
     const dotSizes = ensureArray(options.dot_size, channelCount, 6)
@@ -108,9 +175,10 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                                         value={dotSizes[i]}
                                         onChange={(e) => updateArrayField("dot_size", i, Number.parseInt(e.target.value))}
                                     />
-                                    {getAutoDot(dotSizes[i]) !== null && (
-                                        <span className="text-sm text-muted-foreground shrink-0">~{getAutoDot(dotSizes[i])}</span>
-                                    )}
+                                    {(() => {
+                                        const hint = getAutoDotHint(dotSizes[i])
+                                        return hint ? <AutoDotHint hint={hint} className="text-sm text-muted-foreground shrink-0" /> : null
+                                    })()}
                                 </div>
                             </div>
                             <NumberInput
@@ -151,7 +219,8 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
 
     return (
         <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
+            <div className="flex items-end justify-between gap-3">
+                <div className="flex flex-col gap-2">
                 <Label>{t('nodes.screentone.halftone-mode')}</Label>
                 <Select
                     onValueChange={(value) => {
@@ -198,6 +267,13 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                         </SelectGroup>
                     </SelectContent>
                 </Select>
+                </div>
+                {showAutoParams && (
+                    <Button variant="outline" onClick={() => void handleAutoParams()} disabled={scanning}>
+                        {scanning ? <IconLoader2 className="animate-spin" /> : <IconWand />}
+                        {t('nodes.screentone.auto-params')}
+                    </Button>
+                )}
             </div>
             <Separator/>
 
@@ -262,11 +338,10 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                                         })
                                     }}
                                 />
-                                {getAutoDot(options.dot_size as number) !== null && (
-                                    <span className="text-sm text-muted-foreground text-right tabular-nums">~{getAutoDot(options.dot_size as number)}
-
-                                    </span>
-                                )}
+                                {(() => {
+                                    const hint = getAutoDotHint(options.dot_size as number)
+                                    return hint ? <AutoDotHint hint={hint} className="text-sm text-muted-foreground text-right tabular-nums" /> : null
+                                })()}
                             </div>
                         </div>
                     </div>
@@ -283,10 +358,11 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                             className="min-w-[180px]"
                             step="0.1"
                             min="1"
+                            decrementDisabled={options.ssaa_scale == null}
                             placeholder={t('nodes.screentone.ssaa-scale-placeholder')}
                             value={options.ssaa_scale ?? ""}
-                            onInput={(e) => {
-                                const raw = (e.target as HTMLInputElement).value
+                            onChange={(e) => {
+                                const raw = e.target.value
 
                                 if (raw === "") {
                                     changeValue({ssaa_scale: undefined})
