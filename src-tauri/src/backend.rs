@@ -58,10 +58,29 @@ pub(crate) struct BackendHandle {
     pub(crate) stopping: Arc<AtomicBool>,
 }
 
+/// Kills a process together with all of its descendants.
+#[cfg(windows)]
+fn kill_process_tree(pid: u32) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let _ = std::process::Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+}
+
+#[cfg(not(windows))]
+fn kill_process_tree(_pid: u32) {}
+
+fn force_kill_handle(handle: BackendHandle) {
+    handle.stopping.store(true, Ordering::SeqCst);
+    kill_process_tree(handle.child.pid());
+    let _ = handle.child.kill();
+}
+
 pub(crate) fn kill_backend(app: &tauri::AppHandle, state: &BackendProcess) {
     if let Some(handle) = lock(&state.0).take() {
-        handle.stopping.store(true, Ordering::SeqCst);
-        let _ = handle.child.kill();
+        force_kill_handle(handle);
         push_log(app, "info", "Backend process killed");
     }
 }
@@ -249,6 +268,23 @@ pub(crate) fn stop_backend(
     kill_backend(&app, &backend_state);
     *lock(&port_state.0) = None;
     emit_status(&app, Stage::Idle, "Backend stopped", None);
+    Ok(())
+}
+
+/// Hard stop: force-kills the backend and every child process it spawned. Unlike
+/// `stop_backend` this does not rely on the pipeline cooperating with cancellation.
+#[tauri::command]
+pub(crate) fn hard_stop_backend(
+    app: tauri::AppHandle,
+    backend_state: tauri::State<'_, BackendProcess>,
+    port_state: tauri::State<'_, BackendPort>,
+) -> Result<(), String> {
+    if let Some(handle) = lock(&backend_state.0).take() {
+        force_kill_handle(handle);
+        push_log(&app, "info", "Backend force-stopped (process tree killed)");
+    }
+    *lock(&port_state.0) = None;
+    emit_status(&app, Stage::Idle, "Backend force-stopped", None);
     Ok(())
 }
 

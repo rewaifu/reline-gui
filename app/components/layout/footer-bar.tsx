@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next"
 import { useBackendContext } from "~/components/providers/backend-provider"
 import { ServerPopover } from "~/components/layout/server-popover"
 import { useModelDownloads } from "~/components/providers/model-downloads-provider"
+import { usePreferences } from "~/components/providers/preferences-provider"
 import { useSettings } from "~/components/providers/settings-provider"
 import { useSoundPlaying } from "~/hooks/useSoundPlaying"
 import { stopSound } from "~/lib/audio"
@@ -96,9 +97,11 @@ export function TauriFooter() {
     metrics,
     handleStart,
     handleStop,
+    handleHardStop,
     handleOpenFolder,
   } = useBackendContext()
   const { openSettings } = useSettings()
+  const { forceStopBackend } = usePreferences()
   const { activeCount } = useModelDownloads()
   const soundPlaying = useSoundPlaying()
   const nodes = useContext(NodesContext)
@@ -124,7 +127,8 @@ export function TauriFooter() {
   const playAmber = { borderColor: "#f59e0b", color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.1)" }
   const grayStyle = { borderColor: GRAY, color: GRAY, backgroundColor: "rgba(107,114,128,0.1)" }
   const stopRed = { borderColor: "#ef4444", color: "#ef4444", backgroundColor: "rgba(239,68,68,0.1)" }
-  const stopDisabled = depsUnavailable || !pipelineActive
+  const stopDisabled = depsUnavailable || (forceStopBackend ? stage === "idle" : !pipelineActive)
+  const stopStyle = forceStopBackend ? (stopDisabled ? grayStyle : stopRed) : pipelineActive ? stopRed : grayStyle
 
   const isError = stage === "error"
 
@@ -165,9 +169,11 @@ export function TauriFooter() {
       <Button
         size="icon-lg"
         variant="outline"
-        style={pipelineActive ? stopRed : grayStyle}
-        onClick={pipelineActive ? handleStop : undefined}
+        style={stopStyle}
+        onClick={stopDisabled ? undefined : forceStopBackend ? handleHardStop : handleStop}
         disabled={stopDisabled}
+        title={forceStopBackend ? t("backend.forceStop") : t("backend.stop")}
+        aria-label={forceStopBackend ? t("backend.forceStop") : t("backend.stop")}
       >
         <IconPlayerStop />
       </Button>

@@ -52,6 +52,7 @@ export interface Preferences {
   screentoneUseSsaa: boolean
   screentoneMinProduct: number
   screentoneFractionalDot: boolean
+  forceStopBackend: boolean
   nodeDefaults: NodeDefaults
   defaultReaderPath: string
   defaultWriterPath: string
@@ -74,6 +75,7 @@ export interface PreferencesContextValue extends GeneralPreferences {
   setScreentoneUseSsaa: (value: boolean) => void
   setScreentoneMinProduct: (value: number) => void
   setScreentoneFractionalDot: (value: boolean) => void
+  setForceStopBackend: (value: boolean) => void
   setDefaultReaderPath: (value: string) => void
   setDefaultWriterPath: (value: string) => void
   setModelsFolder: (value: string) => void

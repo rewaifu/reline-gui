@@ -179,6 +179,8 @@ export function PreferencesTab() {
     setScreentoneMinProduct,
     screentoneFractionalDot,
     setScreentoneFractionalDot,
+    forceStopBackend,
+    setForceStopBackend,
     defaultReaderPath,
     setDefaultReaderPath,
     defaultWriterPath,
@@ -339,6 +341,23 @@ export function PreferencesTab() {
               <span className="text-xs text-muted-foreground">
                 {loading ? t("backend.preferences.modelsLoading") : t("backend.preferences.modelsCount", { count: localModels.length })}
               </span>
+            </CardContent>
+          </Card>
+        )}
+
+        {isTauri && (
+          <Card>
+            <CardHeader className="select-none">
+              <CardTitle>{t("backend.preferences.backendTitle")}</CardTitle>
+              <CardDescription>{t("backend.preferences.backendDesc")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <Field orientation="horizontal">
+                  <Checkbox id="pref-force-stop" checked={forceStopBackend} onCheckedChange={(checked) => setForceStopBackend(!!checked)} />
+                  <FieldLabel htmlFor="pref-force-stop">{t("backend.preferences.forceStopBackend")}</FieldLabel>
+                </Field>
+              </FieldGroup>
             </CardContent>
           </Card>
         )}

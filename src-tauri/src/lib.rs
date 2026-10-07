@@ -46,6 +46,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backend::initialize,
             backend::stop_backend,
+            backend::hard_stop_backend,
             backend::get_backend_port,
             commands::check_port_free,
             commands::open_folder,

@@ -32,6 +32,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   screentoneUseSsaa: true,
   screentoneMinProduct: 10,
   screentoneFractionalDot: false,
+  forceStopBackend: false,
   nodeDefaults: {},
   defaultReaderPath: "",
   defaultWriterPath: "",
@@ -122,6 +123,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPreferences((prev) => ({ ...prev, screentoneFractionalDot: value }))
   }, [])
 
+  const setForceStopBackend = useCallback((value: boolean) => {
+    setPreferences((prev) => ({ ...prev, forceStopBackend: value }))
+  }, [])
+
   const setDefaultReaderPath = useCallback((value: string) => {
     setPreferences((prev) => ({ ...prev, defaultReaderPath: value }))
   }, [])
@@ -176,6 +181,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       screentoneUseSsaa: preferences.screentoneUseSsaa,
       screentoneMinProduct: preferences.screentoneMinProduct,
       screentoneFractionalDot: preferences.screentoneFractionalDot,
+      forceStopBackend: preferences.forceStopBackend,
       nodeDefaults: preferences.nodeDefaults,
       defaultReaderPath: preferences.defaultReaderPath,
       defaultWriterPath: preferences.defaultWriterPath,
@@ -183,6 +189,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setScreentoneUseSsaa,
       setScreentoneMinProduct,
       setScreentoneFractionalDot,
+      setForceStopBackend,
       setDefaultReaderPath,
       setDefaultWriterPath,
       setModelsFolder,
@@ -195,6 +202,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       preferences.screentoneUseSsaa,
       preferences.screentoneMinProduct,
       preferences.screentoneFractionalDot,
+      preferences.forceStopBackend,
       preferences.nodeDefaults,
       preferences.defaultReaderPath,
       preferences.defaultWriterPath,
@@ -202,6 +210,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setScreentoneUseSsaa,
       setScreentoneMinProduct,
       setScreentoneFractionalDot,
+      setForceStopBackend,
       setDefaultReaderPath,
       setDefaultWriterPath,
       setModelsFolder,

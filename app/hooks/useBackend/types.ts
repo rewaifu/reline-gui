@@ -65,6 +65,7 @@ export interface UseBackendReturn {
   handleStop: () => void
   handleStartServer: () => Promise<void>
   handleStopServer: () => void
+  handleHardStop: () => void
   handleCheckPortFree: (port: number) => Promise<boolean>
   handleOpenFolder: (path: string) => Promise<void>
   handleCheckDeps: () => Promise<void>

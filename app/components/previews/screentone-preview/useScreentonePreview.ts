@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useBackendContext } from "~/components/providers/backend-provider"
 import { useLocalModels } from "~/components/providers/local-models-provider"
+import { usePreferences } from "~/components/providers/preferences-provider"
 import type { CompareMode } from "~/components/previews/preview-canvas"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { baseName, toBlobUrl } from "~/lib/image-files"
@@ -25,7 +26,8 @@ import { SMALL_IMAGE_HEIGHT, type SelectedImage, type Stage } from "./shared"
 export function useScreentonePreview() {
   const { t } = useTranslation()
   const isTauri = useIsTauri()
-  const { runPreviewPipeline, cancelPreviewPipeline, busy, depsReady, canQueue } = useBackendContext()
+  const { runPreviewPipeline, cancelPreviewPipeline, handleHardStop, busy, depsReady, canQueue } = useBackendContext()
+  const { forceStopBackend } = usePreferences()
   const nodes = useContext(NodesContext)
   const { localModels } = useLocalModels()
 
@@ -214,7 +216,11 @@ export function useScreentonePreview() {
 
   const cancelPreprocess = () => {
     if (!preprocessing) return
-    cancelPreviewPipeline()
+    if (forceStopBackend) {
+      handleHardStop()
+    } else {
+      cancelPreviewPipeline()
+    }
     setPreprocessing(false)
     toast.info(t("screentone-preview.cancelled"))
   }

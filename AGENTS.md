@@ -95,7 +95,8 @@ The app has a desktop variant via Tauri V2. The Rust backend at `src-tauri/src/l
 | Command | Signature | Description |
 |---|---|---|
 | `initialize` | `async fn initialize(app, backend_state, port_state, port: Option<u16>) -> Result<(), String>` | Checks deps installed, starts uvicorn. Emits `backend-status` events throughout. |
-| `stop_backend` | `fn stop_backend(app, backend_state, port_state) -> Result<(), String>` | Kills backend process, emits `Stage::Idle`. |
+| `stop_backend` | `fn stop_backend(app, backend_state, port_state) -> Result<(), String>` | Kills backend process (and its process tree), emits `Stage::Idle`. |
+| `hard_stop_backend` | `fn hard_stop_backend(app, backend_state, port_state) -> Result<(), String>` | Force-kills the backend and all child processes immediately (no cooperative cancel), emits `Stage::Idle`. |
 | `get_backend_port` | `fn get_backend_port(state) -> Option<u16>` | Returns current backend port or `null`. |
 | `check_port_free` | `fn check_port_free(port: u16) -> bool` | Returns whether the port can be bound. |
 | `open_folder` | `fn open_folder(path: String) -> Result<(), String>` | Opens a folder in the OS file manager. |
@@ -179,7 +180,7 @@ Frontend state lives in `app/components/providers/model-downloads-provider.tsx` 
 - **Non-Tauri**: regular footer (Colab, GitHub, Discord links)
 - **Tauri**: `h-15` bar with Run/Stop buttons on the left:
   - **Run** (`IconPlayerPlay`): green border/bg → amber (`IconLoader2 animate-spin`) during processing, calls `invoke("initialize")`
-  - **Stop** (`IconPlayerStop`): gray/disabled when idle → red when processing, calls `invoke("stop_backend")`
+  - **Stop** (`IconPlayerStop`): gray/disabled when idle → red when processing. Default: cooperative cancel via the websocket (`{action:"cancel"}`) with optimistic UI reset. When the **Force stop** preference (`backend.preferences.forceStopBackend`, Preferences tab) is enabled, it instead calls `invoke("hard_stop_backend")` to immediately kill the backend process tree. The same preference also makes the Screentone preview's cancel button do a hard stop instead of a cooperative cancel.
 
 ### Dev
 
