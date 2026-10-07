@@ -266,7 +266,7 @@ export const ru = {
   backend: {
     settings: "Настройки",
     dependencies: "Зависимости",
-    pipelineComplete:"Обработка завершена",
+    pipelineComplete: "Обработка завершена",
     pipelineCancelled: "Обработка отменена",
     tabs: {
       dependencies: "Зависимости",
@@ -390,6 +390,7 @@ export const ru = {
       noFolder: "Папка не выбрана",
       folderTitle: "Выберите папку с моделями",
       filter: "Фильтр по имени...",
+      recommended: "Рекомендуемые",
       noMatches: "Модели не найдены",
       loading: "Загрузка списка моделей...",
       installed: "Установлена",

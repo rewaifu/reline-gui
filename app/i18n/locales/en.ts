@@ -266,7 +266,7 @@ export const en = {
   backend: {
     settings: "Settings",
     dependencies: "Dependencies",
-    pipelineComplete:"Pipeline complete",
+    pipelineComplete: "Pipeline complete",
     pipelineCancelled: "Processing cancelled",
     tabs: {
       dependencies: "Dependencies",
@@ -390,6 +390,7 @@ export const en = {
       noFolder: "No folder selected",
       folderTitle: "Select models folder",
       filter: "Filter by name...",
+      recommended: "Recommended",
       noMatches: "No models match your search",
       loading: "Loading models...",
       installed: "Installed",

@@ -2,15 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { IconDownload, IconFolderOpen, IconLoader2, IconPlayerStop, IconRefresh, IconSearch, IconTrash } from "@tabler/icons-react"
+import { IconChevronRight, IconDownload, IconFolderOpen, IconLoader2, IconPlayerStop, IconRefresh, IconSearch, IconTrash } from "@tabler/icons-react"
 import { modelBasename, useLocalModels } from "~/components/providers/local-models-provider.tsx"
 import { useModelDownloads } from "~/components/providers/model-downloads-provider.tsx"
 import { Button } from "~/components/ui/button.tsx"
 import { Card } from "~/components/ui/card.tsx"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible.tsx"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "~/components/ui/dialog.tsx"
 import { Input } from "~/components/ui/input.tsx"
 import { Progress } from "~/components/ui/progress.tsx"
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area.tsx"
+import { RECOMMENDED_MODELS } from "~/constants.ts"
+import { groupModels } from "~/lib/model-groups.ts"
 import { remoteModelsQueryOptions } from "~/lib/queries.ts"
 import { cn } from "~/lib/utils.ts"
 import type { ModelFile } from "~/types/api.ts"
@@ -21,6 +24,10 @@ function remoteBasename(filename: string): string {
   return filename.replace(ARCHIVE_EXT, "").toLowerCase()
 }
 
+function remoteModelName(filename: string): string {
+  return remoteBasename(filename.split(/[\\/]/).pop() ?? filename)
+}
+
 export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation()
   const { modelsFolder, setModelsFolder, localModels } = useLocalModels()
@@ -28,15 +35,36 @@ export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; o
   const { data: remoteModels, isLoading, isError, error, refetch, isFetching } = useQuery({ ...remoteModelsQueryOptions, enabled: open })
   const [deleting, setDeleting] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
+  const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>({})
   const notifiedRef = useRef<Set<string>>(new Set())
+
+  const recommendedLabel = t("backend.models.recommended")
+  const setGroupOpen = (value: string, open: boolean) => setGroupOverrides((prev) => ({ ...prev, [value]: open }))
 
   const installedNames = useMemo(() => new Set(localModels.map(modelBasename)), [localModels])
 
   const filteredModels = useMemo(() => {
     const query = filter.trim().toLowerCase()
     if (!query) return remoteModels ?? []
-    return (remoteModels ?? []).filter((item) => remoteBasename(item.filename).includes(query))
+    return (remoteModels ?? []).filter((item) => remoteModelName(item.filename).includes(query))
   }, [remoteModels, filter])
+
+  const groupedModels = useMemo(() => {
+    const byName = new Map(filteredModels.map((item) => [remoteModelName(item.filename), item]))
+    const recommended: ModelFile[] = []
+    for (const name of RECOMMENDED_MODELS) {
+      const item = byName.get(name)
+      if (item) {
+        recommended.push(item)
+        byName.delete(name)
+      }
+    }
+    const rest = groupModels([...byName.keys()]).flatMap((group) => {
+      const items = group.items.map((name) => byName.get(name)).filter((item): item is ModelFile => Boolean(item))
+      return items.length > 0 ? [{ value: group.value, items }] : []
+    })
+    return recommended.length > 0 ? [{ value: t("backend.models.recommended"), items: recommended }, ...rest] : rest
+  }, [filteredModels, t])
 
   useEffect(() => {
     for (const [filename, state] of Object.entries(downloads)) {
@@ -91,24 +119,99 @@ export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; o
     }
   }
 
+  const renderModelCard = (item: ModelFile) => {
+    const name = remoteBasename(item.filename)
+    const isInstalled = installedNames.has(name)
+    const state = downloads[item.filename]
+    const status = state?.status
+    const isActive = status === "downloading" || status === "extracting"
+    const isDeleting = deleting === name
+    const progress = isActive ? (state?.progress ?? 0) : isInstalled || status === "done" ? 100 : 0
+    const statusLabel =
+      status === "downloading"
+        ? `${progress}%`
+        : status === "extracting"
+          ? t("backend.models.extracting")
+          : status === "cancelled"
+            ? t("backend.models.cancelled")
+            : status === "error"
+              ? state?.error === "no-folder"
+                ? t("backend.models.noFolderError")
+                : state?.error?.startsWith("No internet connection")
+                  ? t("backend.models.noInternetError")
+                  : t("backend.models.downloadError")
+              : isInstalled || status === "done"
+                ? t("backend.models.installed")
+                : t("backend.models.notInstalled")
+
+    return (
+      <Card key={item.filename} size="sm" className={cn("flex-row items-center gap-3 px-4 py-1", isActive && "ring-2 ring-border")}>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">{name}</div>
+          <div className="truncate text-xs text-muted-foreground">{statusLabel}</div>
+        </div>
+
+        <Progress value={progress} className="w-24 shrink-0 sm:w-40" indicatorClassName={status === "error" ? "bg-red-500" : "bg-green-500"} />
+
+        <div className="flex w-16 shrink-0 justify-end gap-1">
+          {isActive ? (
+            <Button
+              size="icon-lg"
+              variant="destructive"
+              onClick={() => cancelDownload(item.filename)}
+              aria-label={t("backend.models.cancel")}
+              title={t("backend.models.cancel")}
+            >
+              <IconPlayerStop />
+            </Button>
+          ) : isInstalled ? (
+            <Button
+              size="icon-lg"
+              variant="ghost"
+              disabled={isDeleting}
+              onClick={() => void handleDelete(item)}
+              aria-label={t("backend.models.delete")}
+              title={t("backend.models.delete")}
+            >
+              {isDeleting ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
+            </Button>
+          ) : (
+            <Button
+              size="icon-lg"
+              variant="ghost"
+              onClick={() => handleDownload(item)}
+              aria-label={t("backend.models.download")}
+              title={t("backend.models.download")}
+            >
+              {state?.status === "error" || state?.status === "cancelled" ? <IconRefresh /> : <IconDownload />}
+            </Button>
+          )}
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] w-full flex-col sm:max-w-2xl">
+      <DialogContent className="flex max-h-[85vh] w-full flex-col select-none sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="pr-8">{t("backend.models.title")}</DialogTitle>
           <DialogDescription className="sr-only">{t("backend.models.title")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2">
-          <Input readOnly value={modelsFolder || t("backend.models.noFolder")} className="flex-1" />
-          <Button variant="outline" size="icon" onClick={handleChooseFolder} aria-label={t("backend.models.folderTitle")}>
-            <IconFolderOpen />
-          </Button>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <Input readOnly value={modelsFolder || t("backend.models.noFolder")} aria-invalid={!modelsFolder || undefined} className="flex-1" />
+            <Button variant="outline" size="icon" onClick={handleChooseFolder} aria-label={t("backend.models.folderTitle")}>
+              <IconFolderOpen />
+            </Button>
+          </div>
+          {!modelsFolder && <p className="text-sm text-destructive">{t("backend.models.noFolderError")}</p>}
         </div>
 
         <div className="relative">
           <IconSearch className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("backend.models.filter")} className="pl-8" />
+          <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("backend.models.filter")} className="pl-8 select-text" />
         </div>
 
         <ScrollArea
@@ -131,82 +234,19 @@ export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; o
               </div>
             ) : isLoading || !remoteModels ? (
               <div className="py-8 text-center text-sm text-muted-foreground">{t("backend.models.loading")}</div>
-            ) : filteredModels.length === 0 ? (
+            ) : groupedModels.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">{t("backend.models.noMatches")}</div>
             ) : (
-              filteredModels.map((item) => {
-                const name = remoteBasename(item.filename)
-                const isInstalled = installedNames.has(name)
-                const state = downloads[item.filename]
-                const status = state?.status
-                const isActive = status === "downloading" || status === "extracting"
-                const isDeleting = deleting === name
-                const progress = isActive ? (state?.progress ?? 0) : isInstalled || status === "done" ? 100 : 0
-                const statusLabel =
-                  status === "downloading"
-                    ? `${progress}%`
-                    : status === "extracting"
-                      ? t("backend.models.extracting")
-                      : status === "cancelled"
-                        ? t("backend.models.cancelled")
-                        : status === "error"
-                          ? state?.error === "no-folder"
-                            ? t("backend.models.noFolderError")
-                            : state?.error?.startsWith("No internet connection")
-                              ? t("backend.models.noInternetError")
-                              : t("backend.models.downloadError")
-                          : isInstalled || status === "done"
-                            ? t("backend.models.installed")
-                            : t("backend.models.notInstalled")
-
+              groupedModels.map((group) => {
+                const isOpen = groupOverrides[group.value] ?? group.value === recommendedLabel
                 return (
-                  <Card key={item.filename} size="sm" className={cn("flex-row items-center gap-3 px-4 py-1", isActive && "ring-2 ring-border")}>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{name}</div>
-                      <div className="truncate text-xs text-muted-foreground">{statusLabel}</div>
-                    </div>
-
-                    <Progress
-                      value={progress}
-                      className="w-24 shrink-0 sm:w-40"
-                      indicatorClassName={status === "error" ? "bg-red-500" : "bg-green-500"}
-                    />
-
-                    <div className="flex w-16 shrink-0 justify-end gap-1">
-                      {isActive ? (
-                        <Button
-                          size="icon-lg"
-                          variant="destructive"
-                          onClick={() => cancelDownload(item.filename)}
-                          aria-label={t("backend.models.cancel")}
-                          title={t("backend.models.cancel")}
-                        >
-                          <IconPlayerStop />
-                        </Button>
-                      ) : isInstalled ? (
-                        <Button
-                          size="icon-lg"
-                          variant="ghost"
-                          disabled={isDeleting}
-                          onClick={() => void handleDelete(item)}
-                          aria-label={t("backend.models.delete")}
-                          title={t("backend.models.delete")}
-                        >
-                          {isDeleting ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="icon-lg"
-                          variant="ghost"
-                          onClick={() => handleDownload(item)}
-                          aria-label={t("backend.models.download")}
-                          title={t("backend.models.download")}
-                        >
-                          {state?.status === "error" || state?.status === "cancelled" ? <IconRefresh /> : <IconDownload />}
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
+                  <Collapsible key={group.value} open={isOpen} onOpenChange={(open) => setGroupOpen(group.value, open)}>
+                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-1 px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase outline-none hover:text-foreground">
+                      {group.value}
+                      <IconChevronRight className={cn("size-3.5 transition-transform", isOpen && "rotate-90")} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="flex flex-col gap-2 pt-2">{group.items.map((item) => renderModelCard(item))}</CollapsibleContent>
+                  </Collapsible>
                 )
               })
             )}

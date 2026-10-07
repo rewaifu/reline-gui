@@ -2,7 +2,8 @@ import {
   CannyType,
   CvtType,
   DotType,
-  DType, HalftoneMode,
+  DType,
+  HalftoneMode,
   NodeType,
   ReaderNodeMode,
   FilterType,
@@ -11,7 +12,16 @@ import {
   WriterNodeFormat,
 } from "./types/enums"
 import type { NodeOptions, StackNode } from "./types/node"
-import {IconBolt, IconFolderDown, IconFolderUp, IconGrain, IconArrowsDiagonal, IconChartArrows, IconBorderStyle2, IconPalette} from "@tabler/icons-react"
+import {
+  IconBolt,
+  IconFolderDown,
+  IconFolderUp,
+  IconGrain,
+  IconArrowsDiagonal,
+  IconChartArrows,
+  IconBorderStyle2,
+  IconPalette,
+} from "@tabler/icons-react"
 
 export const MODELS_URL = "https://mdb.yor.ovh/v1/files"
 
@@ -64,6 +74,15 @@ export const MODELS = [
   "4x_umzi_digital_art_rplksr_v2",
   "4x_MangaScale_v1_mosr",
   "4x_umzi_decompress_mosr",
+]
+
+export const RECOMMENDED_MODELS = [
+  "4x_wtp_mangascale_gfisrv2",
+  "4x_dwtp_ds_moesr_v2",
+  "4x_dwtp_ds_atdl3",
+  "1x_umzi_digital_decompress_gaterv3_1",
+  "2x_enhancr_da_smosr_v1",
+  "4x_illustrationjanai_v3detail_dat2_28k_bf16",
 ]
 
 export const DEFAULT_COLLAPSED = true
@@ -184,5 +203,4 @@ export const NODE_ICONS: Record<NodeType, React.ElementType> = {
   [NodeType.UPSCALE]: IconBolt,
   [NodeType.RESIZE]: IconArrowsDiagonal,
   [NodeType.SCREENTONE]: IconGrain,
-};
-
+}
