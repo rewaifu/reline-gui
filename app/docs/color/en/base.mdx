@@ -1,1 +1,29 @@
-# COLOR EN
+# Color Upscaling
+
+In color upscaling, the only real difficulty is choosing a model; otherwise the configs almost always look like this:
+
+1. <NodeRef type="folder_reader" />
+2. <NodeRef type="upscale" /> — upscale with the chosen model;
+3. <NodeRef type="level" /> — remove upscaling noise using <code><T k="nodes.level.high-input"/></code> = `253`;
+4. <NodeRef type="resize" /> (optional)
+5. <NodeRef type="folder_writer" />
+
+<br/>
+___
+<br/>
+
+# On choosing models:
+
+### Just cleaning up noise
+If you only need to remove a bit of noise without upscaling:
+* `1x_umzi_digital_decompress_gaterv3_1`
+
+### Webtoons
+For a slight upscale of webtoons, these models work well:
+* `2x_enhancr_da_figsr`
+* `2x_enhancr_da_smosr_v1`
+
+### Color manga and art
+For illustrations and color art:
+* `4x_IllustrationJaNai_V3detail_DAT2_28k_bf16` — the best option, but the model is quite heavy
+* `4x_umzi_digital_art_mosr_l` — a lighter option

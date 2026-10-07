@@ -119,7 +119,7 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
       {
         slug: "color-base",
         title: "docs.articles.common",
-        sectionId: "bwscale",
+        sectionId: "colorscale",
         icon: IconInfoCircle,
         components: {
           en: ColorBaseArticleEn,
