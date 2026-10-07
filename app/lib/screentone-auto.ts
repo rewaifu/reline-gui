@@ -39,6 +39,11 @@ export async function measureImageHeight(path: string): Promise<number> {
   }
 }
 
+export function measureImageFileHeight(file: File): Promise<number> {
+  const url = URL.createObjectURL(file)
+  return loadImageHeight(url).finally(() => URL.revokeObjectURL(url))
+}
+
 export function mostCommonHeight(heights: number[], minShare = AUTO_SCREENTONE_MIN_SHARE): number | null {
   if (heights.length === 0) return null
   const counts = new Map<number, number>()
@@ -62,17 +67,26 @@ export interface DominantHeight {
   sampled: number
 }
 
-export async function detectDominantHeight(folderPath: string): Promise<DominantHeight | null> {
+export type DominantHeightResult = ({ status: "ok" } & DominantHeight) | { status: "empty" } | { status: "not-found" } | { status: "failed" }
+
+export async function detectDominantHeight(folderPath: string): Promise<DominantHeightResult> {
   const trimmed = folderPath.trim()
-  if (!trimmed) return null
+  if (!trimmed) return { status: "failed" }
+
+  try {
+    const { exists } = await import("@tauri-apps/plugin-fs")
+    if (!(await exists(trimmed))) return { status: "not-found" }
+  } catch {
+    return { status: "failed" }
+  }
 
   let images: string[]
   try {
     images = await listFolderImages(trimmed)
   } catch {
-    return null
+    return { status: "failed" }
   }
-  if (images.length === 0) return null
+  if (images.length === 0) return { status: "empty" }
 
   const heights = (
     await Promise.all(
@@ -86,12 +100,12 @@ export async function detectDominantHeight(folderPath: string): Promise<Dominant
     )
   ).filter((height): height is number => height != null)
 
-  if (heights.length === 0) return null
+  if (heights.length === 0) return { status: "failed" }
 
   const height = mostCommonHeight(heights)
-  if (height === null) return null
+  if (height === null) return { status: "failed" }
 
-  return { height, sampled: heights.length }
+  return { status: "ok", height, sampled: heights.length }
 }
 
 export function suggestDotSizeFloat(height: number): number {

@@ -28,6 +28,7 @@ import { toast } from "sonner"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { usePreferences } from "~/components/providers/preferences-provider"
 import { computeAutoParams, detectDominantHeight } from "~/lib/screentone-auto"
+import { ScreentoneAutoDialog } from "~/components/nodes/screentone-auto-dialog"
 
 function AutoDotHint({ hint, className }: { hint: { text: string; tooltip: string }; className?: string }) {
     return (
@@ -46,6 +47,7 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
     const isTauri = useIsTauri()
     const { screentoneUseSsaa, screentoneMinProduct, screentoneFractionalDot } = usePreferences()
     const [scanning, setScanning] = useState(false)
+    const [autoDialogOpen, setAutoDialogOpen] = useState(false)
     const node = nodes.find((item) => item.id === id)
     if (!node) {
         return null
@@ -77,10 +79,29 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
         })
     }
 
-    const showAutoParams = isTauri && !idSuffix && dispatchProp === undefined
+    const showAutoParams = !idSuffix && dispatchProp === undefined
+
+    const applyAutoParams = (height: number) => {
+        const params = computeAutoParams(height, {
+            useSsaa: screentoneUseSsaa,
+            minProduct: screentoneMinProduct,
+            fractionalDot: screentoneFractionalDot,
+        })
+        const currentDot = options.dot_size
+        changeValue({
+            dot_size: Array.isArray(currentDot) ? currentDot.map(() => params.dot_size) : params.dot_size,
+            ssaa_scale: params.ssaa_scale,
+            disable_auto_dot: params.disable_auto_dot,
+        })
+        toast.success(t('nodes.screentone.auto-applied', { height, dot: params.dot_size }))
+    }
 
     const handleAutoParams = async () => {
         if (scanning) return
+        if (!isTauri) {
+            setAutoDialogOpen(true)
+            return
+        }
         const reader = nodes.find((item) => item.type === NodeType.FOLDER_READER)
         const readerPath = reader ? (reader.options as FolderReaderNodeOptions).path : ""
         if (!readerPath.trim()) {
@@ -90,22 +111,19 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
         setScanning(true)
         try {
             const detected = await detectDominantHeight(readerPath)
-            if (!detected) {
+            if (detected.status === "not-found") {
+                toast.error(t('nodes.screentone.auto-folder-not-found'))
+                return
+            }
+            if (detected.status === "empty") {
+                toast.error(t('nodes.screentone.auto-no-images'))
+                return
+            }
+            if (detected.status !== "ok") {
                 toast.error(t('nodes.screentone.auto-failed'))
                 return
             }
-            const params = computeAutoParams(detected.height, {
-                useSsaa: screentoneUseSsaa,
-                minProduct: screentoneMinProduct,
-                fractionalDot: screentoneFractionalDot,
-            })
-            const currentDot = options.dot_size
-            changeValue({
-                dot_size: Array.isArray(currentDot) ? currentDot.map(() => params.dot_size) : params.dot_size,
-                ssaa_scale: params.ssaa_scale,
-                disable_auto_dot: params.disable_auto_dot,
-            })
-            toast.success(t('nodes.screentone.auto-applied', { height: detected.height, dot: params.dot_size }))
+            applyAutoParams(detected.height)
         } catch (error) {
             console.error("Failed to auto-detect screentone params:", error)
             toast.error(t('nodes.screentone.auto-failed'))
@@ -421,6 +439,9 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
                     <FieldLabel htmlFor={sid("auto-dot-check")}>{t('nodes.screentone.disable-auto-dot')}</FieldLabel>
                 </Field>
             </FieldGroup>
+            {showAutoParams && !isTauri && (
+                <ScreentoneAutoDialog open={autoDialogOpen} onOpenChange={setAutoDialogOpen} onApply={applyAutoParams} />
+            )}
         </div>
     )
 }

@@ -9,6 +9,7 @@ import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area"
+import { Separator } from "~/components/ui/separator"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { ensureNotificationPermission } from "~/lib/completion-feedback"
@@ -120,7 +121,7 @@ function NumberField({
   }
 
   return (
-    <div className="flex w-[240px] flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
@@ -128,6 +129,7 @@ function NumberField({
         min={min}
         max={max}
         step={1}
+        className="w-[240px]"
         value={local}
         onChange={(e) => setLocal(e.target.value)}
         onBlur={commit}
@@ -286,6 +288,7 @@ export function PreferencesTab() {
                     <FieldLabel htmlFor="pref-screentone-fractional">{t("backend.preferences.screentoneFractionalDot")}</FieldLabel>
                   </Field>
                 </FieldGroup>
+                <Separator />
                 <NumberField
                   id="pref-screentone-min-product"
                   label={t("backend.preferences.screentoneMinProduct")}
