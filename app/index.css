@@ -349,3 +349,15 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* base-ui renders a visually hidden input with `position: fixed; top: 0; left: 0`
+   when a Checkbox/Switch has no `name`. Inside the nodes list (which uses
+   `transform: translateZ(0)` for dnd) that transform becomes the containing
+   block, so focusing the input scrolls the list to the top. Pin it to the
+   control instead. */
+[data-slot="checkbox"] ~ input[aria-hidden="true"],
+[data-slot="switch"] ~ input[aria-hidden="true"] {
+  position: absolute !important;
+  top: auto !important;
+  left: auto !important;
+}
+
