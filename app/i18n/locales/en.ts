@@ -180,7 +180,10 @@ export const en = {
     dtype: "Data type",
     run: "Run preprocessing",
     skip: "Skip preprocessing",
+    "cancel-run": "Cancel preprocessing",
     processing: "Processing",
+    cancelled: "Preprocessing cancelled",
+    back: "Back to image selection",
     canny: "Canny",
     "dot-type": "Dot type",
     angle: "Angle",
@@ -264,6 +267,7 @@ export const en = {
     settings: "Settings",
     dependencies: "Dependencies",
     pipelineComplete:"Pipeline complete",
+    pipelineCancelled: "Processing cancelled",
     tabs: {
       dependencies: "Dependencies",
       preferences: "Preferences",

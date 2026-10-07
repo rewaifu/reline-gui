@@ -4,23 +4,28 @@ import { useBackendSocket } from "./socket"
 import { useBackendState } from "./state"
 import type { UseBackendReturn } from "./types"
 
-export type { BackendErrorInfo, PipelineMetrics, UseBackendReturn } from "./types"
+export type { BackendErrorInfo, PipelineMetrics, RunPhase, UseBackendReturn } from "./types"
+export { isPipelineCancelled, PipelineCancelledError } from "./types"
 
 export function useBackend(): UseBackendReturn {
   const state = useBackendState()
-  const { handleStart, handleStop, runPreviewPipeline } = useBackendSocket(state)
+  const { handleStart, handleStop, runPreviewPipeline, cancelPreviewPipeline } = useBackendSocket(state)
   const actions = useBackendActions(state)
 
   const isProcessing = PROCESSING_STAGES.includes(state.stage)
   const installingDeps = state.stage === "cloning" || state.stage === "creating_venv" || state.stage === "installing"
-  const busy = isProcessing || state.pipelineActive || state.runKind !== null
+  const busy = isProcessing || state.runState !== "idle"
+  const canQueue = state.runState === "idle" || state.runState === "stopping"
 
   return {
     stage: state.stage,
     isProcessing,
     installingDeps,
     busy,
+    runState: state.runState,
+    canQueue,
     runPreviewPipeline,
+    cancelPreviewPipeline,
     pipelineActive: state.pipelineActive,
     pipelineCompleted: state.pipelineCompleted,
     serverRunning: state.stage === "running",

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { IconLoader2, IconPlayerPlay } from "@tabler/icons-react"
+import { IconArrowLeft, IconLoader2, IconPlayerPlay } from "@tabler/icons-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,10 +35,12 @@ export function ScreentoneSelectStage({ preview }: { preview: ScreentonePreviewC
     dtype,
     setDtype,
     preprocessing,
+    canQueue,
     runPreprocess,
+    cancelPreprocess,
+    backToPicker,
     requestSkip,
     interfaceBusy,
-    controlsDisabled,
     depsReady,
     skipConfirmOpen,
     setSkipConfirmOpen,
@@ -50,6 +52,19 @@ export function ScreentoneSelectStage({ preview }: { preview: ScreentonePreviewC
   return (
     <div className="flex h-full min-h-0 gap-3 rounded-xl border p-3">
       <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={backToPicker}
+            disabled={preprocessing}
+            title={t("screentone-preview.back")}
+            aria-label={t("screentone-preview.back")}
+          >
+            <IconArrowLeft />
+          </Button>
+          <span className="truncate text-sm text-muted-foreground">{selected.name}</span>
+        </div>
         <div className="flex flex-1 min-h-0 overflow-y-auto">
           <div className="m-auto flex w-full max-w-md flex-col items-center gap-4 py-2">
             <img src={selected.url} alt={selected.name} className="max-h-48 max-w-full rounded-lg border object-contain" />
@@ -121,11 +136,11 @@ export function ScreentoneSelectStage({ preview }: { preview: ScreentonePreviewC
                 variant={preprocessing ? "outline" : "default"}
                 className={cn(preprocessing && "disabled:opacity-100")}
                 style={preprocessing ? AMBER_STYLE : undefined}
-                onClick={() => void runPreprocess()}
-                disabled={!model || controlsDisabled}
+                onClick={() => (preprocessing ? cancelPreprocess() : void runPreprocess())}
+                disabled={preprocessing ? false : !model || !depsReady || !canQueue}
               >
                 {preprocessing ? <IconLoader2 className="animate-spin" /> : <IconPlayerPlay />}
-                {preprocessing ? t("screentone-preview.processing") : t("screentone-preview.run")}
+                {preprocessing ? t("screentone-preview.cancel-run") : t("screentone-preview.run")}
               </Button>
               <Button variant="secondary" onClick={requestSkip} disabled={interfaceBusy}>
                 {t("screentone-preview.skip")}

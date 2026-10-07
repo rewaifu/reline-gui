@@ -86,7 +86,7 @@ export function TauriFooter() {
   const {
     stage,
     installingDeps,
-    busy,
+    canQueue,
     pipelineActive,
     pipelineCompleted,
     progress,
@@ -118,7 +118,7 @@ export function TauriFooter() {
   }, [pendingStart, pipelineActive, stage])
 
   const depsUnavailable = !depsReady || installingDeps
-  const startDisabled = depsUnavailable || busy
+  const startDisabled = depsUnavailable || !canQueue
   const playBusy = pendingStart || pipelineActive || stage === "starting"
   const playGreen = { borderColor: "#22c55e", color: "#22c55e", backgroundColor: "rgba(34,197,94,0.1)" }
   const playAmber = { borderColor: "#f59e0b", color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.1)" }

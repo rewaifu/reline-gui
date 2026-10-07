@@ -4,8 +4,8 @@ import { playCompletionSound, sendCompletionNotification } from "~/lib/completio
 import { nodesToString } from "~/lib/utils"
 import { PROCESSING_STAGES } from "./constants"
 import type { BackendState } from "./state"
-import type { RunKind } from "./types"
-import {t} from "i18next";
+import { PipelineCancelledError, type RunKind } from "./types"
+import { t } from "i18next"
 
 export function useBackendSocket(state: BackendState) {
   const {
@@ -13,7 +13,7 @@ export function useBackendSocket(state: BackendState) {
     port,
     setPipelineActive,
     setPipelineCompleted,
-    setRunKind,
+    setRunState,
     setProgress,
     setStatusMessage,
     setMetrics,
@@ -23,6 +23,8 @@ export function useBackendSocket(state: BackendState) {
     wsRef,
     pendingRunRef,
     activeRunRef,
+    stoppingRef,
+    socketReadyRef,
     wsErrorRef,
     lastProgressRef,
     lastProgressAtRef,
@@ -30,28 +32,113 @@ export function useBackendSocket(state: BackendState) {
     setLogs,
   } = state
 
+  // ── Run phase (drives UI gating) ──────────────────────────────
+  const syncRunState = useCallback(() => {
+    const active = activeRunRef.current
+    const pending = pendingRunRef.current
+    if (pending) setRunState("queued")
+    else if (active && stoppingRef.current) setRunState("stopping")
+    else if (active) setRunState("running")
+    else setRunState("idle")
+  }, [activeRunRef, pendingRunRef, stoppingRef, setRunState])
+
+  // Queues a run. Sends it immediately when the socket is ready and nothing is
+  // active; otherwise it waits in the single pending slot (depth 1).
   const enqueueRun = useCallback(
-    (config: string, kind: RunKind, resolve?: () => void, reject?: (error: Error) => void) => {
-      if (activeRunRef.current || pendingRunRef.current) {
+    (config: string, kind: RunKind, resolve?: () => void, reject?: (error: Error) => void): boolean => {
+      if (pendingRunRef.current) {
         reject?.(new Error("Another pipeline is already running"))
-        return
+        return false
       }
+      if (activeRunRef.current && !stoppingRef.current) {
+        reject?.(new Error("Another pipeline is already running"))
+        return false
+      }
+      const request = { config, kind, resolve, reject }
       const ws = wsRef.current
-      if (ws?.readyState === WebSocket.OPEN) {
-        activeRunRef.current = { config, kind, resolve, reject }
-        setRunKind(kind)
+      if (!activeRunRef.current && socketReadyRef.current && ws?.readyState === WebSocket.OPEN) {
+        activeRunRef.current = request
         ws.send(config)
       } else {
-        pendingRunRef.current = { config, kind, resolve, reject }
-        setRunKind(kind)
+        pendingRunRef.current = request
       }
+      syncRunState()
+      return true
     },
-    [activeRunRef, pendingRunRef, wsRef, setRunKind],
+    [activeRunRef, pendingRunRef, wsRef, socketReadyRef, stoppingRef, syncRunState],
   )
 
-  const sendConfig = useCallback(() => {
-    enqueueRun(nodesToString(nodesRef.current), "main")
-  }, [enqueueRun, nodesRef])
+  // Finishes the active run and promotes/holds the queued one.
+  const settleActive = useCallback(
+    (outcome: "done" | "error" | "cancelled" | "closed", message?: string) => {
+      const run = activeRunRef.current
+      activeRunRef.current = null
+      stoppingRef.current = false
+      // The server closes the connection after a terminal status; do not send the
+      // next run on this soon-to-be-dead socket.
+      socketReadyRef.current = false
+      const hasPending = pendingRunRef.current != null
+
+      if (run?.kind === "preview") {
+        if (outcome === "done") run.resolve?.()
+        else if (outcome === "cancelled") run.reject?.(new PipelineCancelledError())
+        else run.reject?.(new Error(message ?? "Pipeline error"))
+      } else if (run?.kind === "main") {
+        const pendingIsMain = pendingRunRef.current?.kind === "main"
+        if (outcome === "done") {
+          if (hasPending) {
+            setProgress(0)
+            setMetrics(null)
+            setPipelineActive(pendingIsMain)
+          } else {
+            setPipelineActive(false)
+            setPipelineCompleted(true)
+            setProgress(100)
+            setStatusMessage(t("backend.pipelineComplete"))
+            setMetrics((prev) => (prev ? { ...prev, processed: prev.total, etaSeconds: 0 } : prev))
+            toast.success(t("backend.pipelineComplete"))
+            const prefs = preferencesRef.current
+            if (prefs?.playSoundOnComplete) {
+              const cap = prefs.maxSoundDurationEnabled ? prefs.maxSoundDuration : 0
+              playCompletionSound(prefs.completionSound, cap, prefs.soundVolume)
+            }
+            if (prefs?.notifyOnComplete) {
+              void sendCompletionNotification("Reline Configurator", t("backend.pipelineComplete"), {
+                onlyWhenMinimized: prefs.notifyMode === "when-minimized",
+              })
+            }
+          }
+        } else if (outcome === "cancelled") {
+          setPipelineCompleted(false)
+          setStatusMessage("Pipeline cancelled")
+          setPipelineActive(pendingIsMain)
+        } else {
+          setPipelineCompleted(false)
+          if (outcome === "error") {
+            wsErrorRef.current = message ?? "Pipeline error"
+            setStatusMessage(message ?? "Pipeline error")
+            toast.error(message ?? "Pipeline error")
+          }
+          setPipelineActive(pendingIsMain)
+        }
+      }
+      syncRunState()
+    },
+    [
+      activeRunRef,
+      pendingRunRef,
+      stoppingRef,
+      socketReadyRef,
+      setPipelineActive,
+      setPipelineCompleted,
+      setProgress,
+      setStatusMessage,
+      setMetrics,
+      preferencesRef,
+      wsErrorRef,
+      syncRunState,
+    ],
+  )
 
   // ── WebSocket connection to running backend ───────────────────
   useEffect(() => {
@@ -62,20 +149,25 @@ export function useBackendSocket(state: BackendState) {
     let timer: ReturnType<typeof setTimeout> | null = null
     let stopped = false
 
+    const pump = (ws: WebSocket) => {
+      if (activeRunRef.current) return
+      const pending = pendingRunRef.current
+      if (!pending || ws.readyState !== WebSocket.OPEN) return
+      pendingRunRef.current = null
+      activeRunRef.current = pending
+      if (pending.kind === "main") setPipelineActive(true)
+      syncRunState()
+      ws.send(pending.config)
+    }
+
     const connect = () => {
       if (stopped) return
       const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`)
 
       ws.onopen = () => {
         retries = 0
-        setPipelineActive(false)
-        const pending = pendingRunRef.current
-        if (pending) {
-          pendingRunRef.current = null
-          activeRunRef.current = { config: pending.config, kind: pending.kind, resolve: pending.resolve, reject: pending.reject }
-          setRunKind(pending.kind)
-          ws.send(pending.config)
-        }
+        socketReadyRef.current = true
+        pump(ws)
       }
 
       ws.onmessage = (event) => {
@@ -109,66 +201,13 @@ export function useBackendSocket(state: BackendState) {
           } else if (msg.status === "queued") {
             if (!isPreview) setStatusMessage(msg.message ?? "Waiting...")
           } else if (msg.status === "done") {
-            const run = activeRunRef.current
-            activeRunRef.current = null
-            setRunKind(null)
-            if (run?.kind === "preview") {
-              run.resolve?.()
-            } else {
-              setPipelineActive(false)
-              setPipelineCompleted(true)
-              setProgress(100)
-              setStatusMessage(t("backend.pipelineComplete"))
-              setMetrics((prev) => (prev ? { ...prev, processed: prev.total, etaSeconds: 0 } : prev))
-              toast.success(t("backend.pipelineComplete"))
-              const prefs = preferencesRef.current
-              if (prefs?.playSoundOnComplete) {
-                const cap = prefs.maxSoundDurationEnabled ? prefs.maxSoundDuration : 0
-                playCompletionSound(prefs.completionSound, cap, prefs.soundVolume)
-              }
-              if (prefs?.notifyOnComplete) {
-                void sendCompletionNotification("Reline Configurator", t("backend.pipelineComplete"), {
-                  onlyWhenMinimized: prefs.notifyMode === "when-minimized",
-                })
-              }
-            }
+            settleActive("done")
           } else if (msg.status === "error") {
-            const run = activeRunRef.current
-            activeRunRef.current = null
-            setRunKind(null)
-            if (run?.kind === "preview") {
-              run.reject?.(new Error(msg.error ?? "Pipeline error"))
-            } else {
-              setPipelineActive(false)
-              setPipelineCompleted(false)
-              wsErrorRef.current = msg.error ?? "Pipeline error"
-              setStatusMessage(msg.error ?? "Pipeline error")
-              toast.error(msg.error ?? "Pipeline error")
-            }
+            settleActive("error", msg.error ?? "Pipeline error")
           } else if (msg.status === "cancelled") {
-            const run = activeRunRef.current
-            activeRunRef.current = null
-            setRunKind(null)
-            if (run?.kind === "preview") {
-              run.reject?.(new Error("Pipeline cancelled"))
-            } else {
-              setPipelineActive(false)
-              setPipelineCompleted(false)
-              setStatusMessage("Pipeline cancelled")
-              toast.info("Pipeline cancelled")
-            }
+            settleActive("cancelled")
           } else if (typeof msg.error === "string") {
-            const run = activeRunRef.current
-            activeRunRef.current = null
-            setRunKind(null)
-            if (run?.kind === "preview") {
-              run.reject?.(new Error(msg.error))
-            } else {
-              setPipelineActive(false)
-              wsErrorRef.current = msg.error
-              setStatusMessage(msg.error)
-              toast.error(msg.error)
-            }
+            settleActive("error", msg.error)
           }
         } catch {
           // ignore parse errors
@@ -177,11 +216,11 @@ export function useBackendSocket(state: BackendState) {
 
       ws.onclose = () => {
         wsRef.current = null
-        const run = activeRunRef.current
-        if (run) {
-          activeRunRef.current = null
-          setRunKind(null)
-          if (run.kind === "preview") run.reject?.(new Error("Connection closed"))
+        socketReadyRef.current = false
+        if (activeRunRef.current) {
+          settleActive("closed", "Connection closed")
+        } else {
+          syncRunState()
         }
         if (!stopped) {
           retries++
@@ -202,6 +241,7 @@ export function useBackendSocket(state: BackendState) {
 
     return () => {
       stopped = true
+      socketReadyRef.current = false
       if (timer) clearTimeout(timer)
       if (wsRef.current) {
         wsRef.current.close()
@@ -213,43 +253,45 @@ export function useBackendSocket(state: BackendState) {
     port,
     setPipelineActive,
     setPipelineCompleted,
-    setRunKind,
     setProgress,
     setStatusMessage,
     setMetrics,
-    preferencesRef,
     wsRef,
     pendingRunRef,
     activeRunRef,
-    wsErrorRef,
+    socketReadyRef,
     lastProgressRef,
     lastProgressAtRef,
+    syncRunState,
+    settleActive,
   ])
 
   const handleStart = useCallback(async () => {
-    if (activeRunRef.current || pendingRunRef.current) return
+    const queued = enqueueRun(nodesToString(nodesRef.current), "main")
+    if (!queued) return
+
     setProgress(0)
     setMetrics(null)
     setPipelineCompleted(false)
     lastProgressRef.current = -1
     lastProgressAtRef.current = null
     setErrorInfo(null)
-    if (stage === "running") {
-      sendConfig()
-      return
-    }
-    setLogs([])
-    enqueueRun(nodesToString(nodesRef.current), "main")
-    try {
-      await invokeInitialize()
-    } catch (err) {
-      pendingRunRef.current = null
-      setRunKind(null)
-      toast.error(String(err))
+    if (stage !== "running") setLogs([])
+    setPipelineActive(true)
+
+    if (stage !== "running" && !PROCESSING_STAGES.includes(stage)) {
+      try {
+        await invokeInitialize()
+      } catch (err) {
+        if (activeRunRef.current?.kind === "main") activeRunRef.current = null
+        if (pendingRunRef.current?.kind === "main") pendingRunRef.current = null
+        setPipelineActive(false)
+        syncRunState()
+        toast.error(String(err))
+      }
     }
   }, [
     stage,
-    sendConfig,
     enqueueRun,
     invokeInitialize,
     setProgress,
@@ -262,16 +304,15 @@ export function useBackendSocket(state: BackendState) {
     nodesRef,
     pendingRunRef,
     activeRunRef,
-    setRunKind,
+    setPipelineActive,
+    syncRunState,
   ])
 
   const runPreviewPipeline = useCallback(
     (config: unknown) => {
       return new Promise<void>((resolve, reject) => {
-        if (activeRunRef.current || pendingRunRef.current || PROCESSING_STAGES.includes(stage)) {
-          reject(new Error("Another pipeline is already running"))
-          return
-        }
+        const queued = enqueueRun(JSON.stringify(config), "preview", resolve, reject)
+        if (!queued) return
         if (stage !== "running") {
           setProgress(0)
           setMetrics(null)
@@ -281,12 +322,11 @@ export function useBackendSocket(state: BackendState) {
           setErrorInfo(null)
           setLogs([])
         }
-        enqueueRun(JSON.stringify(config), "preview", resolve, reject)
-        if (stage !== "running") {
+        if (stage !== "running" && !PROCESSING_STAGES.includes(stage)) {
           invokeInitialize().catch((err) => {
-            activeRunRef.current = null
-            pendingRunRef.current = null
-            setRunKind(null)
+            if (activeRunRef.current?.kind === "preview") activeRunRef.current = null
+            if (pendingRunRef.current?.kind === "preview") pendingRunRef.current = null
+            syncRunState()
             reject(err instanceof Error ? err : new Error(String(err)))
             toast.error(String(err))
           })
@@ -306,17 +346,51 @@ export function useBackendSocket(state: BackendState) {
       setLogs,
       activeRunRef,
       pendingRunRef,
-      setRunKind,
+      syncRunState,
     ],
   )
 
+  // Cancels the main run: drops a queued run and/or asks the server to stop the
+  // active one. The UI is reset optimistically; the queued run is sent only after
+  // the server confirms "cancelled".
   const handleStop = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ action: "cancel" }))
+    const pending = pendingRunRef.current
+    if (pending?.kind === "main") {
+      pendingRunRef.current = null
     }
-  }, [wsRef])
+    const active = activeRunRef.current
+    if (active?.kind === "main" && !stoppingRef.current) {
+      stoppingRef.current = true
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ action: "cancel" }))
+      }
+    }
+    setPipelineActive(false)
+    setPipelineCompleted(false)
+    setProgress(0)
+    setMetrics(null)
+    syncRunState()
+    toast.info(t("backend.pipelineCancelled"))
+  }, [pendingRunRef, activeRunRef, stoppingRef, wsRef, setPipelineActive, setPipelineCompleted, setProgress, setMetrics, syncRunState])
 
-  return { handleStart, handleStop, runPreviewPipeline }
+  // Cancels the preview run the same way handleStop does for the main run.
+  const cancelPreviewPipeline = useCallback(() => {
+    const pending = pendingRunRef.current
+    if (pending?.kind === "preview") {
+      pendingRunRef.current = null
+      pending.reject?.(new PipelineCancelledError())
+    }
+    const active = activeRunRef.current
+    if (active?.kind === "preview" && !stoppingRef.current) {
+      stoppingRef.current = true
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ action: "cancel" }))
+      }
+    }
+    syncRunState()
+  }, [pendingRunRef, activeRunRef, stoppingRef, wsRef, syncRunState])
+
+  return { handleStart, handleStop, runPreviewPipeline, cancelPreviewPipeline }
 }
 
 export type BackendSocket = ReturnType<typeof useBackendSocket>

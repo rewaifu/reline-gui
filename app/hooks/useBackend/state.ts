@@ -5,7 +5,7 @@ import { getSoundPreferencesSnapshot } from "~/components/providers/preferences-
 import { NodesContext } from "~/context/contexts"
 import type { BackendStage, BackendStatusEvent, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 import { PORT_STORAGE_KEY } from "./constants"
-import type { BackendErrorInfo, PipelineMetrics, RunKind, RunRequest } from "./types"
+import type { BackendErrorInfo, PipelineMetrics, RunPhase, RunRequest } from "./types"
 
 const preferencesRef = {
   get current() {
@@ -18,7 +18,7 @@ export function useBackendState() {
   const [port, setPort] = useState<number | null>(null)
   const [pipelineActive, setPipelineActive] = useState(false)
   const [pipelineCompleted, setPipelineCompleted] = useState(false)
-  const [runKind, setRunKind] = useState<RunKind | null>(null)
+  const [runState, setRunState] = useState<RunPhase>("idle")
   const [progress, setProgress] = useState(0)
   const [statusMessage, setStatusMessage] = useState("")
   const [depsStatus, setDepsStatus] = useState<DepsStatus | null>(null)
@@ -42,6 +42,10 @@ export function useBackendState() {
   const wsRef = useRef<WebSocket | null>(null)
   const pendingRunRef = useRef<RunRequest | null>(null)
   const activeRunRef = useRef<RunRequest | null>(null)
+  // A cancel was requested for the active run and we are waiting for the server to confirm.
+  const stoppingRef = useRef(false)
+  // The websocket is open and safe to send a new run on.
+  const socketReadyRef = useRef(false)
   const wsErrorRef = useRef<string | null>(null)
   const lastProgressRef = useRef(-1)
   const lastProgressAtRef = useRef<number | null>(null)
@@ -95,7 +99,10 @@ export function useBackendState() {
           const failedRun = activeRunRef.current ?? pendingRunRef.current
           activeRunRef.current = null
           pendingRunRef.current = null
-          setRunKind(null)
+          stoppingRef.current = false
+          socketReadyRef.current = false
+          setRunState("idle")
+          setPipelineActive(false)
           if (failedRun?.kind === "preview") failedRun.reject?.(new Error(payload.message))
         } else if (payload.stage === "running" || payload.stage === "idle") {
           setErrorInfo(null)
@@ -194,8 +201,8 @@ export function useBackendState() {
     setPipelineActive,
     pipelineCompleted,
     setPipelineCompleted,
-    runKind,
-    setRunKind,
+    runState,
+    setRunState,
     progress,
     setProgress,
     statusMessage,
@@ -217,6 +224,8 @@ export function useBackendState() {
     wsRef,
     pendingRunRef,
     activeRunRef,
+    stoppingRef,
+    socketReadyRef,
     wsErrorRef,
     lastProgressRef,
     lastProgressAtRef,

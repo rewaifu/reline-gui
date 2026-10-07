@@ -17,6 +17,7 @@ import {
   suggestSsaaScale,
 } from "~/lib/screentone-preview"
 import { NodesContext } from "~/context/contexts"
+import { isPipelineCancelled } from "~/hooks/useBackend"
 import { CannyType, type DType, DotType, NodeType, type TilerType } from "~/types/enums"
 import type { FolderReaderNodeOptions } from "~/types/options"
 import { SMALL_IMAGE_HEIGHT, type SelectedImage, type Stage } from "./shared"
@@ -24,7 +25,7 @@ import { SMALL_IMAGE_HEIGHT, type SelectedImage, type Stage } from "./shared"
 export function useScreentonePreview() {
   const { t } = useTranslation()
   const isTauri = useIsTauri()
-  const { runPreviewPipeline, busy, depsReady } = useBackendContext()
+  const { runPreviewPipeline, cancelPreviewPipeline, busy, depsReady, canQueue } = useBackendContext()
   const nodes = useContext(NodesContext)
   const { localModels } = useLocalModels()
 
@@ -62,6 +63,7 @@ export function useScreentonePreview() {
   const previewOwnedRef = useRef<string | null>(null)
   const afterOwnedRef = useRef<string | null>(null)
   const tempDirRef = useRef<string | null>(null)
+  const runIdRef = useRef(0)
 
   const interfaceBusy = busy || preprocessing || applying
   const controlsDisabled = interfaceBusy || !depsReady
@@ -152,6 +154,15 @@ export function useScreentonePreview() {
     setStage("select")
   }
 
+  const backToPicker = () => {
+    returnToSelection()
+    if (selectedUrlRef.current) {
+      URL.revokeObjectURL(selectedUrlRef.current)
+      selectedUrlRef.current = null
+    }
+    setSelected(null)
+  }
+
   const loadOwnedUrl = async (path: string) => {
     const { readFile } = await import("@tauri-apps/plugin-fs")
     const bytes = await readFile(path)
@@ -170,7 +181,8 @@ export function useScreentonePreview() {
   }
 
   const runPreprocess = async () => {
-    if (!selected || !model || controlsDisabled) return
+    if (!selected || !model || !depsReady || !canQueue) return
+    const runId = ++runIdRef.current
     setPreprocessing(true)
     try {
       const prePath = await previewTempPath("reline_preview_pre.png")
@@ -184,20 +196,34 @@ export function useScreentonePreview() {
           outputPath: prePath,
         }),
       )
+      if (runIdRef.current !== runId) return
       applyAfter(null)
       applyPreview(await loadOwnedUrl(prePath))
       setEditorInput(prePath)
       setCompareMode("single")
       setStage("editor")
     } catch (error) {
-      toast.error(t("screentone-preview.error"), { description: String(error) })
+      if (runIdRef.current !== runId) return
+      if (!isPipelineCancelled(error)) {
+        toast.error(t("screentone-preview.error"), { description: String(error) })
+      }
     } finally {
-      setPreprocessing(false)
+      if (runIdRef.current === runId) setPreprocessing(false)
     }
+  }
+
+  const cancelPreprocess = () => {
+    if (!preprocessing) return
+    cancelPreviewPipeline()
+    setPreprocessing(false)
+    toast.info(t("screentone-preview.cancelled"))
   }
 
   const performSkip = () => {
     if (!selected) return
+    const skipped = suggestDotSize(Math.floor(selected.height / 4))
+    setDotSize(skipped)
+    setSsaaScale(suggestSsaaScale(skipped))
     applyAfter(null)
     applyPreview(selected.url, false)
     setEditorInput(selected.path)
@@ -245,6 +271,7 @@ export function useScreentonePreview() {
     isTauri,
     readerPath,
     depsReady,
+    canQueue,
     // stage
     stage,
     setStage,
@@ -295,7 +322,9 @@ export function useScreentonePreview() {
     // actions
     selectPath,
     returnToSelection,
+    backToPicker,
     runPreprocess,
+    cancelPreprocess,
     requestSkip,
     performSkip,
     apply,

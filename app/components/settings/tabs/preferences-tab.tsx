@@ -318,64 +318,62 @@ export function PreferencesTab() {
         </Card>
 
         {isTauri && (
-          <>
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("backend.preferences.modelsTitle")}</CardTitle>
-                <CardAction>
-                  <Button variant="ghost" size="xs" onClick={rescan} disabled={loading}>
-                    <IconRefresh className="size-3.5" />
-                    {t("backend.preferences.rescan")}
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <PathField
-                  id="pref-models-folder"
-                  label={t("backend.preferences.modelsFolder")}
-                  placeholder={t("nodes.upscale.browse-models-folder")}
-                  value={modelsFolder}
-                  onChange={setModelsFolder}
-                />
-                <span className="text-xs text-muted-foreground">
-                  {loading ? t("backend.preferences.modelsLoading") : t("backend.preferences.modelsCount", { count: localModels.length })}
-                </span>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="select-none">
-                <CardTitle>{t("backend.preferences.screentoneTitle")}</CardTitle>
-                <CardDescription>{t("backend.preferences.screentoneDesc")}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <FieldGroup>
-                  <Field orientation="horizontal">
-                    <Checkbox id="pref-screentone-ssaa" checked={screentoneUseSsaa} onCheckedChange={(checked) => setScreentoneUseSsaa(!!checked)} />
-                    <FieldLabel htmlFor="pref-screentone-ssaa">{t("backend.preferences.screentoneUseSsaa")}</FieldLabel>
-                  </Field>
-                  <Field orientation="horizontal">
-                    <Checkbox
-                      id="pref-screentone-fractional"
-                      checked={screentoneFractionalDot}
-                      onCheckedChange={(checked) => setScreentoneFractionalDot(!!checked)}
-                    />
-                    <FieldLabel htmlFor="pref-screentone-fractional">{t("backend.preferences.screentoneFractionalDot")}</FieldLabel>
-                  </Field>
-                </FieldGroup>
-                <Separator />
-                <NumberField
-                  id="pref-screentone-min-product"
-                  label={t("backend.preferences.screentoneMinProduct")}
-                  value={screentoneMinProduct}
-                  min={8}
-                  max={20}
-                  onChange={setScreentoneMinProduct}
-                />
-              </CardContent>
-            </Card>
-          </>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("backend.preferences.modelsTitle")}</CardTitle>
+              <CardAction>
+                <Button variant="ghost" size="xs" onClick={rescan} disabled={loading}>
+                  <IconRefresh className="size-3.5" />
+                  {t("backend.preferences.rescan")}
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <PathField
+                id="pref-models-folder"
+                label={t("backend.preferences.modelsFolder")}
+                placeholder={t("nodes.upscale.browse-models-folder")}
+                value={modelsFolder}
+                onChange={setModelsFolder}
+              />
+              <span className="text-xs text-muted-foreground">
+                {loading ? t("backend.preferences.modelsLoading") : t("backend.preferences.modelsCount", { count: localModels.length })}
+              </span>
+            </CardContent>
+          </Card>
         )}
+
+        <Card>
+          <CardHeader className="select-none">
+            <CardTitle>{t("backend.preferences.screentoneTitle")}</CardTitle>
+            <CardDescription>{t("backend.preferences.screentoneDesc")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <FieldGroup>
+              <Field orientation="horizontal">
+                <Checkbox id="pref-screentone-ssaa" checked={screentoneUseSsaa} onCheckedChange={(checked) => setScreentoneUseSsaa(!!checked)} />
+                <FieldLabel htmlFor="pref-screentone-ssaa">{t("backend.preferences.screentoneUseSsaa")}</FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="pref-screentone-fractional"
+                  checked={screentoneFractionalDot}
+                  onCheckedChange={(checked) => setScreentoneFractionalDot(!!checked)}
+                />
+                <FieldLabel htmlFor="pref-screentone-fractional">{t("backend.preferences.screentoneFractionalDot")}</FieldLabel>
+              </Field>
+            </FieldGroup>
+            <Separator />
+            <NumberField
+              id="pref-screentone-min-product"
+              label={t("backend.preferences.screentoneMinProduct")}
+              value={screentoneMinProduct}
+              min={8}
+              max={20}
+              onChange={setScreentoneMinProduct}
+            />
+          </CardContent>
+        </Card>
       </div>
       <ScrollBar className="-mr-3 z-20" />
     </ScrollArea>

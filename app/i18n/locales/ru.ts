@@ -180,7 +180,10 @@ export const ru = {
     dtype: "Тип данных",
     run: "Запустить предобработку",
     skip: "Пропустить предобработку",
+    "cancel-run": "Отменить предобработку",
     processing: "В процессе",
+    cancelled: "Предобработка отменена",
+    back: "Назад к выбору изображения",
     canny: "Кэнни",
     "dot-type": "Тип Точки",
     angle: "Угол",
@@ -264,6 +267,7 @@ export const ru = {
     settings: "Настройки",
     dependencies: "Зависимости",
     pipelineComplete:"Обработка завершена",
+    pipelineCancelled: "Обработка отменена",
     tabs: {
       dependencies: "Зависимости",
       preferences: "Параметры",

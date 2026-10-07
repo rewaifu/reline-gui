@@ -10,13 +10,15 @@ export function useBackendActions(state: BackendState) {
     setPort,
     setPipelineActive,
     setPipelineCompleted,
-    setRunKind,
+    setRunState,
     setErrorInfo,
     setMetrics,
     setLogs,
     setUvProgress,
     pendingRunRef,
     activeRunRef,
+    stoppingRef,
+    socketReadyRef,
     invokeInitialize,
     handleCheckDepsSilent,
   } = state
@@ -25,13 +27,13 @@ export function useBackendActions(state: BackendState) {
     setLogs([])
     setPipelineCompleted(false)
     pendingRunRef.current = null
-    setRunKind(null)
+    setRunState("idle")
     try {
       await invokeInitialize()
     } catch (err) {
       toast.error(String(err))
     }
-  }, [setLogs, setPipelineCompleted, pendingRunRef, setRunKind, invokeInitialize])
+  }, [setLogs, setPipelineCompleted, pendingRunRef, setRunState, invokeInitialize])
 
   const handleStopServer = useCallback(() => {
     invoke("stop_backend").catch(() => {})
@@ -43,9 +45,11 @@ export function useBackendActions(state: BackendState) {
     pendingRunRef.current = null
     const run = activeRunRef.current
     activeRunRef.current = null
-    setRunKind(null)
+    stoppingRef.current = false
+    socketReadyRef.current = false
+    setRunState("idle")
     run?.reject?.(new Error("Backend stopped"))
-  }, [setStage, setPort, setPipelineActive, setMetrics, setErrorInfo, pendingRunRef, activeRunRef, setRunKind])
+  }, [setStage, setPort, setPipelineActive, setMetrics, setErrorInfo, pendingRunRef, activeRunRef, stoppingRef, socketReadyRef, setRunState])
 
   const handleCheckPortFree = useCallback(async (port: number) => {
     return invoke<boolean>("check_port_free", { port })

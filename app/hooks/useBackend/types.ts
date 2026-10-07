@@ -14,6 +14,21 @@ export interface BackendErrorInfo {
 
 export type RunKind = "main" | "preview"
 
+export type RunPhase = "idle" | "running" | "stopping" | "queued"
+
+// Rejection reason used when a run is cancelled. Consumers can detect it to
+// avoid showing an error for a user-requested cancellation.
+export class PipelineCancelledError extends Error {
+  constructor() {
+    super("Pipeline cancelled")
+    this.name = "PipelineCancelledError"
+  }
+}
+
+export function isPipelineCancelled(error: unknown): error is PipelineCancelledError {
+  return error instanceof PipelineCancelledError
+}
+
 export interface RunRequest {
   config: string
   kind: RunKind
@@ -26,7 +41,11 @@ export interface UseBackendReturn {
   isProcessing: boolean
   installingDeps: boolean
   busy: boolean
+  runState: RunPhase
+  // Whether a new run may be queued right now (idle, or the active run is being stopped).
+  canQueue: boolean
   runPreviewPipeline: (config: unknown) => Promise<void>
+  cancelPreviewPipeline: () => void
   pipelineActive: boolean
   pipelineCompleted: boolean
   serverRunning: boolean

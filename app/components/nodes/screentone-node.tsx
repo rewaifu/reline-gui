@@ -175,7 +175,11 @@ export function ScreentoneNodeBody({id, dispatch: dispatchProp, idSuffix}: { id:
     const angles = ensureArray(options.angle, channelCount, 45)
     const dotTypes = ensureArray(options.dot_type, channelCount, DotType.CIRCLE)
 
-    const isSmallDot = (dot: number) => Number.isFinite(dot) && getEffectiveDot(dot) < 7
+    const isSmallDot = (dot: number) => {
+        if (!Number.isFinite(dot)) return false
+        if (options.disable_auto_dot === true) return dot < 7
+        return getEffectiveDot(dot) < 7
+    }
     const smallDotWarning = dotSizes.some(isSmallDot)
     const ssaaEnabled = options.ssaa_scale != null && options.ssaa_scale > 1
     const dotWarningText = ssaaEnabled ? t('nodes.screentone.dot-size-ssaa-warning') : t('nodes.screentone.dot-size-no-ssaa-warning')
