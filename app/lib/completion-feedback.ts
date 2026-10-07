@@ -1,15 +1,41 @@
+import { decodeAudio, playBuffer } from "~/lib/audio"
+import { isCustomSoundRef, resolveSoundBlob } from "~/lib/sound-store"
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
 }
 
-export function playCompletionSound(src: string): void {
-  if (!src) return
-  try {
-    const audio = new Audio(src)
-    void audio.play().catch(() => {})
-  } catch {
-    // ignore playback errors
+const presetBufferCache = new Map<string, AudioBuffer>()
+
+async function resolveCompletionBuffer(src: string): Promise<AudioBuffer> {
+  const cached = presetBufferCache.get(src)
+  if (cached) return cached
+
+  let arrayBuffer: ArrayBuffer
+  if (isCustomSoundRef(src)) {
+    const blob = await resolveSoundBlob(src)
+    if (!blob) throw new Error("Completion sound not found")
+    arrayBuffer = await blob.arrayBuffer()
+  } else {
+    const response = await fetch(src)
+    arrayBuffer = await response.arrayBuffer()
   }
+
+  const buffer = await decodeAudio(arrayBuffer)
+  if (!isCustomSoundRef(src)) presetBufferCache.set(src, buffer)
+  return buffer
+}
+
+export function playCompletionSound(src: string, maxDuration: number, gain: number): Promise<void> {
+  if (!src) return Promise.resolve()
+  return (async () => {
+    try {
+      const buffer = await resolveCompletionBuffer(src)
+      await playBuffer(buffer, { gain, maxDuration })
+    } catch {
+      // ignore playback errors
+    }
+  })()
 }
 
 export async function ensureNotificationPermission(): Promise<boolean> {

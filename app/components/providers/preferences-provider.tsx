@@ -1,8 +1,17 @@
 import { type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { DEFAULT_NODE_OPTIONS } from "~/constants"
-import { PreferencesContext, type NodeDefaults, type NotifyMode, type Preferences, type PreferencesContextValue } from "~/context/contexts"
+import {
+  PreferencesContext,
+  SoundPreferencesContext,
+  type NodeDefaults,
+  type NotifyMode,
+  type Preferences,
+  type PreferencesContextValue,
+  type SoundPreferencesContextValue,
+} from "~/context/contexts"
 import { isTauriRuntime } from "~/lib/completion-feedback"
 import { normalizeWebPath } from "~/lib/paths"
+import { DEFAULT_COMPLETION_SOUND } from "~/lib/sound-store"
 import { NodeType } from "~/types/enums"
 import type { FolderReaderNodeOptions, FolderWriterNodeOptions } from "~/types/options"
 import type { NodeOptions } from "~/types/node"
@@ -10,13 +19,16 @@ import type { NodeOptions } from "~/types/node"
 const STORAGE_KEY = "preferences"
 const LEGACY_MODELS_FOLDER_KEY = "upscale-models-folder"
 
-export const DEFAULT_COMPLETION_SOUND = "/fart.mp3"
+export { DEFAULT_COMPLETION_SOUND }
 
 const DEFAULT_PREFERENCES: Preferences = {
   playSoundOnComplete: true,
   notifyOnComplete: false,
   notifyMode: "always",
   completionSound: DEFAULT_COMPLETION_SOUND,
+  maxSoundDuration: 5,
+  maxSoundDurationEnabled: true,
+  soundVolume: 0.2,
   screentoneUseSsaa: true,
   screentoneMinProduct: 10,
   screentoneFractionalDot: false,
@@ -50,15 +62,24 @@ function loadPreferences(): Preferences {
   }
 }
 
+let soundPreferencesSnapshot: SoundPreferencesContextValue | null = null
+
+export function getSoundPreferencesSnapshot(): SoundPreferencesContextValue | null {
+  return soundPreferencesSnapshot
+}
+
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences)
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences))
-    } catch {
-      // ignore storage errors
-    }
+    const handle = window.setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences))
+      } catch {
+        // ignore storage errors
+      }
+    }, 200)
+    return () => window.clearTimeout(handle)
   }, [preferences])
 
   const setPlaySoundOnComplete = useCallback((value: boolean) => {
@@ -75,6 +96,18 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   const setCompletionSound = useCallback((value: string) => {
     setPreferences((prev) => ({ ...prev, completionSound: value }))
+  }, [])
+
+  const setMaxSoundDuration = useCallback((value: number) => {
+    setPreferences((prev) => ({ ...prev, maxSoundDuration: value }))
+  }, [])
+
+  const setMaxSoundDurationEnabled = useCallback((value: boolean) => {
+    setPreferences((prev) => ({ ...prev, maxSoundDurationEnabled: value }))
+  }, [])
+
+  const setSoundVolume = useCallback((value: number) => {
+    setPreferences((prev) => ({ ...prev, soundVolume: value }))
   }, [])
 
   const setScreentoneUseSsaa = useCallback((value: boolean) => {
@@ -140,11 +173,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   const value: PreferencesContextValue = useMemo(
     () => ({
-      ...preferences,
-      setPlaySoundOnComplete,
-      setNotifyOnComplete,
-      setNotifyMode,
-      setCompletionSound,
+      screentoneUseSsaa: preferences.screentoneUseSsaa,
+      screentoneMinProduct: preferences.screentoneMinProduct,
+      screentoneFractionalDot: preferences.screentoneFractionalDot,
+      nodeDefaults: preferences.nodeDefaults,
+      defaultReaderPath: preferences.defaultReaderPath,
+      defaultWriterPath: preferences.defaultWriterPath,
+      modelsFolder: preferences.modelsFolder,
       setScreentoneUseSsaa,
       setScreentoneMinProduct,
       setScreentoneFractionalDot,
@@ -157,11 +192,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       resetAllNodeDefaults,
     }),
     [
-      preferences,
-      setPlaySoundOnComplete,
-      setNotifyOnComplete,
-      setNotifyMode,
-      setCompletionSound,
+      preferences.screentoneUseSsaa,
+      preferences.screentoneMinProduct,
+      preferences.screentoneFractionalDot,
+      preferences.nodeDefaults,
+      preferences.defaultReaderPath,
+      preferences.defaultWriterPath,
+      preferences.modelsFolder,
       setScreentoneUseSsaa,
       setScreentoneMinProduct,
       setScreentoneFractionalDot,
@@ -175,13 +212,62 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     ],
   )
 
-  return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
+  const soundValue: SoundPreferencesContextValue = useMemo(
+    () => ({
+      playSoundOnComplete: preferences.playSoundOnComplete,
+      notifyOnComplete: preferences.notifyOnComplete,
+      notifyMode: preferences.notifyMode,
+      completionSound: preferences.completionSound,
+      maxSoundDuration: preferences.maxSoundDuration,
+      maxSoundDurationEnabled: preferences.maxSoundDurationEnabled,
+      soundVolume: preferences.soundVolume,
+      setPlaySoundOnComplete,
+      setNotifyOnComplete,
+      setNotifyMode,
+      setCompletionSound,
+      setMaxSoundDuration,
+      setMaxSoundDurationEnabled,
+      setSoundVolume,
+    }),
+    [
+      preferences.playSoundOnComplete,
+      preferences.notifyOnComplete,
+      preferences.notifyMode,
+      preferences.completionSound,
+      preferences.maxSoundDuration,
+      preferences.maxSoundDurationEnabled,
+      preferences.soundVolume,
+      setPlaySoundOnComplete,
+      setNotifyOnComplete,
+      setNotifyMode,
+      setCompletionSound,
+      setMaxSoundDuration,
+      setMaxSoundDurationEnabled,
+      setSoundVolume,
+    ],
+  )
+
+  soundPreferencesSnapshot = soundValue
+
+  return (
+    <PreferencesContext.Provider value={value}>
+      <SoundPreferencesContext.Provider value={soundValue}>{children}</SoundPreferencesContext.Provider>
+    </PreferencesContext.Provider>
+  )
 }
 
 export function usePreferences(): PreferencesContextValue {
   const ctx = useContext(PreferencesContext)
   if (!ctx) {
     throw new Error("usePreferences must be used within a PreferencesProvider")
+  }
+  return ctx
+}
+
+export function useSoundPreferences(): SoundPreferencesContextValue {
+  const ctx = useContext(SoundPreferencesContext)
+  if (!ctx) {
+    throw new Error("useSoundPreferences must be used within a PreferencesProvider")
   }
   return ctx
 }

@@ -46,6 +46,9 @@ export interface Preferences {
   notifyOnComplete: boolean
   notifyMode: NotifyMode
   completionSound: string
+  maxSoundDuration: number
+  maxSoundDurationEnabled: boolean
+  soundVolume: number
   screentoneUseSsaa: boolean
   screentoneMinProduct: number
   screentoneFractionalDot: boolean
@@ -55,11 +58,19 @@ export interface Preferences {
   modelsFolder: string
 }
 
-export interface PreferencesContextValue extends Preferences {
-  setPlaySoundOnComplete: (value: boolean) => void
-  setNotifyOnComplete: (value: boolean) => void
-  setNotifyMode: (value: NotifyMode) => void
-  setCompletionSound: (value: string) => void
+export interface SoundPreferences {
+  playSoundOnComplete: boolean
+  notifyOnComplete: boolean
+  notifyMode: NotifyMode
+  completionSound: string
+  maxSoundDuration: number
+  maxSoundDurationEnabled: boolean
+  soundVolume: number
+}
+
+export type GeneralPreferences = Omit<Preferences, keyof SoundPreferences>
+
+export interface PreferencesContextValue extends GeneralPreferences {
   setScreentoneUseSsaa: (value: boolean) => void
   setScreentoneMinProduct: (value: number) => void
   setScreentoneFractionalDot: (value: boolean) => void
@@ -73,6 +84,18 @@ export interface PreferencesContextValue extends Preferences {
 }
 
 export const PreferencesContext = createContext<PreferencesContextValue | null>(null)
+
+export interface SoundPreferencesContextValue extends SoundPreferences {
+  setPlaySoundOnComplete: (value: boolean) => void
+  setNotifyOnComplete: (value: boolean) => void
+  setNotifyMode: (value: NotifyMode) => void
+  setCompletionSound: (value: string) => void
+  setMaxSoundDuration: (value: number) => void
+  setMaxSoundDurationEnabled: (value: boolean) => void
+  setSoundVolume: (value: number) => void
+}
+
+export const SoundPreferencesContext = createContext<SoundPreferencesContextValue | null>(null)
 
 export interface LocalModelsContextValue {
   modelsFolder: string

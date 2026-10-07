@@ -116,28 +116,44 @@ export function NodesTab() {
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1">
-      <Card className="rounded-xl">
-        <CardHeader className="flex flex-row items-center gap-2">
-          <NodeTypeCombobox value={selectedType} onChange={handleTypeChange} />
-          <div className="ml-auto flex flex-row gap-2">
-            <Button variant="outline" size="sm" disabled={!hasOverrides} onClick={handleReset}>
-              {t("backend.preferences.reset")}
-            </Button>
-            <Button variant="outline" size="sm" disabled={!hasAnyOverrides} onClick={handleResetAll}>
-              {t("backend.preferences.resetAll")}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Card>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-3 select-none">
+        <h2 className="text-base font-medium leading-none">{t("backend.nodesTab.title")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t("backend.nodesTab.desc")}</p>
+      </div>
+      <ScrollArea
+        className="relative min-h-0 flex-1
+                   before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-4
+                   before:bg-linear-to-b/oklab before:from-background before:to-background/0 before:opacity-0 before:transition-opacity before:content-['']
+                   data-[overflow-y-start]:before:opacity-100
+                   after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-10 after:h-4
+                   after:bg-linear-to-t/oklab after:from-background after:to-background/0 after:opacity-0 after:transition-opacity after:content-['']
+                   data-[overflow-y-end]:after:opacity-100"
+      >
+        <div className="pb-3">
+          <Card className="rounded-xl">
+            <CardHeader className="flex flex-row items-center gap-2">
+              <NodeTypeCombobox value={selectedType} onChange={handleTypeChange} />
+              <div className="ml-auto flex flex-row gap-2">
+                <Button variant="outline" size="sm" disabled={!hasOverrides} onClick={handleReset}>
+                  {t("backend.preferences.reset")}
+                </Button>
+                <Button variant="outline" size="sm" disabled={!hasAnyOverrides} onClick={handleResetAll}>
+                  {t("backend.preferences.resetAll")}
+                </Button>
+              </div>
+            </CardHeader>
             <CardContent>
-              <NodeDefaultsEditor key={`${selectedType}-${editorKey}`} type={selectedType} />
+              <Card>
+                <CardContent>
+                  <NodeDefaultsEditor key={`${selectedType}-${editorKey}`} type={selectedType} />
+                </CardContent>
+              </Card>
             </CardContent>
           </Card>
-        </CardContent>
-      </Card>
-      <ScrollBar className="-mr-3" />
-    </ScrollArea>
+        </div>
+        <ScrollBar className="-mr-3 z-20" />
+      </ScrollArea>
+    </div>
   )
 }

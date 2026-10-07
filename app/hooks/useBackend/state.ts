@@ -1,11 +1,17 @@
 import { invoke } from "@tauri-apps/api/core"
 import { type UnlistenFn, listen } from "@tauri-apps/api/event"
 import { useCallback, useContext, useEffect, useRef, useState } from "react"
-import { usePreferences } from "~/components/providers/preferences-provider"
+import { getSoundPreferencesSnapshot } from "~/components/providers/preferences-provider"
 import { NodesContext } from "~/context/contexts"
 import type { BackendStage, BackendStatusEvent, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 import { PORT_STORAGE_KEY } from "./constants"
 import type { BackendErrorInfo, PipelineMetrics, RunKind, RunRequest } from "./types"
+
+const preferencesRef = {
+  get current() {
+    return getSoundPreferencesSnapshot()
+  },
+}
 
 export function useBackendState() {
   const [stage, setStage] = useState<BackendStage>("idle")
@@ -33,9 +39,6 @@ export function useBackendState() {
   const nodes = useContext(NodesContext)
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
-  const preferences = usePreferences()
-  const preferencesRef = useRef(preferences)
-  preferencesRef.current = preferences
   const wsRef = useRef<WebSocket | null>(null)
   const pendingRunRef = useRef<RunRequest | null>(null)
   const activeRunRef = useRef<RunRequest | null>(null)

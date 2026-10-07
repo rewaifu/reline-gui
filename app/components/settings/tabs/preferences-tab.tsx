@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { IconFolderOpen, IconRefresh, IconX } from "@tabler/icons-react"
+import { IconFolderOpen, IconPlayerPlay, IconPlayerStop, IconRefresh, IconX } from "@tabler/icons-react"
 import { Button } from "~/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -10,13 +10,19 @@ import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area"
 import { Separator } from "~/components/ui/separator"
+import { Slider } from "~/components/ui/slider"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select"
 import { useIsTauri } from "~/hooks/useIsTauri"
-import { ensureNotificationPermission } from "~/lib/completion-feedback"
+import { useSoundPlaying } from "~/hooks/useSoundPlaying"
+import { ensureNotificationPermission, playCompletionSound } from "~/lib/completion-feedback"
+import { stopSound } from "~/lib/audio"
 import { normalizeWebPath } from "~/lib/paths"
-import { usePreferences } from "~/components/providers/preferences-provider"
+import { cn } from "~/lib/utils"
+import { usePreferences, useSoundPreferences } from "~/components/providers/preferences-provider"
 import { useLocalModels } from "~/components/providers/local-models-provider"
+import { useSettings } from "~/components/providers/settings-provider"
 import type { NotifyMode } from "~/context/contexts"
+import {InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput} from "~/components/ui";
 
 function PathField({
   id,
@@ -60,34 +66,40 @@ function PathField({
     <div className="flex flex-col gap-2">
       <Label htmlFor={id}>{label}</Label>
       <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          className="flex-1"
-          value={local}
-          placeholder={placeholder}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit()
-          }}
-        />
+        <InputGroup>
+          <InputGroupInput
+              id={id}
+              className="flex-1"
+              value={local}
+              placeholder={placeholder}
+              onChange={(e) => setLocal(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commit()
+              }}
+          />
+          {local && (
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => {
+                    setLocal("")
+                    onChange("")
+                  }}
+                  aria-label="clear"
+              >
+                <IconX className="size-4" />
+              </InputGroupButton>
+            </InputGroupAddon>
+          )}
+        </InputGroup>
+
         {isTauri && (
           <Button variant="outline" size="icon" onClick={handleBrowse} aria-label={placeholder}>
             <IconFolderOpen className="size-4" />
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          disabled={!local}
-          onClick={() => {
-            setLocal("")
-            onChange("")
-          }}
-          aria-label="clear"
-        >
-          <IconX className="size-4" />
-        </Button>
       </div>
     </div>
   )
@@ -99,6 +111,7 @@ function NumberField({
   value,
   min,
   max,
+  disabled = false,
   onChange,
 }: {
   id: string
@@ -106,6 +119,7 @@ function NumberField({
   value: number
   min: number
   max: number
+  disabled?: boolean
   onChange: (value: number) => void
 }) {
   const [local, setLocal] = useState(String(value))
@@ -130,6 +144,7 @@ function NumberField({
         max={max}
         step={1}
         className="w-[240px]"
+        disabled={disabled}
         value={local}
         onChange={(e) => setLocal(e.target.value)}
         onBlur={commit}
@@ -151,6 +166,13 @@ export function PreferencesTab() {
     setNotifyOnComplete,
     notifyMode,
     setNotifyMode,
+    completionSound,
+    maxSoundDuration,
+    maxSoundDurationEnabled,
+    soundVolume,
+    setSoundVolume,
+  } = useSoundPreferences()
+  const {
     screentoneUseSsaa,
     setScreentoneUseSsaa,
     screentoneMinProduct,
@@ -165,6 +187,17 @@ export function PreferencesTab() {
     setModelsFolder,
   } = usePreferences()
   const { localModels, loading, rescan } = useLocalModels()
+  const { openSettings } = useSettings()
+  const soundPlaying = useSoundPlaying()
+
+  const toggleSoundPreview = () => {
+    if (soundPlaying) {
+      stopSound()
+      return
+    }
+    const cap = maxSoundDurationEnabled ? maxSoundDuration : 0
+    void playCompletionSound(completionSound, cap, soundVolume)
+  }
 
   const handleNotifyChange = async (checked: boolean) => {
     if (checked) {
@@ -178,8 +211,16 @@ export function PreferencesTab() {
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1">
-      <div className="flex flex-col gap-4 pr-3 pb-1">
+    <ScrollArea
+      className="relative min-h-0 flex-1
+                 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-4
+                 before:bg-linear-to-b/oklab before:from-background before:to-background/0 before:opacity-0 before:transition-opacity before:content-['']
+                 data-[overflow-y-start]:before:opacity-100
+                 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-10 after:h-4
+                 after:bg-linear-to-t/oklab after:from-background after:to-background/0 after:opacity-0 after:transition-opacity after:content-['']
+                 data-[overflow-y-end]:after:opacity-100"
+    >
+      <div className="flex flex-col gap-5 pb-3">
         {isTauri && (
           <Card>
             <CardHeader className="select-none">
@@ -191,27 +232,60 @@ export function PreferencesTab() {
                 <Field orientation="horizontal">
                   <Checkbox id="pref-play-sound" checked={playSoundOnComplete} onCheckedChange={(checked) => setPlaySoundOnComplete(checked)} />
                   <FieldLabel htmlFor="pref-play-sound">{t("backend.preferences.playSound")}</FieldLabel>
+                  <Button variant="outline" size="xs" className="ml-auto" onClick={() => openSettings("sound")}>
+                    {t("backend.preferences.customizeSound")}
+                  </Button>
                 </Field>
+
+                <Separator />
+
+                <div className={cn("flex flex-col gap-2", !playSoundOnComplete && "opacity-50")}>
+                  <Label htmlFor="pref-sound-volume">{t("backend.preferences.playbackVolume")}</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={[soundVolume]}
+                      disabled={!playSoundOnComplete}
+                      className="flex-1"
+                      onValueChange={(value) => setSoundVolume(Array.isArray(value) ? value[0] : value)}
+                    />
+                    <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{Math.round(soundVolume * 100)}%</span>
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      className="shrink-0"
+                      disabled={!playSoundOnComplete}
+                      onClick={toggleSoundPreview}
+                      aria-label={soundPlaying ? t("backend.stopSound") : t("backend.preferences.previewSound")}
+                    >
+                      {soundPlaying ? <IconPlayerStop /> : <IconPlayerPlay />}
+                    </Button>
+                  </div>
+                </div>
+
+                <Separator />
+
                 <Field orientation="horizontal">
                   <Checkbox id="pref-notify" checked={notifyOnComplete} onCheckedChange={(checked) => void handleNotifyChange(checked)} />
                   <FieldLabel htmlFor="pref-notify">{t("backend.preferences.notify")}</FieldLabel>
                 </Field>
-                {notifyOnComplete && (
-                  <Select value={notifyMode} onValueChange={(value) => setNotifyMode(value as NotifyMode)}>
-                    <SelectTrigger className="w-[240px]">
-                      <SelectValue>{t(`backend.preferences.notify-mode-options.${notifyMode}`)}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {(["always", "when-minimized"] as NotifyMode[]).map((mode) => (
-                          <SelectItem key={mode} value={mode}>
-                            {t(`backend.preferences.notify-mode-options.${mode}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                )}
+
+                <Select value={notifyMode} onValueChange={(value) => setNotifyMode(value as NotifyMode)} disabled={!notifyOnComplete}>
+                  <SelectTrigger className={cn("w-[240px]", !notifyOnComplete && "opacity-50")}>
+                    <SelectValue>{t(`backend.preferences.notify-mode-options.${notifyMode}`)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {(["always", "when-minimized"] as NotifyMode[]).map((mode) => (
+                        <SelectItem key={mode} value={mode}>
+                          {t(`backend.preferences.notify-mode-options.${mode}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </FieldGroup>
             </CardContent>
           </Card>
@@ -231,6 +305,7 @@ export function PreferencesTab() {
               onChange={setDefaultReaderPath}
               webPrefix
             />
+            <Separator />
             <PathField
               id="pref-writer-path"
               label={t("backend.preferences.writerPath")}
@@ -302,7 +377,7 @@ export function PreferencesTab() {
           </>
         )}
       </div>
-      <ScrollBar />
+      <ScrollBar className="-mr-3 z-20" />
     </ScrollArea>
   )
 }

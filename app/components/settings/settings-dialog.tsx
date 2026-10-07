@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconMessageReply } from "@tabler/icons-react"
+import { IconBrandDiscordFilled, IconBrandGithub } from "@tabler/icons-react"
 import { Button } from "~/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "~/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { PreferencesTab } from "~/components/settings/tabs/preferences-tab"
 import { NodesTab } from "~/components/settings/tabs/nodes-tab"
 import { DepsTab } from "~/components/settings/tabs/deps-tab"
+import { SoundTab } from "~/components/settings/tabs/sound-tab"
 import type { SettingsSection } from "~/context/contexts"
 import type { DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 
@@ -65,7 +66,7 @@ export function SettingsDialog({
             <DialogDescription className="sr-only">{t("backend.dependencies")}</DialogDescription>
           </DialogHeader>
 
-          <TabsList className="w-full mb-2 select-none">
+          <TabsList className="w-full mb-3 select-none">
             {isTauri && <TabsTrigger value="deps">{t("backend.tabs.dependencies")}</TabsTrigger>}
             <TabsTrigger value="prefs">{t("backend.tabs.preferences")}</TabsTrigger>
             <TabsTrigger value="nodes">{t("backend.tabs.nodes")}</TabsTrigger>
@@ -93,16 +94,33 @@ export function SettingsDialog({
             <NodesTab />
           </TabsContent>
           {isTauri && (
-            <TabsContent value="sound" className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
-              <IconMessageReply />
+            <TabsContent value="sound" className="flex min-h-0 flex-1 flex-col">
+              <SoundTab />
             </TabsContent>
           )}
 
           <DialogFooter className="-mx-5 -mb-5 p-5 items-center sm:justify-between">
             <span className="text-xs text-muted-foreground tabular-nums select-none">v{APP_VERSION}</span>
-            <Button variant="outline" size="xs" onClick={() => onOpenChange(false)}>
-              {t("backend.close")}
-            </Button>
+            {isTauri ? (
+              <div className="flex flex-row items-center gap-2">
+                <a href="https://github.com/rewaifu/reline-web" target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm">
+                    <IconBrandGithub />
+                    Reline GUI
+                  </Button>
+                </a>
+                <a href="https://discord.gg/hEgdaVzTs9" target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm">
+                    <IconBrandDiscordFilled />
+                    RawkumaSR
+                  </Button>
+                </a>
+              </div>
+            ) : (
+              <Button variant="outline" size="xs" onClick={() => onOpenChange(false)}>
+                {t("backend.close")}
+              </Button>
+            )}
           </DialogFooter>
         </Tabs>
       </DialogContent>

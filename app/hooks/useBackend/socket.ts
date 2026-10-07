@@ -121,12 +121,14 @@ export function useBackendSocket(state: BackendState) {
               setStatusMessage(t("backend.pipelineComplete"))
               setMetrics((prev) => (prev ? { ...prev, processed: prev.total, etaSeconds: 0 } : prev))
               toast.success(t("backend.pipelineComplete"))
-              if (preferencesRef.current.playSoundOnComplete) {
-                playCompletionSound(preferencesRef.current.completionSound)
+              const prefs = preferencesRef.current
+              if (prefs?.playSoundOnComplete) {
+                const cap = prefs.maxSoundDurationEnabled ? prefs.maxSoundDuration : 0
+                playCompletionSound(prefs.completionSound, cap, prefs.soundVolume)
               }
-              if (preferencesRef.current.notifyOnComplete) {
+              if (prefs?.notifyOnComplete) {
                 void sendCompletionNotification("Reline Configurator", t("backend.pipelineComplete"), {
-                  onlyWhenMinimized: preferencesRef.current.notifyMode === "when-minimized",
+                  onlyWhenMinimized: prefs.notifyMode === "when-minimized",
                 })
               }
             }

@@ -15,6 +15,8 @@ import { useBackendContext } from "~/components/providers/backend-provider"
 import { ServerPopover } from "~/components/layout/server-popover"
 import { useModelDownloads } from "~/components/providers/model-downloads-provider"
 import { useSettings } from "~/components/providers/settings-provider"
+import { useSoundPlaying } from "~/hooks/useSoundPlaying"
+import { stopSound } from "~/lib/audio"
 import { ModelDownloaderDialog } from "~/components/layout/model-downloader-dialog.tsx"
 import { DocumentationDialog } from "~/components/docs/documentation-dialog.tsx"
 import { Button } from "~/components/ui/button"
@@ -98,6 +100,7 @@ export function TauriFooter() {
   } = useBackendContext()
   const { openSettings } = useSettings()
   const { activeCount } = useModelDownloads()
+  const soundPlaying = useSoundPlaying()
   const nodes = useContext(NodesContext)
   const [errorOpen, setErrorOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
@@ -206,6 +209,12 @@ export function TauriFooter() {
           <Button variant="outline" size="sm" className="shrink-0" onClick={() => handleOpenFolder(outputPath)}>
             <IconFolder />
             {t("backend.openInExplorer")}
+          </Button>
+        ) : null}
+        {soundPlaying ? (
+          <Button variant="outline" size="sm" className="shrink-0" onClick={() => stopSound()}>
+            <IconPlayerStop />
+            {t("backend.stopSound")}
           </Button>
         ) : null}
       </div>
