@@ -1,10 +1,23 @@
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import anser from "anser"
-import { IconAlertTriangle, IconCheck, IconLoader2, IconTerminal2, IconX } from "@tabler/icons-react"
+import { toast } from "sonner"
+import { IconAlertTriangle, IconCheck, IconLoader2, IconTerminal2, IconTrash, IconX } from "@tabler/icons-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog"
 import { Button } from "~/components/ui/button"
 import { Progress } from "~/components/ui/progress"
-import type { DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
+import { formatBytes } from "~/lib/utils"
+import type { CleanupInfo, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 
 interface DepsTabProps {
   depsStatus: DepsStatus | null
@@ -14,6 +27,8 @@ interface DepsTabProps {
   logs: LogEntry[]
   uvProgress: UvProgress | null
   onInstall?: (full: boolean) => Promise<void>
+  cleanupSize?: CleanupInfo | null
+  onCleanup?: () => Promise<boolean>
 }
 
 function AnsiLine({ text }: { text: string }) {
@@ -23,9 +38,11 @@ function AnsiLine({ text }: { text: string }) {
   return <span dangerouslySetInnerHTML={{ __html: html }} />
 }
 
-export function DepsTab({ depsStatus, versions, installingDeps, statusMessage, logs, uvProgress, onInstall }: DepsTabProps) {
+export function DepsTab({ depsStatus, versions, installingDeps, statusMessage, logs, uvProgress, onInstall, cleanupSize, onCleanup }: DepsTabProps) {
   const { t } = useTranslation()
   const logsContainerRef = useRef<HTMLDivElement>(null)
+  const [cleanupOpen, setCleanupOpen] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
 
   useEffect(() => {
     if (logsContainerRef.current) {
@@ -48,120 +65,170 @@ export function DepsTab({ depsStatus, versions, installingDeps, statusMessage, l
     void onInstall?.(!depsInstalled)
   }
 
+  const handleCleanup = async () => {
+    setCleanupOpen(false)
+    setCleaning(true)
+    try {
+      const ok = await onCleanup?.()
+      if (ok !== false) toast.success(t("backend.cleanup.success"))
+    } finally {
+      setCleaning(false)
+    }
+  }
+
+  const showCleanup = onCleanup != null && (cleanupSize?.total_bytes ?? 0) > 0
+
   return (
-    <div className="grid grid-cols-2 grid-rows-1 gap-5 flex-1 min-h-0">
-      {/* Left column: deps, versions, install */}
-      <div className="flex flex-col gap-3 min-h-0 overflow-hidden">
-        {/* Status Items */}
-        <div className="space-y-1.5">
-          {statusItems.map((item) => (
-            <div key={item.key} className="flex items-center gap-2 text-sm">
-              {item.ok ? <IconCheck className="size-4 text-green-500 shrink-0" /> : <IconX className="size-4 text-red-500 shrink-0" />}
-              <span className={item.ok ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Warning */}
-        {hasAnyDeps && !depsStatus.has_nvidia_gpu && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400">
-            <IconAlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-            <span>{t("backend.noNvidiaGpu")}</span>
+    <>
+      <div className="grid grid-cols-2 grid-rows-1 gap-5 flex-1 min-h-0">
+        {/* Left column: deps, versions, install */}
+        <div className="flex flex-col gap-3 min-h-0 overflow-hidden">
+          {/* Status Items */}
+          <div className="space-y-1.5">
+            {statusItems.map((item) => (
+              <div key={item.key} className="flex items-center gap-2 text-sm">
+                {item.ok ? <IconCheck className="size-4 text-green-500 shrink-0" /> : <IconX className="size-4 text-red-500 shrink-0" />}
+                <span className={item.ok ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
+              </div>
+            ))}
           </div>
-        )}
 
-        <div className="mt-auto flex flex-col gap-3">
-          {/* Versions */}
-          {versions && (versions.torch_version || versions.resselt_version || versions.reline_version) && (
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">{t("backend.versions")}</span>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-                {versions.torch_version && (
+          {/* Warning */}
+          {hasAnyDeps && !depsStatus.has_nvidia_gpu && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400">
+              <IconAlertTriangle className="size-3.5 shrink-0 mt-0.5" />
+              <span>{t("backend.noNvidiaGpu")}</span>
+            </div>
+          )}
+
+          <div className="mt-auto flex flex-col gap-3">
+            {/* Versions */}
+            {versions && (versions.torch_version || versions.resselt_version || versions.reline_version) && (
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">{t("backend.versions")}</span>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                  {versions.torch_version && (
+                    <>
+                      <span className="text-muted-foreground">Torch:</span>
+                      <span className="font-mono">
+                        {versions.torch_version}
+                        {versions.torch_cuda ? (
+                          <span className="ml-1 text-green-500">{t("backend.torchCuda")}</span>
+                        ) : (
+                          <span className="ml-1 text-red-500">{t("backend.torchCudaFail")}</span>
+                        )}
+                      </span>
+                    </>
+                  )}
+                  {versions.resselt_version && (
+                    <>
+                      <span className="text-muted-foreground">resselt:</span>
+                      <span className="font-mono">{versions.resselt_version}</span>
+                    </>
+                  )}
+                  {versions.reline_version && (
+                    <>
+                      <span className="text-muted-foreground">reline:</span>
+                      <span className="font-mono">{versions.reline_version}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Button */}
+            <div className="space-y-1.5">
+              <Button variant={depsInstalled ? "outline" : "default"} className="w-full" disabled={installingDeps} onClick={handleInstall}>
+                {installingDeps ? <IconLoader2 className="animate-spin" /> : depsInstalled ? t("backend.updateLibs") : t("backend.installDeps")}
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                {depsInstalled ? t("backend.updateLibsDesc") : t("backend.installDepsDesc")}
+              </p>
+            </div>
+
+            {/* Progress message */}
+            {installingDeps ? (
+              <div className="min-h-16 space-y-1.5 rounded-lg border p-2.5">
+                {uvProgress && uvProgress.total > 0 ? (
                   <>
-                    <span className="text-muted-foreground">Torch:</span>
-                    <span className="font-mono">
-                      {versions.torch_version}
-                      {versions.torch_cuda ? (
-                        <span className="ml-1 text-green-500">{t("backend.torchCuda")}</span>
-                      ) : (
-                        <span className="ml-1 text-red-500">{t("backend.torchCudaFail")}</span>
-                      )}
-                    </span>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="capitalize">{t(`backend.progress.${uvProgress.stage}`, { defaultValue: uvProgress.stage })}</span>
+                      <span className="tabular-nums">
+                        {uvProgress.current} / {uvProgress.total} ({uvPercentage}%)
+                      </span>
+                    </div>
+                    <Progress value={uvPercentage} className="w-full" />
+                    <p className="text-[10px] font-mono text-muted-foreground truncate">{uvProgress.raw_message}</p>
                   </>
-                )}
-                {versions.resselt_version && (
-                  <>
-                    <span className="text-muted-foreground">resselt:</span>
-                    <span className="font-mono">{versions.resselt_version}</span>
-                  </>
-                )}
-                {versions.reline_version && (
-                  <>
-                    <span className="text-muted-foreground">reline:</span>
-                    <span className="font-mono">{versions.reline_version}</span>
-                  </>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <IconLoader2 className="size-3.5 animate-spin shrink-0" />
+                    <span className="truncate">{statusMessage || t("backend.installing")}</span>
+                  </div>
                 )}
               </div>
-            </div>
-          )}
+            ) : null}
 
-          {/* Button */}
-          <div className="space-y-1.5">
-            <Button variant={depsInstalled ? "outline" : "default"} className="w-full" disabled={installingDeps} onClick={handleInstall}>
-              {installingDeps ? <IconLoader2 className="animate-spin" /> : depsInstalled ? t("backend.updateLibs") : t("backend.installDeps")}
-            </Button>
-            <p className="text-[11px] text-muted-foreground leading-tight">
-              {depsInstalled ? t("backend.updateLibsDesc") : t("backend.installDepsDesc")}
-            </p>
+            {/* Danger zone: remove dependency folders */}
+            {showCleanup && (
+              <div className="space-y-1.5 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                  <IconAlertTriangle className="size-3.5 shrink-0" />
+                  {t("backend.cleanup.title")}
+                </div>
+                <Button variant="destructive" className="w-full" disabled={installingDeps || cleaning} onClick={() => setCleanupOpen(true)}>
+                  {cleaning ? <IconLoader2 className="animate-spin" /> : <IconTrash className="size-4" />}
+                  {cleaning ? t("backend.cleanup.removing") : t("backend.cleanup.button", { size: formatBytes(cleanupSize?.total_bytes ?? 0) })}
+                </Button>
+                <p className="text-[11px] text-muted-foreground leading-tight">{t("backend.cleanup.desc")}</p>
+              </div>
+            )}
           </div>
+        </div>
 
-          {/* Progress message */}
-          {installingDeps ? (
-            <div className="min-h-16 space-y-1.5 rounded-lg border p-2.5">
-              {uvProgress && uvProgress.total > 0 ? (
-                <>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="capitalize">{t(`backend.progress.${uvProgress.stage}`, { defaultValue: uvProgress.stage })}</span>
-                    <span className="tabular-nums">
-                      {uvProgress.current} / {uvProgress.total} ({uvPercentage}%)
-                    </span>
+        {/* Right column: Logs */}
+        <div className="flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <IconTerminal2 className="size-3.5" />
+              {t("backend.viewLogs")}
+            </span>
+          </div>
+          <div ref={logsContainerRef} className="flex-1 min-h-0 overflow-y-auto rounded-md border bg-zinc-900 text-zinc-200 p-2">
+            {logs.length === 0 ? (
+              <p className="text-xs text-zinc-500">{t("backend.noLogs")}</p>
+            ) : (
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all leading-relaxed">
+                {logs.map((entry, i) => (
+                  <div key={i}>
+                    <span className="text-zinc-500 select-none">[{entry.timestamp}]</span> <AnsiLine text={entry.message} />
                   </div>
-                  <Progress value={uvPercentage} className="w-full" />
-                  <p className="text-[10px] font-mono text-muted-foreground truncate">{uvProgress.raw_message}</p>
-                </>
-              ) : (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <IconLoader2 className="size-3.5 animate-spin shrink-0" />
-                  <span className="truncate">{statusMessage || t("backend.installing")}</span>
-                </div>
-              )}
-            </div>
-          ) : null}
+                ))}
+              </pre>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Right column: Logs */}
-      <div className="flex flex-col min-h-0">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <IconTerminal2 className="size-3.5" />
-            {t("backend.viewLogs")}
-          </span>
-        </div>
-        <div ref={logsContainerRef} className="flex-1 min-h-0 overflow-y-auto rounded-md border bg-zinc-900 text-zinc-200 p-2">
-          {logs.length === 0 ? (
-            <p className="text-xs text-zinc-500">{t("backend.noLogs")}</p>
-          ) : (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-all leading-relaxed">
-              {logs.map((entry, i) => (
-                <div key={i}>
-                  <span className="text-zinc-500 select-none">[{entry.timestamp}]</span> <AnsiLine text={entry.message} />
-                </div>
-              ))}
-            </pre>
-          )}
-        </div>
-      </div>
-    </div>
+      <AlertDialog open={cleanupOpen} onOpenChange={setCleanupOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+              <IconTrash />
+            </AlertDialogMedia>
+            <AlertDialogTitle>{t("backend.cleanup.confirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription className="[overflow-wrap:anywhere]">
+              {t("backend.cleanup.confirmDesc", { size: formatBytes(cleanupSize?.total_bytes ?? 0) })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("backend.cleanup.cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void handleCleanup()}>
+              {t("backend.cleanup.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

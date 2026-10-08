@@ -1,4 +1,4 @@
-import type { BackendStage, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
+import type { BackendStage, CleanupInfo, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 
 export interface PipelineMetrics {
   processed: number
@@ -55,6 +55,7 @@ export interface UseBackendReturn {
   depsStatus: DepsStatus | null
   depsReady: boolean
   versions: DepsVersions | null
+  cleanupSize: CleanupInfo | null
   logs: LogEntry[]
   uvProgress: UvProgress | null
   errorInfo: BackendErrorInfo | null
@@ -70,6 +71,7 @@ export interface UseBackendReturn {
   handleOpenFolder: (path: string) => Promise<void>
   handleCheckDeps: () => Promise<void>
   handleInstallDeps: (full: boolean) => Promise<void>
+  handleCleanupDeps: () => Promise<boolean>
   handleGetLogs: () => Promise<void>
   handleClearLogs: () => Promise<void>
 }

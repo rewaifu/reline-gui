@@ -19,6 +19,8 @@ export function TauriSettingsHost() {
       logs={backend.logs}
       uvProgress={backend.uvProgress}
       onInstall={backend.handleInstallDeps}
+      cleanupSize={backend.cleanupSize}
+      onCleanup={backend.handleCleanupDeps}
     />
   )
 }

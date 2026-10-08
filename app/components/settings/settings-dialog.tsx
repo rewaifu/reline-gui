@@ -9,7 +9,7 @@ import { NodesTab } from "~/components/settings/tabs/nodes-tab"
 import { DepsTab } from "~/components/settings/tabs/deps-tab"
 import { SoundTab } from "~/components/settings/tabs/sound-tab"
 import type { SettingsSection } from "~/context/contexts"
-import type { DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
+import type { CleanupInfo, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 
 interface SettingsDialogProps {
   open: boolean
@@ -23,6 +23,8 @@ interface SettingsDialogProps {
   logs?: LogEntry[]
   uvProgress?: UvProgress | null
   onInstall?: (full: boolean) => Promise<void>
+  cleanupSize?: CleanupInfo | null
+  onCleanup?: () => Promise<boolean>
 }
 
 const APP_VERSION = __APP_VERSION__
@@ -47,6 +49,8 @@ export function SettingsDialog({
   logs,
   uvProgress,
   onInstall,
+  cleanupSize,
+  onCleanup,
 }: SettingsDialogProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(() => resolveTab(section, isTauri))
@@ -83,6 +87,8 @@ export function SettingsDialog({
                 logs={logs ?? []}
                 uvProgress={uvProgress ?? null}
                 onInstall={onInstall}
+                cleanupSize={cleanupSize ?? null}
+                onCleanup={onCleanup}
               />
             </TabsContent>
           )}

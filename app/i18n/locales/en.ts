@@ -127,7 +127,7 @@ export const en = {
       "target-scale-warning": "Current scale factor exceeds model capabilities ({{modelScale}}x)",
       "target-scale-unknown": "Scale factor not found, exceeding will cause an error",
       "model-not-found": "Model not found in the selected models folder",
-      "download-from-registry": "Found in the model registry. Download \"{{name}}\"",
+      "download-from-registry": 'Found in the model registry. Download "{{name}}"',
     },
     "node-type-options": {
       folder_reader: "Folder reader",
@@ -356,7 +356,7 @@ export const en = {
     torchCudaFail: "NO CUDA",
     noNvidiaGpu: "No NVIDIA GPU detected. Processing on CPU will be extremely slow.",
     installDeps: "Install Dependencies",
-    installDepsDesc: "~2.5 GB — UV, repository, venv, PyTorch, resselt, reline",
+    installDepsDesc: "~4.5 GB — UV, repository, venv, PyTorch, resselt, reline",
     updateLibs: "Update Libraries",
     updateLibsDesc: "~200 MB — Only resselt + reline",
     installDepsPrompt: "Install dependencies",
@@ -417,6 +417,18 @@ export const en = {
       building: "Building...",
       unpacking: "Unpacking...",
       installing: "Installing...",
+    },
+    cleanup: {
+      title: "Remove dependencies",
+      button: "Remove dependencies ({{size}})",
+      desc: "Deletes the reline_ws workspace and the bundled uv. Logs and settings are kept.",
+      confirmTitle: "Remove dependencies?",
+      confirmDesc:
+        "This permanently deletes the Python environment and downloaded libraries, freeing {{size}}. You can reinstall them later from this tab.",
+      confirm: "Remove",
+      cancel: "Cancel",
+      success: "Dependencies removed",
+      removing: "Removing...",
     },
   },
   docs: {

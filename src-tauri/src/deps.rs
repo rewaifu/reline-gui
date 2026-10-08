@@ -1,11 +1,11 @@
 use git2::Repository;
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri_plugin_shell::ShellExt;
 
-use crate::backend::{emit_status, Stage};
+use crate::backend::{emit_status, kill_backend, BackendPort, BackendProcess, Stage};
 use crate::logging::{append_debug_log, append_debug_log_header, push_log};
-use crate::util::{path_str, uvicorn_path, ChildGuard, get_workspace_path};
+use crate::util::{app_data_dir, get_workspace_path, lock, path_str, uvicorn_path, ChildGuard};
 use crate::uv::{
     check_nvidia_gpu, emit_uv_progress, find_or_install_uv, parse_and_emit_uv_progress, uv_in_path,
     uv_local_path, uv_platform,
@@ -117,6 +117,123 @@ pub(crate) async fn check_versions(app: tauri::AppHandle, uv_path: Option<PathBu
     }
 
     versions
+}
+
+// ─── Cleanup / size ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Clone, Default)]
+pub(crate) struct CleanupInfo {
+    /// Bytes used by the cloned `reline_ws` repository (incl. `.venv`).
+    pub(crate) workspace_bytes: u64,
+    /// Bytes used by the app-managed `uv` download. Zero when a system `uv` is used.
+    pub(crate) uv_bin_bytes: u64,
+    pub(crate) total_bytes: u64,
+    /// Whether `uv_bin` is part of the computation (i.e. no system `uv` is present).
+    pub(crate) includes_uv_bin: bool,
+}
+
+fn dir_size(path: &Path) -> u64 {
+    if !path.exists() {
+        return 0;
+    }
+    if path.is_file() {
+        return std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    }
+    let entries = match std::fs::read_dir(path) {
+        Ok(e) => e,
+        Err(_) => return 0,
+    };
+    let mut total = 0u64;
+    for entry in entries.flatten() {
+        match entry.file_type() {
+            Ok(ft) if ft.is_dir() => total += dir_size(&entry.path()),
+            Ok(_) => total += entry.metadata().map(|m| m.len()).unwrap_or(0),
+            Err(_) => {}
+        }
+    }
+    total
+}
+
+fn uv_bin_dir() -> Option<PathBuf> {
+    app_data_dir().ok().map(|d| d.join("uv_bin"))
+}
+
+fn compute_cleanup_info() -> CleanupInfo {
+    let workspace = get_workspace_path().unwrap_or_else(|_| PathBuf::from(""));
+    let workspace_bytes = dir_size(&workspace);
+    let includes_uv_bin = uv_in_path().is_none();
+    let uv_bin_bytes = if includes_uv_bin {
+        uv_bin_dir().map(|d| dir_size(&d)).unwrap_or(0)
+    } else {
+        0
+    };
+
+    CleanupInfo {
+        workspace_bytes,
+        uv_bin_bytes,
+        total_bytes: workspace_bytes + uv_bin_bytes,
+        includes_uv_bin,
+    }
+}
+
+/// Returns how much disk space the removable dependencies currently occupy.
+#[tauri::command]
+pub(crate) async fn get_cleanup_size() -> CleanupInfo {
+    tokio::task::spawn_blocking(compute_cleanup_info)
+        .await
+        .unwrap_or_default()
+}
+
+/// Stops the backend and removes the heavy dependency folders (`reline_ws` and,
+/// when no system `uv` is used, `uv_bin`). Logs and other app data are kept.
+#[tauri::command]
+pub(crate) async fn cleanup_deps(
+    app: tauri::AppHandle,
+    backend_state: tauri::State<'_, BackendProcess>,
+    port_state: tauri::State<'_, BackendPort>,
+) -> Result<CleanupInfo, String> {
+    kill_backend(&app, &backend_state);
+    *lock(&port_state.0) = None;
+
+    let workspace = get_workspace_path()?;
+    let remove_uv = uv_in_path().is_none();
+    let uv_dir = uv_bin_dir();
+
+    match tokio::task::spawn_blocking(move || -> Result<(), String> {
+        if workspace.exists() {
+            std::fs::remove_dir_all(&workspace)
+                .map_err(|e| format!("Failed to remove workspace: {e}"))?;
+        }
+        if remove_uv {
+            if let Some(dir) = uv_dir {
+                if dir.exists() {
+                    std::fs::remove_dir_all(&dir)
+                        .map_err(|e| format!("Failed to remove uv: {e}"))?;
+                }
+            }
+        }
+        Ok(())
+    })
+    .await
+    {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            emit_status(&app, Stage::Error, &e, None);
+            return Err(e);
+        }
+        Err(e) => {
+            let msg = format!("cleanup task failed: {e}");
+            emit_status(&app, Stage::Error, &msg, None);
+            return Err(msg);
+        }
+    }
+
+    push_log(&app, "info", "Dependencies removed");
+    emit_status(&app, Stage::Idle, "Dependencies removed", None);
+
+    Ok(tokio::task::spawn_blocking(compute_cleanup_info)
+        .await
+        .unwrap_or_default())
 }
 
 // ─── Install deps ─────────────────────────────────────────────────────────────

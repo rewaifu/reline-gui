@@ -356,7 +356,7 @@ export const ru = {
     torchCudaFail: "БЕЗ CUDA",
     noNvidiaGpu: "Видеокарта NVIDIA не обнаружена. Обработка на процессоре будет крайне медленной.",
     installDeps: "Установить зависимости",
-    installDepsDesc: "~2.5 GB — UV, репозиторий, venv, PyTorch, resselt, reline",
+    installDepsDesc: "~4.5 GB — UV, репозиторий, venv, PyTorch, resselt, reline",
     updateLibs: "Обновить библиотеки",
     updateLibsDesc: "~200 MB — Только resselt + reline",
     installDepsPrompt: "Установить зависимости",
@@ -417,6 +417,18 @@ export const ru = {
       building: "Сборка...",
       unpacking: "Распаковка...",
       installing: "Установка...",
+    },
+    cleanup: {
+      title: "Удалить зависимости",
+      button: "Удалить зависимости ({{size}})",
+      desc: "Удаляет workspace reline_ws и встроенный uv. Логи и настройки остаются.",
+      confirmTitle: "Удалить зависимости?",
+      confirmDesc:
+        "Python-окружение и скачанные библиотеки будут безвозвратно удалены, освободив {{size}}. Их можно установить заново в этой вкладке.",
+      confirm: "Удалить",
+      cancel: "Отмена",
+      success: "Зависимости удалены",
+      removing: "Удаление...",
     },
   },
   docs: {

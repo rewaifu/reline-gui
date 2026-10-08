@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core"
 import { useCallback } from "react"
 import { toast } from "sonner"
-import type { LogEntry } from "~/types/backend"
+import type { CleanupInfo, DepsStatus, LogEntry } from "~/types/backend"
 import type { BackendState } from "./state"
 import { PipelineCancelledError } from "./types"
 
@@ -16,6 +16,9 @@ export function useBackendActions(state: BackendState) {
     setMetrics,
     setLogs,
     setUvProgress,
+    setDepsStatus,
+    setVersions,
+    setCleanupSize,
     pendingRunRef,
     activeRunRef,
     stoppingRef,
@@ -91,6 +94,29 @@ export function useBackendActions(state: BackendState) {
     [setLogs, setUvProgress, handleCheckDepsSilent],
   )
 
+  const handleCleanupDeps = useCallback(async (): Promise<boolean> => {
+    try {
+      await invoke("cleanup_deps")
+      try {
+        const deps = await invoke<DepsStatus>("check_deps")
+        setDepsStatus(deps)
+      } catch {
+        // ignore
+      }
+      try {
+        const size = await invoke<CleanupInfo>("get_cleanup_size")
+        setCleanupSize(size)
+      } catch {
+        setCleanupSize(null)
+      }
+      setVersions(null)
+      return true
+    } catch (err) {
+      toast.error(String(err))
+      return false
+    }
+  }, [setDepsStatus, setVersions, setCleanupSize])
+
   const handleGetLogs = useCallback(async () => {
     try {
       const entries = await invoke<LogEntry[]>("get_logs")
@@ -116,6 +142,7 @@ export function useBackendActions(state: BackendState) {
     handleCheckPortFree,
     handleOpenFolder,
     handleInstallDeps,
+    handleCleanupDeps,
     handleGetLogs,
     handleClearLogs,
   }

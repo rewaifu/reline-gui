@@ -36,6 +36,7 @@ export function useBackend(): UseBackendReturn {
     depsReady:
       state.depsStatus?.deps_installed === true && state.depsStatus.repo_cloned && state.depsStatus.venv_created && state.depsStatus.uv_installed,
     versions: state.versions,
+    cleanupSize: state.cleanupSize,
     logs: state.logs,
     uvProgress: state.uvProgress,
     errorInfo: state.errorInfo,

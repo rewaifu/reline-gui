@@ -80,6 +80,8 @@ pub fn run() {
             deps::check_deps,
             deps::check_versions,
             deps::install_deps,
+            deps::get_cleanup_size,
+            deps::cleanup_deps,
             logging::get_logs,
             logging::clear_logs,
             models::list_remote_models,

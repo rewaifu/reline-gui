@@ -3,7 +3,7 @@ import { type UnlistenFn, listen } from "@tauri-apps/api/event"
 import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { getSoundPreferencesSnapshot } from "~/components/providers/preferences-provider"
 import { NodesContext } from "~/context/contexts"
-import type { BackendStage, BackendStatusEvent, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
+import type { BackendStage, BackendStatusEvent, CleanupInfo, DepsStatus, DepsVersions, LogEntry, UvProgress } from "~/types/backend"
 import { PORT_STORAGE_KEY } from "./constants"
 import type { BackendErrorInfo, PipelineMetrics, RunPhase, RunRequest } from "./types"
 
@@ -23,6 +23,7 @@ export function useBackendState() {
   const [statusMessage, setStatusMessage] = useState("")
   const [depsStatus, setDepsStatus] = useState<DepsStatus | null>(null)
   const [versions, setVersions] = useState<DepsVersions | null>(null)
+  const [cleanupSize, setCleanupSize] = useState<CleanupInfo | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [uvProgress, setUvProgress] = useState<UvProgress | null>(null)
   const [errorInfo, setErrorInfo] = useState<BackendErrorInfo | null>(null)
@@ -69,6 +70,12 @@ export function useBackendState() {
         setVersions(vers)
       } catch {
         setVersions(null)
+      }
+      try {
+        const size = await invoke<CleanupInfo>("get_cleanup_size")
+        setCleanupSize(size)
+      } catch {
+        setCleanupSize(null)
       }
     } catch {
       setDepsStatus(null)
@@ -209,6 +216,10 @@ export function useBackendState() {
     setStatusMessage,
     depsStatus,
     versions,
+    cleanupSize,
+    setCleanupSize,
+    setDepsStatus,
+    setVersions,
     logs,
     setLogs,
     uvProgress,

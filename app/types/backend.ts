@@ -21,6 +21,13 @@ export interface DepsVersions {
   reline_version: string | null
 }
 
+export interface CleanupInfo {
+  workspace_bytes: number
+  uv_bin_bytes: number
+  total_bytes: number
+  includes_uv_bin: boolean
+}
+
 export interface LogEntry {
   timestamp: string
   level: string
