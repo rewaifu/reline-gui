@@ -59,7 +59,7 @@ export function NodesSection() {
   }
 
   return (
-    <Card className="pb-2 md:pb-4">
+    <Card className="pb-2 md:pb-4 shadow-panel">
       <CardHeader className="flex flex-row items-center mx-2 h-[25px] md:h-[32px]">
         <h2 className="scroll-m-20 text-xl font-semibold tracking-tight select-none">{t("home-page.nodes")}</h2>
         <div className="flex flex-row items-center ml-auto gap-2">
@@ -87,7 +87,7 @@ export function NodesSection() {
           onDragEnd={onDragEnd}
         >
           <ScrollArea
-            className="relative rounded-xl border h-full bg-background overflow-hidden
+            className="relative rounded-xl border h-full bg-background shadow-inset overflow-hidden
                        before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-4
                        before:bg-linear-to-b/oklab before:from-background before:to-background/0 before:opacity-0 before:transition-opacity before:content-['']
                        data-[overflow-y-start]:before:opacity-100

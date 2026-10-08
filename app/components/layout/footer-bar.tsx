@@ -48,7 +48,7 @@ export function FooterBar() {
   const colab = isDesktop ? t("home-page.collab") : t("home-page.collab").split(" (")[0]
 
   return (
-    <footer className="flex h-10 bg-card rounded-xl ring-1 ring-foreground/10 p-2 md:px-5 mb-3 md:mb-5 mx-3 md:mx-5 justify-around md:justify-between mt-1 md:mt-0">
+    <footer className="flex h-10 bg-card rounded-xl ring-1 ring-foreground/10 shadow-panel p-2 md:px-5 mb-3 md:mb-5 mx-3 md:mx-5 justify-around md:justify-between mt-1 md:mt-0">
       <div className="flex flex-row gap-2 items-center">
         <h1 className="hidden md:flex text-sm font-semibold tracking-tight select-none">{t("home-page.use-in")}</h1>
         <a href="https://colab.research.google.com/drive/1-ijaR4Ld_CUkEMb-l2Cbf918TCQOp8D9" target="_blank" rel="noreferrer">
@@ -142,7 +142,7 @@ export function TauriFooter() {
   ]
 
   return (
-    <footer className="flex h-14 bg-card rounded-xl ring-1 ring-foreground/10 p-2 px-3 mb-3 md:mb-5 mx-3 md:mx-5 items-center gap-2">
+    <footer className="flex h-14 bg-card rounded-xl ring-1 ring-foreground/10 shadow-panel p-2 px-3 mb-3 md:mb-5 mx-3 md:mx-5 items-center gap-2">
       {playBusy ? (
         <Button size="icon-lg" variant="outline" disabled style={playAmber} className="disabled:opacity-100">
           <IconLoader2 className="animate-spin" />

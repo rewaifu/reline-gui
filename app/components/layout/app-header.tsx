@@ -60,7 +60,7 @@ export function AppHeader() {
 
   return (
     <header
-      className="flex justify-between h-15 bg-card rounded-xl ring-1 ring-foreground/10 p-2 px-4 mt-3 md:mt-5 mx-3 md:mx-5"
+      className="flex justify-between h-15 bg-card rounded-xl ring-1 ring-foreground/10 shadow-panel p-2 px-4 mt-3 md:mt-5 mx-3 md:mx-5"
       data-tauri-drag-region={customTitlebar || undefined}
     >
       <div className="flex flex-row gap-2 items-center">

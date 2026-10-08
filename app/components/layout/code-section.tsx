@@ -51,7 +51,7 @@ export function CodeSection() {
   }, [activeNodeId, activeTab])
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col gap-0">
-      <Card className="flex flex-col h-full min-h-0">
+      <Card className="flex flex-col h-full min-h-0 shadow-panel">
         <CardHeader className="flex flex-row items-center mx-2 h-[25px] md:h-[32px]">
           <TabsList className="select-none">
             <TabsTrigger value="code" className="px-3 text-[15px]">
@@ -170,7 +170,7 @@ export function CodeSection() {
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden min-h-0">
           <TabsContent value="code" className="h-full">
-            <ScrollArea className="relative rounded-xl border h-full bg-background overflow-hidden">
+            <ScrollArea className="relative rounded-xl border h-full bg-background shadow-inset overflow-hidden">
               <div className="m-4">
                 <pre>
                   <code className="language-json bg-transparent! p-0!">
@@ -198,7 +198,7 @@ export function CodeSection() {
                               }}
                               className={cn(
                                 "block cursor-pointer p-0! transition-colors",
-                                isActive ? "bg-primary/15!" : "bg-transparent!",
+                                isActive ? "bg-primary/10!" : "bg-transparent!",
                                 isActive && isGroupStart && "rounded-t-sm",
                                 isActive && isGroupEnd && "rounded-b-sm",
                               )}

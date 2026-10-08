@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { IconMusic, IconPencil, IconPlayerPlay, IconPlayerStop, IconTrash, IconUpload, IconVolume } from "@tabler/icons-react"
+import { IconPencil, IconPlayerPlay, IconPlayerStop, IconTrash, IconUpload, IconVolume } from "@tabler/icons-react"
 import { Button } from "~/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -392,7 +392,7 @@ export function SoundTab() {
                 >
                   <button type="button" className="flex flex-1 items-center gap-2 text-left" onClick={() => setCompletionSound(preset.path)}>
                     <span className={cn("size-3 shrink-0 rounded-full border", active ? "border-primary bg-primary" : "border-muted-foreground")} />
-                    <IconMusic className="size-4 shrink-0 text-muted-foreground" />
+                    <IconVolume className="size-4 shrink-0 text-muted-foreground" />
                     <span className="text-sm">{t(`backend.sound.presets.${preset.id}`)}</span>
                   </button>
                   <Button variant="ghost" size="icon-sm" onClick={() => previewRef(preset.path)} aria-label={t("backend.sound.preview")}>

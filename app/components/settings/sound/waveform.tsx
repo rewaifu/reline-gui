@@ -145,16 +145,18 @@ export function Waveform({
     ctx.globalAlpha = 0.35
     ctx.fillStyle = primary
     ctx.fill()
-    ctx.globalAlpha = 1
+    ctx.globalAlpha = 0.55
     ctx.lineWidth = 1.5
     ctx.strokeStyle = primary
     ctx.stroke()
+    ctx.globalAlpha = 1
 
     const timeToX = (time: number) => ((time - viewStart) / span) * width
     const startX = timeToX(trimStart)
     const endX = timeToX(trimEnd)
 
-    ctx.fillStyle = "rgba(0, 0, 0, 0.55)"
+    const dark = document.documentElement.classList.contains("dark")
+    ctx.fillStyle = dark ? "rgba(0, 0, 0, 0.38)" : "rgba(255, 255, 255, 0.55)"
     const leftEdge = clamp(startX, 0, width)
     const rightEdge = clamp(endX, 0, width)
     if (leftEdge > 0) ctx.fillRect(0, 0, leftEdge, HEIGHT)
@@ -222,7 +224,7 @@ export function Waveform({
         const span = Math.max(1e-6, state.viewEnd - state.viewStart)
         const x = ((time - state.viewStart) / span) * state.width
         if (x >= 0 && x <= state.width) {
-          ctx.fillStyle = "#ffffff"
+          ctx.fillStyle = document.documentElement.classList.contains("dark") ? "#ffffff" : "#18181b"
           ctx.fillRect(x - 1, 0, 2, HEIGHT)
           ctx.globalAlpha = 0.3
           ctx.fillRect(x - 4, 0, 8, HEIGHT)

@@ -148,14 +148,14 @@ export function DepsTab({ depsStatus, versions, installingDeps, statusMessage, l
             {t("backend.viewLogs")}
           </span>
         </div>
-        <div ref={logsContainerRef} className="flex-1 min-h-0 overflow-y-auto rounded-md border bg-black/90 p-2">
+        <div ref={logsContainerRef} className="flex-1 min-h-0 overflow-y-auto rounded-md border bg-zinc-900 text-zinc-200 p-2">
           {logs.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t("backend.noLogs")}</p>
+            <p className="text-xs text-zinc-500">{t("backend.noLogs")}</p>
           ) : (
             <pre className="text-xs font-mono whitespace-pre-wrap break-all leading-relaxed">
               {logs.map((entry, i) => (
                 <div key={i}>
-                  <span className="text-muted-foreground select-none">[{entry.timestamp}]</span> <AnsiLine text={entry.message} />
+                  <span className="text-zinc-500 select-none">[{entry.timestamp}]</span> <AnsiLine text={entry.message} />
                 </div>
               ))}
             </pre>
