@@ -32,6 +32,7 @@ export function useBackend(): UseBackendReturn {
     serverPort: state.port,
     progress: state.progress,
     statusMessage: state.statusMessage,
+    startupReady: state.startupReady,
     depsStatus: state.depsStatus,
     depsReady:
       state.depsStatus?.deps_installed === true && state.depsStatus.repo_cloned && state.depsStatus.venv_created && state.depsStatus.uv_installed,

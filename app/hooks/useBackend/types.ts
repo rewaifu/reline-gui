@@ -52,6 +52,8 @@ export interface UseBackendReturn {
   serverPort: number | null
   progress: number
   statusMessage: string
+  // True once the essential startup checks (backend port + deps) have resolved.
+  startupReady: boolean
   depsStatus: DepsStatus | null
   depsReady: boolean
   versions: DepsVersions | null

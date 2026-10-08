@@ -14,7 +14,7 @@ import { CodeSection } from "~/components/layout/code-section.tsx"
 import { NodesSection } from "~/components/layout/nodes-section.tsx"
 import { AppHeader } from "~/components/layout/app-header"
 import { FooterBar, TauriFooter } from "~/components/layout/footer-bar"
-import { BackendProvider } from "~/components/providers/backend-provider"
+import { BackendProvider, useBackendContext } from "~/components/providers/backend-provider"
 import { ConfigsProvider } from "~/components/providers/configs-provider"
 import { PreferencesProvider } from "~/components/providers/preferences-provider"
 import { LocalModelsProvider } from "~/components/providers/local-models-provider"
@@ -28,6 +28,26 @@ import { usePrepareNodes, useSyncLocalModelMatches } from "~/hooks/usePrepareNod
 
 const queryClient = new QueryClient()
 
+// Reveals the main window (and dismisses the splashscreen) once the essential
+// startup backend checks have resolved. Must live inside BackendProvider so it
+// can read `startupReady`.
+function SplashGate() {
+  const isTauri = useIsTauri()
+  const { startupReady } = useBackendContext()
+
+  useEffect(() => {
+    if (!isTauri || !startupReady) return
+    // Uses a timer instead of requestAnimationFrame because hidden WebView2
+    // windows throttle rAF, which would keep the main window hidden forever.
+    const id = window.setTimeout(() => {
+      void invoke("show_main_window").catch(() => {})
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [isTauri, startupReady])
+
+  return null
+}
+
 function HomePage() {
   const { data: models = MODELS } = useQuery(modelsQueryOptions)
   const isTauri = useIsTauri()
@@ -38,17 +58,6 @@ function HomePage() {
   useSyncLocalModelMatches(nodes, dispatch)
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null)
   const activeNodeValue = useMemo(() => ({ activeNodeId, setActiveNodeId }), [activeNodeId])
-
-  useEffect(() => {
-    if (!isTauri) return
-    // Reveal the main window once React has committed its first render. Uses a
-    // timer instead of requestAnimationFrame because hidden WebView2 windows
-    // throttle rAF, which would keep the main window hidden forever.
-    const id = window.setTimeout(() => {
-      void invoke("show_main_window").catch(() => {})
-    }, 0)
-    return () => window.clearTimeout(id)
-  }, [isTauri])
 
   const content = (
     <>
@@ -82,7 +91,16 @@ function HomePage() {
         <NodesDispatchContext.Provider value={dispatch}>
           <ActiveNodeContext.Provider value={activeNodeValue}>
             <ConfigsProvider>
-              <ModelsContext.Provider value={models}>{isTauri ? <BackendProvider>{content}</BackendProvider> : content}</ModelsContext.Provider>
+              <ModelsContext.Provider value={models}>
+                {isTauri ? (
+                  <BackendProvider>
+                    <SplashGate />
+                    {content}
+                  </BackendProvider>
+                ) : (
+                  content
+                )}
+              </ModelsContext.Provider>
             </ConfigsProvider>
           </ActiveNodeContext.Provider>
         </NodesDispatchContext.Provider>

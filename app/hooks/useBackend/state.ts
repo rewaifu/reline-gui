@@ -21,6 +21,7 @@ export function useBackendState() {
   const [runState, setRunState] = useState<RunPhase>("idle")
   const [progress, setProgress] = useState(0)
   const [statusMessage, setStatusMessage] = useState("")
+  const [startupReady, setStartupReady] = useState(false)
   const [depsStatus, setDepsStatus] = useState<DepsStatus | null>(null)
   const [versions, setVersions] = useState<DepsVersions | null>(null)
   const [cleanupSize, setCleanupSize] = useState<CleanupInfo | null>(null)
@@ -61,26 +62,38 @@ export function useBackendState() {
     }
   }, [])
 
-  const handleCheckDepsSilent = useCallback(async () => {
+  const checkDepsOnly = useCallback(async () => {
     try {
       const deps = await invoke<DepsStatus>("check_deps")
       setDepsStatus(deps)
-      try {
-        const vers = await invoke<DepsVersions>("check_versions")
-        setVersions(vers)
-      } catch {
-        setVersions(null)
-      }
-      try {
-        const size = await invoke<CleanupInfo>("get_cleanup_size")
-        setCleanupSize(size)
-      } catch {
-        setCleanupSize(null)
-      }
     } catch {
       setDepsStatus(null)
     }
   }, [])
+
+  const refreshVersions = useCallback(async () => {
+    try {
+      const vers = await invoke<DepsVersions>("check_versions")
+      setVersions(vers)
+    } catch {
+      setVersions(null)
+    }
+  }, [])
+
+  const refreshCleanupSize = useCallback(async () => {
+    try {
+      const size = await invoke<CleanupInfo>("get_cleanup_size")
+      setCleanupSize(size)
+    } catch {
+      setCleanupSize(null)
+    }
+  }, [])
+
+  const handleCheckDepsSilent = useCallback(async () => {
+    await checkDepsOnly()
+    await refreshVersions()
+    await refreshCleanupSize()
+  }, [checkDepsOnly, refreshVersions, refreshCleanupSize])
 
   const invokeInitialize = useCallback(() => {
     return invoke("initialize", { port: preferredPort === "" ? null : preferredPort })
@@ -183,17 +196,31 @@ export function useBackendState() {
 
   // ── On mount: check for existing port, check deps ─────────────
   useEffect(() => {
-    invoke<number | null>("get_backend_port")
-      .then((p) => {
-        if (p != null) {
+    let cancelled = false
+    void (async () => {
+      try {
+        const p = await invoke<number | null>("get_backend_port")
+        if (!cancelled && p != null) {
           setStage("running")
           setPort(p)
         }
-      })
-      .catch(() => {})
+      } catch {
+        // ignore
+      }
 
-    handleCheckDepsSilent()
-  }, [handleCheckDepsSilent])
+      await checkDepsOnly()
+      if (cancelled) return
+      // Signal that the essential startup checks are done so the splashscreen
+      // can be dismissed. Versions/cleanup are slower and resolve in the
+      // background without holding up the main window.
+      setStartupReady(true)
+      void refreshVersions()
+      void refreshCleanupSize()
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [checkDepsOnly, refreshVersions, refreshCleanupSize])
 
   const handleCheckDeps = async () => {
     await handleCheckDepsSilent()
@@ -214,6 +241,7 @@ export function useBackendState() {
     setProgress,
     statusMessage,
     setStatusMessage,
+    startupReady,
     depsStatus,
     versions,
     cleanupSize,

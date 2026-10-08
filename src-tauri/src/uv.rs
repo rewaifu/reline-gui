@@ -248,8 +248,14 @@ pub(crate) fn check_nvidia_gpu() -> bool {
 fn detect_nvidia_gpu() -> bool {
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        // Hide the console windows these console-subsystem probes would otherwise
+        // flash when the app itself runs without one (release GUI subsystem).
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
         if let Ok(out) = std::process::Command::new("wmic")
             .args(["path", "win32_VideoController", "get", "name"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
         {
             let text = String::from_utf8_lossy(&out.stdout);
@@ -263,6 +269,7 @@ fn detect_nvidia_gpu() -> bool {
                 "-Command",
                 "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
             ])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
         {
             let text = String::from_utf8_lossy(&out.stdout);

@@ -54,8 +54,18 @@ pub(crate) fn check_deps_sync() -> DepsStatus {
 // ─── Check commands ───────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub(crate) fn check_deps() -> DepsStatus {
-    check_deps_sync()
+pub(crate) async fn check_deps() -> DepsStatus {
+    // check_deps_sync() runs blocking console subprocesses for the NVIDIA probe;
+    // keep it off the IPC/main thread so it can't stall the UI.
+    tokio::task::spawn_blocking(check_deps_sync)
+        .await
+        .unwrap_or(DepsStatus {
+            uv_installed: false,
+            repo_cloned: false,
+            venv_created: false,
+            deps_installed: false,
+            has_nvidia_gpu: false,
+        })
 }
 
 #[tauri::command]
