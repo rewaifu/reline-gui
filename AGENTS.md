@@ -31,7 +31,7 @@ Use `~/` consistently (existing code uses both; `~` is the convention).
 | `bun run format` | `biome format --write --no-errors-on-unmatched .` |
 | `bun tauri dev` | Start Vite + Tauri webview (dev mode) |
 | `bun tauri build` | Production Tauri build (all bundle targets for the current OS) |
-| `bun tauri build --bundles nsis,msi` | Windows-only: build just the installers |
+| `bun tauri build --bundles nsis` | Windows-only: build just the installer |
 | `bun tauri build --bundles appimage,deb,rpm` | Linux-only: build just these packages |
 | `cargo check` | **Verify Rust compilation** (run in `src-tauri/`). Must pass with zero errors before committing Tauri changes |
 
@@ -63,7 +63,7 @@ Tauri builds are **native** — each OS must build its own bundles, so releases 
 | Runner | Bundles | Artifacts |
 |---|---|---|
 | `ubuntu-22.04` | `appimage,deb,rpm` | `.AppImage`, `.deb`, `.rpm` |
-| `windows-latest` | `nsis,msi` | `.exe`, `.msi` |
+| `windows-latest` | `nsis` | `.exe` |
 
 - **Linux** built on `ubuntu-22.04` (glibc 2.35) for maximum compatibility. AppImage is the universal fallback; deb/rpm add system integration.
 - **No code signing.** Windows installers are unsigned (SmartScreen warns "Unknown publisher"); Linux has no OS-level code signing.
@@ -72,7 +72,7 @@ Tauri builds are **native** — each OS must build its own bundles, so releases 
 
 ### Releasing
 
-The app version has a **single source of truth**: `package.json > version`. `src-tauri/tauri.conf.json` points at it (`"version": "../package.json"`), so the resolved version is baked into the `.exe` resource (File/ProductVersion), the MSI/NSIS versions and `tauri-action`'s `__VERSION__`. It is exposed to the frontend as `__APP_VERSION__` via a Vite `define` (used in `settings-dialog.tsx`). The `version` field in `src-tauri/Cargo.toml` is a frozen `0.0.0` placeholder — Cargo requires the field but Tauri never reads it, so it is intentionally left out of sync.
+The app version has a **single source of truth**: `package.json > version`. `src-tauri/tauri.conf.json` points at it (`"version": "../package.json"`), so the resolved version is baked into the `.exe` resource (File/ProductVersion), the NSIS version and `tauri-action`'s `__VERSION__`. It is exposed to the frontend as `__APP_VERSION__` via a Vite `define` (used in `settings-dialog.tsx`). The `version` field in `src-tauri/Cargo.toml` is a frozen `0.0.0` placeholder — Cargo requires the field but Tauri never reads it, so it is intentionally left out of sync.
 
 1. Edit `version` in `package.json`.
 2. Edit `release-notes.md` (used verbatim as the GitHub Release body).

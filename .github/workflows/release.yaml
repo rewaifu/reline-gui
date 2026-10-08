@@ -23,7 +23,7 @@ jobs:
           - platform: ubuntu-22.04
             args: --bundles appimage,deb,rpm
           - platform: windows-latest
-            args: --bundles nsis,msi
+            args: --bundles nsis
     runs-on: ${{ matrix.platform }}
 
     steps:
