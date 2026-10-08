@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite"
 import tsconfigPaths from "vite-tsconfig-paths"
 import unfonts from "unplugin-fonts/vite"
 import svgr from "vite-plugin-svgr"
+import pkg from "./package.json"
 
 const host = process.env.TAURI_DEV_HOST;
 const isTauri = process.env.TAURI_ENV_PLATFORM || host !== undefined;
@@ -12,6 +13,10 @@ const isTauri = process.env.TAURI_ENV_PLATFORM || host !== undefined;
 export default defineConfig({
   base: isTauri ? './' : (process.env.BASE_URL ?? '/'),
   clearScreen: !isTauri,
+
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
 
   plugins: [
     { enforce: "pre", ...mdx() },
