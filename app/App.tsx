@@ -1,4 +1,5 @@
-import { useMemo, useReducer, useState } from "react"
+import { useEffect, useMemo, useReducer, useState } from "react"
+import { invoke } from "@tauri-apps/api/core"
 import { ThemeProvider } from "next-themes"
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query"
 import { Toaster } from "~/components/ui/sonner"
@@ -36,6 +37,17 @@ function HomePage() {
   useSyncLocalModelMatches(nodes, dispatch)
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null)
   const activeNodeValue = useMemo(() => ({ activeNodeId, setActiveNodeId }), [activeNodeId])
+
+  useEffect(() => {
+    if (!isTauri) return
+    // Reveal the main window once React has committed its first render. Uses a
+    // timer instead of requestAnimationFrame because hidden WebView2 windows
+    // throttle rAF, which would keep the main window hidden forever.
+    const id = window.setTimeout(() => {
+      void invoke("show_main_window").catch(() => {})
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [isTauri])
 
   const content = (
     <>

@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState, useEffect } from "react"
+import { lazy, Suspense, useMemo, useRef, useState, useEffect } from "react"
 import {
   IconChevronDown,
   IconChevronRight,
   IconBook2,
   IconLayoutSidebarLeftCollapseFilled,
   IconLayoutSidebarLeftExpandFilled,
+  IconLoader2,
 } from "@tabler/icons-react"
 import { Button } from "~/components/ui/button.tsx"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible.tsx"
@@ -73,7 +74,8 @@ export function DocumentationDialog({ triggerClassName, iconOnly }: Documentatio
     return null
   }
 
-  const ActiveArticleComponent = activeArticle.components[locale] ?? activeArticle.components.en
+  const ActiveArticleLoader = activeArticle.components[locale] ?? activeArticle.components.en
+  const ActiveArticleComponent = useMemo(() => lazy(ActiveArticleLoader), [ActiveArticleLoader])
 
   return (
     <Dialog>
@@ -190,7 +192,15 @@ export function DocumentationDialog({ triggerClassName, iconOnly }: Documentatio
               <ScrollArea className="h-full" ref={scrollAreaRef}>
                 <div className="mx-auto w-full max-w-3xl px-5 py-5 md:px-8 md:py-7">
                   <article className="docs-article">
-                    <ActiveArticleComponent components={{ NodeRef, ArticleRef, T, DocImage, DocImageCompare, PlatformOnly, DemoNode }} />
+                    <Suspense
+                      fallback={
+                        <div className="flex justify-center py-10">
+                          <IconLoader2 className="size-5 animate-spin text-muted-foreground" />
+                        </div>
+                      }
+                    >
+                      <ActiveArticleComponent components={{ NodeRef, ArticleRef, T, DocImage, DocImageCompare, PlatformOnly, DemoNode }} />
+                    </Suspense>
                   </article>
                 </div>
                 <ScrollBar className="mr-1 my-2 pb-4" />

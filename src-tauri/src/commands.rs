@@ -1,4 +1,18 @@
 use std::net::TcpListener;
+use tauri::Manager;
+
+// ─── Splashscreen ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub(crate) fn show_main_window(app: tauri::AppHandle) {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.set_focus();
+    }
+    if let Some(splash) = app.get_webview_window("splashscreen") {
+        let _ = splash.close();
+    }
+}
 
 // ─── Other commands ───────────────────────────────────────────────────────────
 

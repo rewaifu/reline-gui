@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reline Configurator</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: #0b0b0d;
+        color: #f5f5f7;
+        font-family: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+        overflow: hidden;
+        cursor: default;
+      }
+      .splash {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+        padding: 32px;
+      }
+      .logo {
+        width: 96px;
+        height: 96px;
+        object-fit: contain;
+        -webkit-user-drag: none;
+      }
+      .brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        text-align: center;
+      }
+      .brand .name {
+        font-family: "Bahnschrift", "DIN Alternate", "Franklin Gothic Medium", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+        font-size: 34px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        line-height: 1;
+      }
+      .brand .name b i {
+        font-weight: 800;
+        font-style: italic;
+      }
+      .brand .by {
+        font-family: "Bahnschrift", "DIN Alternate", "Franklin Gothic Medium", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+        font-size: 16px;
+        font-weight: 400;
+        font-style: normal;
+        letter-spacing: 0.02em;
+        color: #a1a1aa;
+      }
+      .spinner {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, 0.12);
+        border-top-color: #57c7bb;
+        animation: splash-spin 0.8s linear infinite;
+      }
+      @keyframes splash-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body data-tauri-drag-region>
+    <div class="splash">
+      <img class="logo" src="./favicon-310x310.png" alt="Reline" />
+      <div class="brand">
+        <span class="name"><b><i>Reline</i></b></span>
+        <span class="by">by rewaifu</span>
+      </div>
+      <div class="spinner" role="status" aria-label="Loading"></div>
+    </div>
+  </body>
+</html>

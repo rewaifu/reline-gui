@@ -20,6 +20,21 @@
         "resizable": true,
         "fullscreen": false,
         "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "Reline Configurator",
+        "url": "splashscreen.html",
+        "width": 380,
+        "height": 420,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "center": true,
+        "skipTaskbar": true,
+        "shadow": true,
+        "visible": true,
+        "backgroundColor": "#0b0b0d"
       }
     ],
     "security": {

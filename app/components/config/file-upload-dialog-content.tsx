@@ -3,7 +3,7 @@ import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import { Upload, FileJson, X, ClipboardPaste } from "lucide-react"
+import { IconUpload, IconJson, IconX, IconClipboardText } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
@@ -107,7 +107,7 @@ export function FileUploadDialogContent({ onImport }: FileUploadDialogContentPro
       <div className="space-y-4 py-2">
         <div className="flex justify-center">
           <Button variant="outline" size="sm" className="gap-2" onClick={handlePasteFromClipboard}>
-            <ClipboardPaste className="h-4 w-4" />
+            <IconClipboardText className="h-4 w-4" />
             {t("upload-dialog.paste")}
           </Button>
         </div>
@@ -138,7 +138,7 @@ export function FileUploadDialogContent({ onImport }: FileUploadDialogContentPro
           <div className="pointer-events-none flex flex-col items-center gap-3 text-center">
             {fileName ? (
               <>
-                <FileJson className="h-10 w-10 text-primary" />
+                <IconJson className="h-10 w-10 text-primary" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{fileName}</p>
                   <p className="text-xs text-muted-foreground">{t("upload-dialog.loaded")}</p>
@@ -146,7 +146,7 @@ export function FileUploadDialogContent({ onImport }: FileUploadDialogContentPro
               </>
             ) : (
               <>
-                <Upload className="h-10 w-10 text-muted-foreground" />
+                <IconUpload className="h-10 w-10 text-muted-foreground" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">
                     {t("upload-dialog.dnd-1")} <br />
@@ -168,7 +168,7 @@ export function FileUploadDialogContent({ onImport }: FileUploadDialogContentPro
                 clearFile()
               }}
             >
-              <X className="h-4 w-4" />
+              <IconX className="h-4 w-4" />
             </Button>
           )}
         </div>

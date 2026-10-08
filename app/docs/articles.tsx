@@ -1,44 +1,23 @@
-import type {ComponentType, ElementType} from "react"
-
-type MDXComponent = ComponentType<{ components?: Record<string, ComponentType<any>> }>
-import GettingStartedArticleEn from "~/docs/getting-started-en.mdx"
-import GettingStartedArticleRu from "~/docs/getting-started.mdx"
-import FolderReaderNodeArticleEn from "~/docs/nodes/en/folder-reader.mdx"
-import FolderReaderNodeArticleRu from "~/docs/nodes/ru/folder-reader.mdx"
-import FolderWriterNodeArticleEn from "~/docs/nodes/en/folder-writer.mdx"
-import FolderWriterNodeArticleRu from "~/docs/nodes/ru/folder-writer.mdx"
-import UpscaleNodeArticleEn from "~/docs/nodes/en/upscale.mdx"
-import UpscaleNodeArticleRu from "~/docs/nodes/ru/upscale.mdx"
-import SharpNodeArticleEn from "~/docs/nodes/en/sharp.mdx"
-import SharpNodeArticleRu from "~/docs/nodes/ru/sharp.mdx"
-import ScreentoneNodeArticleEn from "~/docs/nodes/en/screentone.mdx"
-import ScreentoneNodeArticleRu from "~/docs/nodes/ru/screentone.mdx"
-import ResizeNodeArticleEn from "~/docs/nodes/en/resize.mdx"
-import ResizeNodeArticleRu from "~/docs/nodes/ru/resize.mdx"
-import LevelNodeArticleEn from "~/docs/nodes/en/level.mdx"
-import LevelNodeArticleRu from "~/docs/nodes/ru/level.mdx"
-import CVTColorNodeArticleEn from "~/docs/nodes/en/cvt-color.mdx"
-import CVTColorNodeArticleRu from "~/docs/nodes/ru/cvt-color.mdx"
-import GrayBaseArticleEn from "~/docs/gray/en/base.mdx"
-import GrayBaseArticleRu from "~/docs/gray/ru/base.mdx"
-import ColorBaseArticleEn from "~/docs/color/en/base.mdx"
-import ColorBaseArticleRu from "~/docs/color/ru/base.mdx"
-import MangaScaleArticleEn from "~/docs/gray/en/mangascale.mdx"
-import MangaScaleArticleRu from "~/docs/gray/ru/mangascale.mdx"
-import DescreentoneArticleEn from "~/docs/gray/en/ds.mdx"
-import DescreentoneArticleRu from "~/docs/gray/ru/ds.mdx"
+import { IconInfoCircle, IconPointOff, IconSparkles } from "@tabler/icons-react"
+import type { ComponentType, ElementType } from "react"
 import { NODE_ICONS } from "~/constants"
 import { NodeType } from "~/types/enums"
-import {IconInfoCircle, IconPointOff, IconSparkles} from '@tabler/icons-react';
 
 export type DocumentationLocale = "en" | "ru"
+
+type MDXComponent = ComponentType<{ components?: Record<string, ElementType> }>
+
+// Articles are imported lazily: each MDX file becomes its own chunk and is only
+// evaluated when the docs dialog actually opens, keeping them out of the initial
+// bundle (both for the web build and the Tauri app).
+export type MDXLoader = () => Promise<{ default: MDXComponent }>
 
 export type DocumentationArticle = {
   slug: string
   title: string
   sectionId: string
-  components: Partial<Record<DocumentationLocale, MDXComponent>> & {
-    en: MDXComponent
+  components: Partial<Record<DocumentationLocale, MDXLoader>> & {
+    en: MDXLoader
   }
   icon?: ElementType
   nodeType?: NodeType
@@ -70,8 +49,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         title: "docs.articles.getting_started",
         sectionId: "basics",
         components: {
-          en: GettingStartedArticleEn,
-          ru: GettingStartedArticleRu
+          en: () => import("~/docs/getting-started-en.mdx"),
+          ru: () => import("~/docs/getting-started.mdx"),
         },
       },
     ],
@@ -86,8 +65,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "bwscale",
         icon: IconInfoCircle,
         components: {
-          en: GrayBaseArticleEn,
-          ru: GrayBaseArticleRu
+          en: () => import("~/docs/gray/en/base.mdx"),
+          ru: () => import("~/docs/gray/ru/base.mdx"),
         },
       },
       {
@@ -96,8 +75,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "bwscale",
         icon: IconSparkles,
         components: {
-          en: MangaScaleArticleEn,
-          ru: MangaScaleArticleRu
+          en: () => import("~/docs/gray/en/mangascale.mdx"),
+          ru: () => import("~/docs/gray/ru/mangascale.mdx"),
         },
       },
       {
@@ -106,8 +85,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "bwscale",
         icon: IconPointOff,
         components: {
-          en: DescreentoneArticleEn,
-          ru: DescreentoneArticleRu
+          en: () => import("~/docs/gray/en/ds.mdx"),
+          ru: () => import("~/docs/gray/ru/ds.mdx"),
         },
       },
     ],
@@ -122,8 +101,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "colorscale",
         icon: IconInfoCircle,
         components: {
-          en: ColorBaseArticleEn,
-          ru: ColorBaseArticleRu
+          en: () => import("~/docs/color/en/base.mdx"),
+          ru: () => import("~/docs/color/ru/base.mdx"),
         },
       },
     ],
@@ -138,8 +117,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.FOLDER_READER,
         components: {
-          en: FolderReaderNodeArticleEn,
-          ru: FolderReaderNodeArticleRu,
+          en: () => import("~/docs/nodes/en/folder-reader.mdx"),
+          ru: () => import("~/docs/nodes/ru/folder-reader.mdx"),
         },
       }),
       withNodeIcon({
@@ -148,8 +127,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.FOLDER_WRITER,
         components: {
-          en: FolderWriterNodeArticleEn,
-          ru: FolderWriterNodeArticleRu,
+          en: () => import("~/docs/nodes/en/folder-writer.mdx"),
+          ru: () => import("~/docs/nodes/ru/folder-writer.mdx"),
         },
       }),
       withNodeIcon({
@@ -158,8 +137,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.UPSCALE,
         components: {
-          en: UpscaleNodeArticleEn,
-          ru: UpscaleNodeArticleRu,
+          en: () => import("~/docs/nodes/en/upscale.mdx"),
+          ru: () => import("~/docs/nodes/ru/upscale.mdx"),
         },
       }),
       withNodeIcon({
@@ -168,8 +147,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.SHARP,
         components: {
-          en: SharpNodeArticleEn,
-          ru: SharpNodeArticleRu,
+          en: () => import("~/docs/nodes/en/sharp.mdx"),
+          ru: () => import("~/docs/nodes/ru/sharp.mdx"),
         },
       }),
       withNodeIcon({
@@ -178,8 +157,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.SCREENTONE,
         components: {
-          en: ScreentoneNodeArticleEn,
-          ru: ScreentoneNodeArticleRu,
+          en: () => import("~/docs/nodes/en/screentone.mdx"),
+          ru: () => import("~/docs/nodes/ru/screentone.mdx"),
         },
       }),
       withNodeIcon({
@@ -188,8 +167,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.RESIZE,
         components: {
-          en: ResizeNodeArticleEn,
-          ru: ResizeNodeArticleRu,
+          en: () => import("~/docs/nodes/en/resize.mdx"),
+          ru: () => import("~/docs/nodes/ru/resize.mdx"),
         },
       }),
       withNodeIcon({
@@ -198,8 +177,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.LEVEL,
         components: {
-          en: LevelNodeArticleEn,
-          ru: LevelNodeArticleRu,
+          en: () => import("~/docs/nodes/en/level.mdx"),
+          ru: () => import("~/docs/nodes/ru/level.mdx"),
         },
       }),
       withNodeIcon({
@@ -208,8 +187,8 @@ export const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
         sectionId: "nodes",
         nodeType: NodeType.CVT_COLOR,
         components: {
-          en: CVTColorNodeArticleEn,
-          ru: CVTColorNodeArticleRu,
+          en: () => import("~/docs/nodes/en/cvt-color.mdx"),
+          ru: () => import("~/docs/nodes/ru/cvt-color.mdx"),
         },
       }),
     ],
