@@ -63,6 +63,7 @@ jobs:
           {
             echo 'body<<RELEASE_NOTES_EOF'
             cat release-notes.md
+            echo ''
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
