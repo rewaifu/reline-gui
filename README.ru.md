@@ -4,7 +4,7 @@
 
 **Визуальный конструктор конфигов для апскейл-пайплайнов манги на базе [Reline](https://github.com/rewaifu/reline).**
 
-[English](README.md) · [Русский](README.ru.md)
+[English](README.md) · Русский
 
 <img src="public/docs/main-tauri-ru.webp" alt="Интерфейс десктопной версии Reline Configurator" width="900" />
 

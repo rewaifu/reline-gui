@@ -4,7 +4,7 @@
 
 **Visual builder for [Reline](https://github.com/rewaifu/reline) upscaling-pipeline configs.**
 
-[English](README.md) · [Русский](README.ru.md)
+English · [Русский](README.ru.md)
 
 <img src="public/docs/main-tauri-en.webp" alt="Reline Configurator desktop interface" width="900" />
 
