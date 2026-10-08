@@ -109,7 +109,7 @@ export function SettingsDialog({
             <span className="text-xs text-muted-foreground tabular-nums select-none">v{APP_VERSION}</span>
             {isTauri ? (
               <div className="flex flex-row items-center gap-2">
-                <a href="https://github.com/rewaifu/reline-web" target="_blank" rel="noreferrer">
+                <a href="https://github.com/rewaifu/reline-gui" target="_blank" rel="noreferrer">
                   <Button variant="outline" size="sm">
                     <IconBrandGithub />
                     Reline GUI
