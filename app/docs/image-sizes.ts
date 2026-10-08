@@ -1,7 +1,10 @@
 // Intrinsic dimensions of static docs images (parsed from WebP headers).
 // Used to reserve layout space before an image finishes loading.
 export const DOCS_IMAGE_SIZES: Record<string, { width: number; height: number }> = {
-  "/docs/main.webp": { width: 1920, height: 1015 },
+  "/docs/main-web-en.webp": { width: 1920, height: 1016 },
+  "/docs/main-web-ru.webp": { width: 1920, height: 1016 },
+  "/docs/main-tauri-en.webp": { width: 1919, height: 1079 },
+  "/docs/main-tauri-ru.webp": { width: 1919, height: 1079 },
   "/docs/low-dot.webp": { width: 1500, height: 500 },
   "/docs/saw.webp": { width: 630, height: 200 },
   "/docs/sharp.webp": { width: 908, height: 255 },

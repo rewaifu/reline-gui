@@ -7,17 +7,27 @@ import { Button } from "~/components/ui/button.tsx"
 import { Slider } from "~/components/ui/slider.tsx"
 import { Skeleton } from "~/components/ui/skeleton.tsx"
 import { getDocsImageSize } from "~/docs/image-sizes.ts"
+import { useIsTauri } from "~/hooks/useIsTauri"
 import { MAX_ZOOM, MIN_ZOOM, useImageViewer } from "./image-viewer/useImageViewer"
 
 type DocImageProps = {
   src: string
+  /** Alternative source used when the app runs inside Tauri. */
+  tauriSrc?: string
   alt: string
   caption?: string
+  /** Alternative caption used when the app runs inside Tauri. */
+  tauriCaption?: string
 }
 
-export function DocImage({ src, alt, caption }: DocImageProps) {
+export function DocImage({ src, tauriSrc, alt, caption, tauriCaption }: DocImageProps) {
+  const isTauri = useIsTauri()
   const [loaded, setLoaded] = useState(false)
-  const size = getDocsImageSize(src)
+
+  const resolvedSrc = isTauri && tauriSrc ? tauriSrc : src
+  const resolvedCaption = isTauri && tauriCaption ? tauriCaption : caption
+
+  const size = getDocsImageSize(resolvedSrc)
 
   const {
     render,
@@ -59,7 +69,7 @@ export function DocImage({ src, alt, caption }: DocImageProps) {
       <figure className="my-5 w-full">
         <div className="relative w-full">
           <img
-            src={src}
+            src={resolvedSrc}
             alt={alt}
             width={size?.width}
             height={size?.height}
@@ -71,7 +81,7 @@ export function DocImage({ src, alt, caption }: DocImageProps) {
           />
           {loaded ? null : <Skeleton className="absolute inset-0 rounded-lg border" />}
         </div>
-        {caption ? <figcaption className="mt-2 text-center text-sm text-muted-foreground">{caption}</figcaption> : null}
+        {resolvedCaption ? <figcaption className="mt-2 text-center text-sm text-muted-foreground">{resolvedCaption}</figcaption> : null}
       </figure>
 
       {render
@@ -101,7 +111,7 @@ export function DocImage({ src, alt, caption }: DocImageProps) {
                 <div className="w-full h-full flex items-center justify-center">
                   <img
                     ref={setImgRef}
-                    src={src}
+                    src={resolvedSrc}
                     alt={alt}
                     draggable={false}
                     onClick={(e) => e.stopPropagation()}
@@ -122,7 +132,7 @@ export function DocImage({ src, alt, caption }: DocImageProps) {
                 </div>
               </div>
 
-              {caption ? (
+              {resolvedCaption ? (
                 <div
                   className={`
                     absolute bottom-0 left-0 right-0
@@ -131,7 +141,7 @@ export function DocImage({ src, alt, caption }: DocImageProps) {
                     ${isZoomed ? "opacity-0 pointer-events-none" : "opacity-100"}
                   `}
                 >
-                  {caption}
+                  {resolvedCaption}
                 </div>
               ) : null}
 

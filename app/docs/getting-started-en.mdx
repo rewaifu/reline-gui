@@ -4,11 +4,11 @@ Reline is an image processing library written in Python and Rust. It is operated
 
 ## Application interface
 
-<DocImage src="/docs/main.webp" alt="main screen" caption="PC interface" />
-* **At the top** there are customization options: language and theme switching.
-* **On the left (the "Nodes" card)** is a visual editor where you can add, reorder and edit the contents of nodes.
-* **On the right (the "Code" card)** the created config is displayed as JSON code. In the dropdown menu you can select one of the ready-made presets, and there are also buttons for importing and exporting configs.
-* **At the bottom** there are links to resources where you can use the created config.
+<DocImage src="/docs/main-web-en.webp" tauriSrc="/docs/main-tauri-en.webp" alt="main screen" caption="Web interface" tauriCaption="Desktop interface" />
+* **At the top** there are customization options: language and theme switching.<PlatformOnly platform="tauri"> On the right are the window controls.</PlatformOnly>
+* **On the left (the "Nodes" card)** is a visual editor where you can add, reorder and edit the contents of nodes, as well as pick one of the ready-made presets or create your own config.
+* **On the right (the "Code" card)** the created config is displayed as JSON code.<PlatformOnly platform="web"> There are buttons for importing and exporting configs. There's also a level preview tab.</PlatformOnly><PlatformOnly platform="tauri"> Only config import is available, and next to the code — level and screentone previews.</PlatformOnly>
+* <PlatformOnly platform="web">**At the bottom** there are links to resources (Colab, Reline GUI) where you can use the created config, and also a documentation button.</PlatformOnly><PlatformOnly platform="tauri">**At the bottom**, on the left there are processing control buttons and various metrics. On the right — settings, model downloads and server control.</PlatformOnly>
 
 ## Basic pipeline
 
