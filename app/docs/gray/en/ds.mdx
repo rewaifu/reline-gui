@@ -1,0 +1,79 @@
+# Screentone reapplication
+
+## How does it work?
+Models with DS/Descreentone in the name are used for this paradigm. The most popular ones these days:
+* `4x_dwtp_ds_moesr_v2` — the newest of the stable models, suitable for most cases;
+* `4x_dwtp_ds_atdl3` — the most popular model before the MOESR architecture, produces slightly more stable results with various textures;
+* `4x_DWTP_DS_dat2_v3_2` — a very slow old-timer, famous for its ability to pick up fairly large screentone.
+
+The basic algorithm itself looks like this:
+
+<div className="flex flex-wrap items-center gap-1.5 my-3 justify-center">
+    <NodeRef type="upscale" />
+    <span className="text-muted-foreground text-sm font-medium">&rarr;</span>
+    <NodeRef type="sharp" />
+    <span className="text-muted-foreground text-sm font-medium">&rarr;</span>
+    <NodeRef type="screentone" />
+</div>
+
+Let's go through it in order.
+
+1. <NodeRef type="upscale" /> — using a DS model, the screentone texture is converted into solid shades of gray;
+2. <NodeRef type="sharp" /> — fixes artifacts after upscaling and also makes lines sharper for work with the next node;
+3. <NodeRef type="screentone" /> — reapplies screentone using a deterministic algorithm.
+
+## How to set up the screentone?
+The <code><T k="nodes.screentone.dot-size"/></code> parameter is set either by trial and error, trying to match the original (if the screentone is visible), or by approximate values based on the scan height in pixels:
+* less than 1100 — 4 and below;
+* 1100-1500 — 5;
+* 1500-1900 — 6;
+* 1900-2000 — 7;
+* more than 2000 — 8 and above.
+
+<p className="text-muted-foreground italic">※Values are interpolated from <a href="https://teletype.in/@anicos/wtpupscale" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400  underline">an article by AniChan</a></p>
+
+But there is an important nuance — due to the specifics of the screentone algorithm, if you set <code><T k="nodes.screentone.dot-size"/></code> below 7, the color palette will be too small (128 colors at <code><T k="nodes.screentone.dot-size"/></code> = 6) to render smooth gradients.
+<br/>The image below shows an example of a gradient, its version cut down to 16 colors, and screentone with <code><T k="nodes.screentone.dot-size"/></code> = 3 applied over a clean gradient.
+<DocImage src="/docs/low-dot.webp" alt="low dot demonstation" caption="Full gradient VS Cut down to 16 colors VS Screentone with dot = 3" />
+
+<br/>Simply making <code><T k="nodes.screentone.dot-size"/></code> bigger is not an option — it will differ from the original and will most likely be too large.
+<br/>To solve this problem you need to enlarge the image, which can be done in several ways:
+
+1. DoubleScale (deprecated) — enlarge the image by applying <NodeRef type="upscale" /> twice. For example, to fit a scan for <code><T k="nodes.screentone.dot-size"/></code> = 8 the algorithm looked roughly like this:
+<div className="flex flex-col items-center gap-2 my-3 justify-center border py-4 px-12 rounded-lg">
+    <div className="flex flex-col p-4 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="upscale"/>
+        <p>A model with <code><T k="nodes.upscale.target-scale-size"/></code> = 4.</p>
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="resize" />
+        <p>With parameters <code><T k="nodes.resize.resize-type"/></code> = <code><T k="nodes.resize.resize-type-options.height"/></code> and <code><T k="nodes.resize.height"/></code> = 2048.</p>
+
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="upscale" />
+        <p>A model with <code><T k="nodes.upscale.target-scale-size"/></code> = 4, most often the same as in the first node.</p>
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="sharp" />
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="screentone" />
+    </div>
+
+</div>
+
+2. Regular scaling — sometimes suitable for small adjustments, for example, enlarging a scan from 1920 to 2048 pixels in height using <NodeRef type="resize" />.
+3. SSAA — the simplest and at the same time most elegant algorithm. It enlarges the image N times (interpolation by the nearest neighbor method), applies screentone whose dot size is calculated by the formula <code><T k="nodes.screentone.dot-size"/></code> * N, and then reduces it back N times.
+<br/>SSAA is now built into the <NodeRef type="screentone" /> node (parameters <code><T k="nodes.screentone.ssaa-scale"/></code> and <code><T k="nodes.screentone.ssaa-filter"/></code>), and in order not to lose extra information due to interpolation, be sure to apply the <NodeRef type="sharp"/> node with the <code><T k="nodes.sharp.canny"/></code> parameter enabled before it.
+
+
+<a href="https://slow.pics/c/twIllqHo" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400  underline">Comparison between methods.</a>

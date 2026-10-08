@@ -56,4 +56,5 @@ export interface StackNode {
   type: NodeType
   options: NodeOptions
   collapsed: boolean
+  enabled?: boolean
 }

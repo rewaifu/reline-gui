@@ -1,0 +1,29 @@
+# Апскейл
+
+<DemoNode type="upscale"/>
+
+## Что делает?
+Обрабатывает изображение при помощи ML-моделей.
+
+## Как работает?
+Разбивает изображение на плитки (при <code><T k="nodes.upscale.tiler"/></code> = <code><T k="nodes.upscale.tiler-options.exact"/></code>) с размером N*N пикселей, обрабатывает по очереди и затем склеивает обратно. N берётся из параметра <code><T k="nodes.upscale.tile-size"/></code>.
+
+## Особенности плитки
+Чем больше <code><T k="nodes.upscale.tile-size"/></code>, тем быстрее обработаются изображения, но и больше потребление видеопамяти.
+<br/>С большей плиткой у модели больше контекста и после склейки минимизируются резкие переходы между плитками.
+{/* Вставить пример Леси из закрепов в #general на равкуме*/}
+<br/>Размер плитки зависит и от модели, например, `4x_dwtp_ds_moesr_v2` в Colab иногда может заработать с <code><T k="nodes.upscale.tile-size"/></code> = 1024, а `4x_dwtp_ds_rgts_v1` не заведётся и с <code><T k="nodes.upscale.tile-size"/></code> = 512.
+
+## Параметры
+* <code><T k="nodes.upscale.model"/></code> — выбор модели для запуска. При включенном <code><T k="nodes.upscale.own-model"/></code> нужно вписать путь к модели (для блокнота в Colab путь должен начинаться с `/content/drive/MyDrive/`);
+* <code><T k="nodes.upscale.tiler"/></code> — выбор метода разбиения на плитки:
+    * <code><T k="nodes.upscale.tiler-options.exact"/></code> — изображение разбивается на квадратные плитки, со сторонами в <code><T k="nodes.upscale.tile-size"/></code> пикселей;
+    * <code><T k="nodes.upscale.tiler-options.no_tiling"/></code> — изображение обрабатывается целиком, без разбиения на плитки;
+* <code><T k="nodes.upscale.dtype"/></code> — тип данных при инференсе модели, в нашем случае тип числа с плавающей точкой:
+    * `F32` — самый стабильный, но и самый медленный вариант;
+    * `F16` — fixme: Леся добавь описание;
+    * `BF16` — fixme: Леся добавь описание;
+* <code><T k="nodes.upscale.enable-target-scale"/></code> — позволяет выбрать кратность апскейла ниже стандартного у модели (например у 4x модели можно выбрать коэффициент 1, 2 или 3);
+* <code><T k="nodes.upscale.target-scale-size"/></code> — коэффициент для <code><T k="nodes.upscale.enable-target-scale"/></code>;
+* <code><T k="nodes.upscale.own-model"/></code> — позволяет использовать альтернативные модели в поле <code><T k="nodes.upscale.model"/></code>;
+* <code><T k="nodes.upscale.allow-cpu-upscale"/></code> — разрешает использовать CPU для апскейла. Используйте только в случае крайней необходимости, потому что время обработки кратно больше, чем на GPU.

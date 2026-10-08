@@ -1,0 +1,79 @@
+# Переналожение скринтона
+
+## Как это работает?
+Для данной парадигмы используются модели с DS/Descreentone в названии. Самые ходовые в наши дни:
+* `4x_dwtp_ds_moesr_v2` — самая свежая из стабильных моделей, подходит для большинства случаев;
+* `4x_dwtp_ds_atdl3` — самая ходовая модель до архитектуры MOESR, выдаёт чуть более стабильные результаты с различными текстурами;
+* `4x_DWTP_DS_dat2_v3_2` — очень медленный старичок, славится своей возможностью воспринимать достаточно крупный скринтон.
+
+Сам базовый алгоритм выглядит следующим образом:
+
+<div className="flex flex-wrap items-center gap-1.5 my-3 justify-center">
+    <NodeRef type="upscale" />
+    <span className="text-muted-foreground text-sm font-medium">&rarr;</span>
+    <NodeRef type="sharp" />
+    <span className="text-muted-foreground text-sm font-medium">&rarr;</span>
+    <NodeRef type="screentone" />
+</div>
+
+Разберём по порядку.
+
+1. <NodeRef type="upscale" /> — при помощи DS-модели текстура скринтона преобразуется в сплошные оттенки серого;
+2. <NodeRef type="sharp" /> — правит артефакты после апскейла, а также делает линии более резкими для работы со следующим узлом;
+3. <NodeRef type="screentone" /> — перенакладывает скринтон при помощи детерминированного алгоритма.
+
+## Как настроить скринтон?
+Параметр <code><T k="nodes.screentone.dot-size"/></code> задаётся либо методом тыка, стараясь попасть в оригинал (если скринтон виден), либо по приблизительным значениям, основываясь на размере скана в пикселях в высоту:
+* меньше 1100 — 4 и меньше;
+* 1100-1500 — 5;
+* 1500-1900 — 6;
+* 1900-2000 — 7;
+* больше 2000 — 8 и выше.
+
+<p className="text-muted-foreground italic">※Значения интерполированы из <a href="https://teletype.in/@anicos/wtpupscale" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400  underline">cтатьи от AniChan</a></p>
+
+Но есть важный нюанс — из-за особенности алгоритма скринтона, если поставить в параметр <code><T k="nodes.screentone.dot-size"/></code> меньше 7, то палитра цветов будет слишком маленькой (128 цветов при <code><T k="nodes.screentone.dot-size"/></code> = 6), чтобы отрисовать плавные градиенты.
+<br/>На картинке ниже пример градиента, его урезанной до 16 цветов версии, и наложенный на чистый градиент скринтон с <code><T k="nodes.screentone.dot-size"/></code> = 3.
+<DocImage src="/docs/low-dot.webp" alt="low dot demonstation" caption="Полный градиент VS Урезанный до 16 цветов VS Скринтон с точкой = 3" />
+
+<br/>Просто сделать <code><T k="nodes.screentone.dot-size"/></code> побольше не вариант — будет отличаться от оригинала и скорее всего будет слишком крупно.
+<br/>Для решения данной проблемы нужно увеличить изображение, что можно сделать несколькими способами:
+
+1. DoubleScale (устарело) — увеличиваем изображение применив <NodeRef type="upscale" /> два раза. Например, для подгонки скана под <code><T k="nodes.screentone.dot-size"/></code> = 8 алгоритм выглядел примерно так:
+<div className="flex flex-col items-center gap-2 my-3 justify-center border py-4 px-12 rounded-lg">
+    <div className="flex flex-col p-4 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="upscale"/>
+        <p>Модель с <code><T k="nodes.upscale.target-scale-size"/></code> = 4.</p>
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="resize" />
+        <p>С параметрами <code><T k="nodes.resize.resize-type"/></code> = <code><T k="nodes.resize.resize-type-options.height"/></code> и <code><T k="nodes.resize.height"/></code> = 2048.</p>
+
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="upscale" />
+        <p>Модель с <code><T k="nodes.upscale.target-scale-size"/></code> = 4, чаще всего та же, что и в первом узле.</p>
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="sharp" />
+    </div>
+
+    <span className="text-muted-foreground text-sm font-medium">&darr;</span>
+    <div className="flex flex-col p-4 gap-0 border rounded-lg bg-card w-full items-center">
+        <NodeRef type="screentone" />
+    </div>
+
+</div>
+
+2. Обычное масштабирование — иногда подходит для небольшой подгонки, например, для увеличения скана с 1920 пикселей в высоту до 2048 при помощи <NodeRef type="resize" />.
+3. SSAA — самый простой и в то же время элегантный алгоритм. Увеличивает изображение в N раз (интерполяция методом ближайшего соседа), накладывает скринтон, размер которого рассчитывает по формуле <code><T k="nodes.screentone.dot-size"/></code> * N, и потом уменьшает обратно в N раз.
+<br/>SSAA сейчас встроен в узел <NodeRef type="screentone" /> (параметры <code><T k="nodes.screentone.ssaa-scale"/></code> и <code><T k="nodes.screentone.ssaa-filter"/></code>), и для того, чтобы не терять лишней информации из-за интерполяции, обязательно применяйте перед ним узел <NodeRef type="sharp"/> с включенным параметром <code><T k="nodes.sharp.canny"/></code>.
+
+
+<a href="https://slow.pics/c/twIllqHo" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400  underline">Сравнение между методами.</a>

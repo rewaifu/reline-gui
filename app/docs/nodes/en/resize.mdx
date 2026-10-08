@@ -1,0 +1,35 @@
+# Resize
+
+<DemoNode type="resize"/>
+
+## What does it do?
+Changes the size of an image.
+
+## Why is it needed?
+Most scanlation aggregator sites heavily compress ultra-high-resolution images (e.g., Mangalib compresses images exceeding ~17,000px in height or ~3,000px in width), making this node ideal for batch-downsampling processed scans.
+
+## Best filters
+We encourage you to experiment with different filters to find what works best for you, but here are our personal recommendations:
+- `shamming4` is the perfect choice for grayscale images with screentones;
+- For color images one of the `dpid` variants;
+- A universal option for everything else is `mitchell`.
+
+## Parameters
+* <code><T k="nodes.resize.filter"/></code> — filter for interpolation:
+    * `nearest` — the "nearest neighbor" interpolatio. Due to its peculiarities the output has a "stepped" (pixelated) look;
+    * `box` — a middle ground between nearest-neighbor and bilinear interpolation (when downscaling);
+    * `linear` — bilinear interpolation. The output is quite smooth, but the method itself is prone to losing some details;
+    * `dpid` — a complex algorithm that attempts to preserve as many fine details as possible. It is an excellent option for color images, but handles halftone patterns poorly;
+    * `lanczos` — the Lanczos method is known for its "halos" along the edges of lines, a look similar to over-sharpening;
+    * `hamming` — Hamming window interpolation, which is structurally similar to Lanczos but without the "halos";
+    * Filters with the `i` prefix — ultra-fast interpolation algorithms that are slightly softer than "nearest neighbor" but suffer from <a href="https://en.wikipedia.org/wiki/Moir%C3%A9_pattern" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400  underline">moiré artifacts</a>;
+    * Filters with the `s` prefix — use a complex algorithm that produces slightly cleaner lines under heavy downscaling;
+    * The rest — varieties of bicubic interpolation with varying degrees of sharpness and blur.
+
+* <code><T k="nodes.resize.resize-type"/></code> — selects the scaling method:
+    * <code><T k="nodes.resize.resize-type-options.width"/></code> — scales the image horizontally to the value specified in <code><T k="nodes.resize.width"/></code> while preserving the aspect ratio;
+    * <code><T k="nodes.resize.resize-type-options.height"/></code> — scales the image vertically to the value specified in <code><T k="nodes.resize.height"/></code> while preserving the aspect ratio;
+    * <code><T k="nodes.resize.resize-type-options.absolute"/></code> — scales the image to the values specified in <code><T k="nodes.resize.width"/></code> and <code><T k="nodes.resize.height"/></code>;
+    * <code><T k="nodes.resize.resize-type-options.percent"/></code> — scales the image by the factor specified in <code><T k="nodes.resize.percent"/></code>;
+* <code><T k="nodes.resize.spread"/></code> — enables a special mode for landscape images (e.g. manga spreads). If the scan width exceeds its height, the standard <code><T k="nodes.resize.width"/></code> value is ignored and the image is scaled to the width specified in <code><T k="nodes.resize.spread-size"/></code>. Works only with <code><T k="nodes.resize.resize-type"/></code> = <code><T k="nodes.resize.resize-type-options.width"/></code>;
+* <code><T k="nodes.resize.spread-size"/></code> — an alternative width in pixels applied to landscape images instead of the main one when <code><T k="nodes.resize.spread"/></code> is enabled.

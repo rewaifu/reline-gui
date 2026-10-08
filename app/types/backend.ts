@@ -1,0 +1,62 @@
+export type BackendStage = "idle" | "cloning" | "creating_venv" | "installing" | "starting" | "running" | "error"
+
+export interface BackendStatusEvent {
+  stage: BackendStage
+  message: string
+  port: number | null
+}
+
+export interface DepsStatus {
+  uv_installed: boolean
+  repo_cloned: boolean
+  venv_created: boolean
+  deps_installed: boolean
+  has_nvidia_gpu: boolean
+}
+
+export interface DepsVersions {
+  torch_version: string | null
+  torch_cuda: boolean
+  resselt_version: string | null
+  reline_version: string | null
+}
+
+export interface CleanupInfo {
+  workspace_bytes: number
+  uv_bin_bytes: number
+  total_bytes: number
+  includes_uv_bin: boolean
+}
+
+export interface LogEntry {
+  timestamp: string
+  level: string
+  message: string
+}
+
+export interface UvProgress {
+  stage: string
+  current: number
+  total: number
+  raw_message: string
+}
+
+export type DownloadStage = "downloading" | "extracting"
+
+export interface ModelDownloadProgress {
+  filename: string
+  progress: number
+  downloaded: number
+  total: number
+  stage: DownloadStage
+}
+
+export type DownloadStatus = "downloading" | "extracting" | "done" | "error" | "cancelled"
+
+export interface DownloadState {
+  status: DownloadStatus
+  progress: number
+  downloaded: number
+  total: number
+  error?: string
+}

@@ -1,0 +1,12 @@
+# Folder reader
+
+<DemoNode type="folder_reader" />
+
+## What does it do?
+As the name suggests — reads images from the specified folder.
+
+## Parameters
+* <code><T k="nodes.folder-reader.path"/></code> — the path to your folder with images for processing. For a notebook in Colab the path must start with `/content/drive/MyDrive/`;
+* <code><T k="nodes.folder-reader.mode"/></code> — the choice of the color palette of the input images. With <code><T k="nodes.folder-reader.mode"/></code> = <code><T k="nodes.folder-reader.mode-options.gray"/></code> converts images to grayscale (without changing the color space);
+* <code><T k="nodes.folder-reader.recursive"/></code> — recursive folder traversal. Will read files in all subfolders;
+* <code><T k="nodes.folder-reader.unarchive"/></code> — unpacks archives and reads files from them. Works only in Colab.

@@ -1,0 +1,29 @@
+# Upscale
+
+<DemoNode type="upscale"/>
+
+## What does it do?
+Processes an image using ML models.
+
+## How does it work?
+Splits the image into tiles (with <code><T k="nodes.upscale.tiler"/></code> = <code><T k="nodes.upscale.tiler-options.exact"/></code>) of N*N pixels, processes them one by one and then stitches them back together. N is taken from the <code><T k="nodes.upscale.tile-size"/></code> parameter.
+
+## Tile features
+The larger the <code><T k="nodes.upscale.tile-size"/></code>, the faster images are processed, but the VRAM usage also increases.
+<br/>With a larger tile, the model has more context, and after stitching, abrupt transitions between tiles are minimized.
+{/* Insert Lesya's example from the pins in #general on ravkum */}
+<br/>The tile size also depends on the model, for example, `4x_dwtp_ds_moesr_v2` in Colab can sometimes work with <code><T k="nodes.upscale.tile-size"/></code> = 1024, while `4x_dwtp_ds_rgts_v1` won't start even with <code><T k="nodes.upscale.tile-size"/></code> = 512.
+
+## Parameters
+* <code><T k="nodes.upscale.model"/></code> — the model selection for running. With <code><T k="nodes.upscale.own-model"/></code> enabled, you need to enter the path to the model (for a notebook in Colab the path must start with `/content/drive/MyDrive/`);
+* <code><T k="nodes.upscale.tiler"/></code> — the choice of tiling method:
+    * <code><T k="nodes.upscale.tiler-options.exact"/></code> — the image is split into square tiles with sides of <code><T k="nodes.upscale.tile-size"/></code> pixels;
+    * <code><T k="nodes.upscale.tiler-options.no_tiling"/></code> — the image is processed as a whole, without splitting into tiles;
+* <code><T k="nodes.upscale.dtype"/></code> — the data type during model inference, in our case a floating-point number type:
+    * `F32` — the most stable, but also the slowest option;
+    * `F16` — fixme: Lesya add a description;
+    * `BF16` — fixme: Lesya add a description;
+* <code><T k="nodes.upscale.enable-target-scale"/></code> — allows choosing an upscale factor below the model's standard (for example, for a 4x model you can choose a factor of 1, 2 or 3);
+* <code><T k="nodes.upscale.target-scale-size"/></code> — the factor for <code><T k="nodes.upscale.enable-target-scale"/></code>;
+* <code><T k="nodes.upscale.own-model"/></code> — allows using alternative models in the <code><T k="nodes.upscale.model"/></code> field;
+* <code><T k="nodes.upscale.allow-cpu-upscale"/></code> — allows using the CPU for upscaling. Use only in case of extreme necessity, because the processing time is many times longer than on a GPU.

@@ -2,7 +2,8 @@ import {
   CannyType,
   CvtType,
   DotType,
-  DType, HalftoneMode,
+  DType,
+  HalftoneMode,
   NodeType,
   ReaderNodeMode,
   FilterType,
@@ -11,34 +12,68 @@ import {
   WriterNodeFormat,
 } from "./types/enums"
 import type { NodeOptions, StackNode } from "./types/node"
-import {IconBolt, IconFolderDown, IconFolderUp, IconGrain, IconArrowsDiagonal, IconChartArrows, IconBorderStyle2, IconPalette} from "@tabler/icons-react"
+import {
+  IconBolt,
+  IconFolderDown,
+  IconFolderUp,
+  IconGrain,
+  IconArrowsDiagonal,
+  IconChartArrows,
+  IconBorderStyle2,
+  IconPalette,
+} from "@tabler/icons-react"
 
 export const MODELS_URL = "https://mdb.yor.ovh/v1/files"
 
 export const MODELS = [
   "1_DWTP_ds_span_p",
-  "1x-fast-jpeg-illust-v1",
+  "1x_AniSD_DB_i2_SPAN_85K",
   "1x_Bendel_Halftone",
+  "1x_drct_comics_efonte",
+  "1x_eula_digimanga_bw_v3_nc1_52k",
+  "1x_mangajpeg_xl_gatedr_620k",
+  "1x_MangaJPEGMQ",
+  "1x_Saiyajin_DeJPEG_300000_G",
+  "1x_umzi_digital_decompress_gaterv3_1",
+  "1x_wtp_mr_gaterv2_v2",
+  "1x_wtp_mr_gaterv2_v3",
+  "1x_wtp_mr_gaterv2_v4",
+  "1x_wtp_unimr_gater2_alpha_2",
+  "1x-fast-jpeg-illust-v1",
   "1x-MangaJPEGHQ",
   "1x-MangaJPEGHQPlus",
   "1x-MangaJPEGLQ",
-  "1x_MangaJPEGMQ",
-  "1x_Saiyajin_DeJPEG_300000_G",
-  "1x_eula_digimanga_bw_v3_nc1_52k",
-  "2x_WTP_MCover_cugan",
+  "2x_AniSD_AC_G6i2b_SPAN_190K",
+  "2x_AniSD_DC_SPAN_92500",
+  "2x_AniSD_G6i1_SPAN_215K",
+  "2x_enhancr_da_figsr",
+  "2x_enhancr_da_smosr_v1",
+  "2x_MangaScaleV3",
+  "2x_spanplus",
+  "2x_spanplus_s",
+  "2x_spanplus_st",
+  "2x_umzi_digital_art_mosr_t",
+  "2x_umzi_DigitalArt_GFISRV2",
   "2x_umzi_Mahou_cugan",
+  "2x_WTP_MCover_cugan",
   "4DWTP_mangasoup_cugan_p",
-  "4x-AnimeSharp",
-  "4x-UltraMix_Balanced",
-  "4x-UltraMix_Restore",
-  "4x-UltraMix_Smooth",
-  "4xRealWebPhoto_v3_atd",
-  "4x_DWTP_DS_ATDl",
-  "4x_DWTP_DS_ATDl2",
-  "4x_DWTP_DS_DAT2_V3",
-  "4x_DWTP_DS_dat2_v3_2",
   "4x_DWTP_dehesragan_V4",
   "4x_DWTP_descreenon_dat2",
+  "4x_DWTP_DS_ATDl",
+  "4x_DWTP_DS_ATDl2",
+  "4x_dwtp_ds_atdl3",
+  "4x_DWTP_DS_DAT2_V3",
+  "4x_DWTP_DS_dat2_v3_2",
+  "4x_DWTP_ds_esrgan_5",
+  "4x_dwtp_ds_moesr_v1",
+  "4x_dwtp_ds_moesr_v2",
+  "4x_dwtp_ds_rgts_v1",
+  "4x_dwtp_ds_rplksr_delta",
+  "4x_eula_digimanga_bw_v2_nc1_307k",
+  "4x_eula_digimanga_MiA_65k",
+  "4x_IllustrationJaNai_V1_DAT2_190k",
+  "4x_IllustrationJaNai_V1_ESRGAN_135k",
+  "4x_IllustrationJaNai_V3detail_DAT2_28k_bf16",
   "4x_MangaJaNai_1200p_V1RC71_ESRGAN_70k",
   "4x_MangaJaNai_1300p_V1RC1_ESRGAN_75k",
   "4x_MangaJaNai_1400p_V1RC3_ESRGAN_105k",
@@ -47,23 +82,48 @@ export const MODELS = [
   "4x_MangaJaNai_1920p_V1RC1_ESRGAN_105k",
   "4x_MangaJaNai_2048p_V1RC1_ESRGAN_70k",
   "4x_MangaJaNai_V1RC34_ESRGAN_760k",
-  "4x_dwtp_ds_atdl3",
-  "4x_dwtp_ds_rgts_v1",
-  "4x_eula_digimanga_MiA_65k",
-  "4x_eula_digimanga_bw_v2_nc1_307k",
+  "4x_MangaScale_v1_mosr",
   "4x_span_franken",
+  "4x_umzi_decompress_mosr",
   "4x_umzi_dehalfton_realplksr_v1",
-  "4x_umzi_digital_art_rplksr_v1",
-  "4x_umzi_digital_art_span_v1",
+  "4x_umzi_digital_art_flexnet_v1",
   "4x_umzi_digital_art_mosr",
+  "4x_umzi_digital_art_mosr_l",
+  "4x_umzi_digital_art_mosr_v2",
+  "4x_umzi_digital_art_rplksr_v1",
+  "4x_umzi_digital_art_rplksr_v2",
+  "4x_umzi_digital_art_span_v1",
+  "4x_wtp_MangaScale_GfisrV2",
   "4x_wtp_ms_atdl_v1",
   "4x_wtp_ms_beta_atdl",
+  "4x_wtp_ms_lawftt_delta",
+  "4x_wtp_ms_moesr_delta_v1",
   "4x_wtp_ms_plksr_v1",
   "4x_wtp_ms_rplksr_beta",
-  "4x_dwtp_ds_rplksr_delta",
-  "4x_umzi_digital_art_rplksr_v2",
-  "4x_MangaScale_v1_mosr",
-  "4x_umzi_decompress_mosr",
+  "4x-AnimeSharp",
+  "4xPurePhoto-compact",
+  "4xPurePhoto-span",
+  "4xRealWebPhoto_v3_atd",
+  "4xRealWebPhoto_v4_drct-l",
+  "4x-UltraMix_Balanced",
+  "4x-UltraMix_Restore",
+  "4x-UltraMix_Smooth",
+  "net_g_135000",
+  "net_g_140000",
+  "net_g_20000",
+  "net_g_ema_95000",
+  "RealESRGAN_x4plus",
+  "RealESRGAN_x4plus_anime_6B",
+  "span_v2_beta",
+]
+
+export const RECOMMENDED_MODELS = [
+  "4x_wtp_mangascale_gfisrv2",
+  "4x_dwtp_ds_moesr_v2",
+  "4x_dwtp_ds_atdl3",
+  "1x_umzi_digital_decompress_gaterv3_1",
+  "2x_enhancr_da_smosr_v1",
+  "4x_illustrationjanai_v3detail_dat2_28k_bf16",
 ]
 
 export const DEFAULT_COLLAPSED = true
@@ -88,6 +148,27 @@ export const DEFAULT_HALFTONE_SSAA_FILTER = FilterType.SHAMMING4
 
 export const DEFAULT_CANNY_TYPE = CannyType.UNSHARP
 
+const tauriPlatform: "web" | "windows" | "linux" = (() => {
+  if (typeof window === "undefined") return "web"
+  const internals = (window as { __TAURI_INTERNALS__?: { plugins?: { path?: { sep?: string } } } }).__TAURI_INTERNALS__
+  const sep = internals?.plugins?.path?.sep
+  if (sep === "\\") return "windows"
+  if (sep === "/") return "linux"
+  return "web"
+})()
+
+export const DEFAULT_READER_PATH = {
+  web: "/content/drive/MyDrive/raws",
+  windows: "C:/Raws",
+  linux: "~/raws",
+}[tauriPlatform]
+
+export const DEFAULT_WRITER_PATH = {
+  web: "/content/drive/MyDrive/raws/output",
+  windows: "C:/Raws/output",
+  linux: "~/raws/output",
+}[tauriPlatform]
+
 export const DEFAULT_NODE_OPTIONS: {
   [key in NodeType]: NodeOptions
 } = {
@@ -99,13 +180,13 @@ export const DEFAULT_NODE_OPTIONS: {
     gamma: 1,
   },
   folder_reader: {
-    path: "/content/drive/MyDrive/raws",
+    path: DEFAULT_READER_PATH,
     recursive: false,
     mode: ReaderNodeMode.RGB,
     unarchive: false,
   },
   folder_writer: {
-    path: "/content/drive/MyDrive/raws/output",
+    path: DEFAULT_WRITER_PATH,
     format: WriterNodeFormat.PNG,
   },
   cvt_color: {
@@ -163,5 +244,4 @@ export const NODE_ICONS: Record<NodeType, React.ElementType> = {
   [NodeType.UPSCALE]: IconBolt,
   [NodeType.RESIZE]: IconArrowsDiagonal,
   [NodeType.SCREENTONE]: IconGrain,
-};
-
+}

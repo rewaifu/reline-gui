@@ -1,0 +1,44 @@
+[package]
+name = "reline-gui"
+version = "0.0.0"
+description = "GUI configurator for Reline library"
+authors = ["rewaifu"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "reline_configurator_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.1", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.12.1", features = [] }
+tauri-plugin-opener = "2.7.0"
+tauri-plugin-fs = "2.6.0"
+git2 = "0.20.4"
+tauri-plugin-shell = "2.4.1"
+tauri-plugin-dialog = "2.8.1"
+tauri-plugin-notification = "2.5.1"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tokio = { version = "1.49.0", features = ["fs", "time", "io-util"] }
+reqwest = { version = "0.13.2", default-features = false, features = [
+    "rustls",
+    "stream",
+    "json",
+] }
+flate2 = "1"
+tar = "0.4"
+xz2 = "0.1"
+zip = { version = "8.1.0", default-features = false, features = ["deflate"] }
+which = "8.0.0"
+dirs = "6.0.0"
+regex = "1"

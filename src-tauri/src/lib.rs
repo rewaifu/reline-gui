@@ -1,0 +1,96 @@
+mod backend;
+mod commands;
+mod deps;
+mod logging;
+mod models;
+mod util;
+mod uv;
+
+use std::sync::Mutex;
+use tauri::Manager;
+
+use backend::{kill_backend, BackendPort, BackendProcess};
+use commands::use_custom_titlebar;
+use logging::BackendLogs;
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            app.manage(BackendProcess(Mutex::new(None)));
+            app.manage(BackendPort(Mutex::new(None)));
+            app.manage(BackendLogs(Mutex::new(Vec::new())));
+            app.manage(models::ModelDownloads::default());
+            if let Some(window) = app.get_webview_window("main") {
+                if use_custom_titlebar() {
+                    let _ = window.set_decorations(false);
+                }
+            }
+            if let Some(splash) = app.get_webview_window("splashscreen") {
+                let _ = splash.show();
+                let _ = splash.set_focus();
+            }
+
+            // Watchdog: if the frontend never signals readiness, reveal the main
+            // window anyway so the app can't get stuck behind the splashscreen.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(15));
+                if let Some(main) = handle.get_webview_window("main") {
+                    if !main.is_visible().unwrap_or(false) {
+                        let _ = main.show();
+                        let _ = main.set_focus();
+                    }
+                }
+                if let Some(splash) = handle.get_webview_window("splashscreen") {
+                    let _ = splash.close();
+                }
+            });
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                // Only react to the main window: closing the splashscreen must not
+                // tear down the backend.
+                if window.label() != "main" {
+                    return;
+                }
+                let handle = window.app_handle();
+                let backend = handle.state::<BackendProcess>();
+                kill_backend(handle, &backend);
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            backend::initialize,
+            backend::stop_backend,
+            backend::hard_stop_backend,
+            backend::get_backend_port,
+            commands::check_port_free,
+            commands::show_main_window,
+            commands::open_folder,
+            commands::open_url,
+            commands::get_window_mode,
+            deps::check_deps,
+            deps::check_versions,
+            deps::install_deps,
+            deps::get_cleanup_size,
+            deps::cleanup_deps,
+            logging::get_logs,
+            logging::clear_logs,
+            models::list_remote_models,
+            models::download_model,
+            models::cancel_model_download,
+            models::delete_model,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

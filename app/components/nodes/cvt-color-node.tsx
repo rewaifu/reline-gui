@@ -1,4 +1,5 @@
-import { useContext } from "react"
+import { useContext, type Dispatch } from "react"
+import type { NodesAction } from "~/types/actions.ts"
 import { NodesContext, NodesDispatchContext } from "~/context/contexts.ts"
 import { CvtType } from "~/types/enums"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
@@ -7,7 +8,7 @@ import { NodesActionType } from "~/types/actions.ts"
 import type { CvtColorNodeOptions } from "~/types/options"
 import {useTranslation} from "react-i18next"
 
-export function CvtColorNodeBody({ id }: { id: number }) {
+export function CvtColorNodeBody({ id, dispatch: dispatchProp }: { id: number; dispatch?: Dispatch<NodesAction> }) {
   const {t} = useTranslation()
   const nodes = useContext(NodesContext)
   const node = nodes.find((item) => item.id === id)
@@ -15,7 +16,8 @@ export function CvtColorNodeBody({ id }: { id: number }) {
     return null
   }
   const options = node.options as CvtColorNodeOptions
-  const dispatch = useContext(NodesDispatchContext)
+  const contextDispatch = useContext(NodesDispatchContext)
+  const dispatch = dispatchProp ?? contextDispatch
   const changeValue = (newOptions: Partial<CvtColorNodeOptions>) => {
     dispatch({
       type: NodesActionType.CHANGE,

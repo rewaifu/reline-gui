@@ -2,9 +2,73 @@ import * as React from "react"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
 import { cn } from "~/lib/utils"
+import { useCloseOnScroll } from "~/hooks/useCloseOnScroll"
 
-function Popover({ ...props }: PopoverPrimitive.Root.Props) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+type PopoverScrollContextValue = {
+  open: boolean
+  closeOnScroll: (event: Event) => void
+}
+
+const PopoverScrollContext =
+  React.createContext<PopoverScrollContextValue | null>(null)
+
+function createSyntheticOpenChangeEventDetails(
+  event: Event
+): PopoverPrimitive.Root.ChangeEventDetails {
+  return {
+    reason: "none",
+    event,
+    cancel() {},
+    allowPropagation() {},
+    isCanceled: false,
+    isPropagationAllowed: false,
+    trigger: undefined,
+    preventUnmountOnClose() {},
+  }
+}
+
+function Popover({
+  defaultOpen = false,
+  open: openProp,
+  onOpenChange,
+  ...props
+}: PopoverPrimitive.Root.Props) {
+  const isControlled = openProp !== undefined
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+  const open = isControlled ? openProp : uncontrolledOpen
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean, eventDetails: PopoverPrimitive.Root.ChangeEventDetails) => {
+      if (!isControlled) {
+        setUncontrolledOpen(nextOpen)
+      }
+
+      onOpenChange?.(nextOpen, eventDetails)
+    },
+    [isControlled, onOpenChange]
+  )
+
+  const closeOnScroll = React.useCallback(
+    (event: Event) => {
+      if (!open) {
+        return
+      }
+
+      handleOpenChange(false, createSyntheticOpenChangeEventDetails(event))
+    },
+    [handleOpenChange, open]
+  )
+
+  return (
+    <PopoverScrollContext.Provider value={{ open, closeOnScroll }}>
+      <PopoverPrimitive.Root
+        data-slot="popover"
+        open={open}
+        onOpenChange={handleOpenChange}
+        {...props}
+      />
+    </PopoverScrollContext.Provider>
+  )
 }
 
 function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
@@ -23,6 +87,15 @@ function PopoverContent({
     PopoverPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
   >) {
+  const popupRef = React.useRef<HTMLDivElement | null>(null)
+  const scrollContext = React.useContext(PopoverScrollContext)
+
+  useCloseOnScroll({
+    open: scrollContext?.open ?? false,
+    onDismiss: (event) => scrollContext?.closeOnScroll(event),
+    ignoreRef: popupRef,
+  })
+
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -33,6 +106,7 @@ function PopoverContent({
         className="isolate z-50"
       >
         <PopoverPrimitive.Popup
+          ref={popupRef}
           data-slot="popover-content"
           className={cn(
             "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",

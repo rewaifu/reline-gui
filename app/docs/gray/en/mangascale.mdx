@@ -1,0 +1,27 @@
+# MangaScale
+
+## How to tell if the scans are suitable?
+First you need to decide whether the screentone on the input images is discernible enough&nbsp;or&nbsp;whether you should look at another paradigm. Below are examples with different degrees of compression (images are clickable).
+
+<DocImage src="/docs/good.webp" alt="good" caption="Suitable screentone" />
+
+<DocImage src="/docs/with-artifacts.webp" alt="with artifacts" caption="Artifacts are possible" />
+
+<DocImage src="/docs/bad.webp" alt="bad" caption="Not suitable" />
+
+## How does it work?
+Special models are used for this paradigm, most often with&nbsp;MS/MangaScale in&nbsp;the name, these include:
+* `4x_wtp_MangaScale_GfisrV2` — the most modern and&nbsp;versatile model, will suit&nbsp;most scans;
+* The `4x_MangaJanai` family — the previous king of mangascale, known for its sharp lines and&nbsp;not&nbsp;very pleasant artifacts on&nbsp;non-standard screentone;
+* `4x_eula_digimanga_bw_v2_cn1_307k` — one&nbsp;of&nbsp;the first MS models, now&nbsp;quite outdated and needed only in&nbsp;very rare cases.
+
+The principle of their work is that&nbsp;they&nbsp;try to improve the&nbsp;screentone that already&nbsp;exists on&nbsp;the images, and&nbsp;when&nbsp;there is none, they start&nbsp;making it&nbsp;up, which&nbsp;most&nbsp;often leads to&nbsp;various artifacts.
+
+## Basic config structure
+
+1. <NodeRef type="folder_reader" />
+2. <NodeRef type="upscale" /> — upscaling using an MS model;
+3. <NodeRef type="level" /> — fixing artifacts after upscaling with levels;
+4. <NodeRef type="resize" /> — downscaling to a convenient resolution;
+5. <NodeRef type="cvt_color" /> — conversion to grayscale to reduce file size;
+6. <NodeRef type="folder_writer" />

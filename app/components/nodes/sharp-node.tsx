@@ -1,4 +1,5 @@
-import {useContext} from "react"
+import {useContext, type Dispatch} from "react"
+import type { NodesAction } from "~/types/actions"
 import {NodesContext, NodesDispatchContext} from "~/context/contexts"
 import {NumberInput} from "../ui/number-input"
 import {Checkbox} from "../ui/checkbox"
@@ -12,7 +13,7 @@ import {FieldGroup, FieldLabel, Field} from "~/components/ui/field.tsx";
 import {Separator} from "~/components/ui/separator.tsx";
 import {useTranslation} from "react-i18next"
 
-export function SharpNodeBody({id}: { id: number }) {
+export function SharpNodeBody({id, dispatch: dispatchProp, idSuffix}: { id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }) {
     const {t} = useTranslation()
     const nodes = useContext(NodesContext)
     const node = nodes.find((item) => item.id === id)
@@ -20,7 +21,9 @@ export function SharpNodeBody({id}: { id: number }) {
         return null
     }
     const options = node.options as SharpNodeOptions
-    const dispatch = useContext(NodesDispatchContext)
+    const contextDispatch = useContext(NodesDispatchContext)
+    const dispatch = dispatchProp ?? contextDispatch
+    const sid = (baseId: string) => idSuffix ? `${baseId}-${idSuffix}` : `${baseId}-${id}`
     const changeValue = (newOptions: Partial<SharpNodeOptions>) => {
         dispatch({
             type: NodesActionType.CHANGE,
@@ -116,13 +119,13 @@ export function SharpNodeBody({id}: { id: number }) {
             <FieldGroup className="w-25">
                 <Field orientation="horizontal">
                     <Checkbox
-                        id="canny-check"
+                        id={sid("canny-check")}
                         checked={options.canny}
                         onCheckedChange={(value) => {
                             changeValue({canny: !!value, canny_type: value ? DEFAULT_CANNY_TYPE : undefined})
                         }}
                     />
-                    <FieldLabel htmlFor="canny-check">{t('nodes.sharp.canny')}</FieldLabel>
+                    <FieldLabel htmlFor={sid("canny-check")}>{t('nodes.sharp.canny')}</FieldLabel>
                 </Field>
             </FieldGroup>
             {options.canny && (
@@ -137,14 +140,14 @@ export function SharpNodeBody({id}: { id: number }) {
                         value={options.canny_type}
                     >
                         <SelectTrigger className="w-[180px]">
-                            <SelectValue/>
+                            <SelectValue>{t(`nodes.sharp.canny-type-options.${options.canny_type}`)}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>
                                 {Object.values(CannyType).map((type) => {
                                     return (
                                         <SelectItem key={type} value={type}>
-                                            {type}
+                                            {t(`nodes.sharp.canny-type-options.${type}`)}
                                         </SelectItem>
                                     )
                                 })}

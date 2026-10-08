@@ -10,12 +10,77 @@ import {
   InputGroupInput,
 } from "~/components/ui/input-group"
 import { IconChevronDown, IconX, IconCheck } from "@tabler/icons-react"
+import { useCloseOnScroll } from "~/hooks/useCloseOnScroll"
 
-function Combobox({
-  modal = true,
+type ComboboxScrollContextValue = {
+  open: boolean
+  closeOnScroll: (event: Event) => void
+}
+
+const ComboboxScrollContext =
+  React.createContext<ComboboxScrollContextValue | null>(null)
+
+function createSyntheticOpenChangeEventDetails(event: Event) {
+  return {
+    reason: "none" as const,
+    event,
+    cancel() {},
+    allowPropagation() {},
+    isCanceled: false,
+    isPropagationAllowed: false,
+    trigger: undefined,
+  }
+}
+
+function Combobox<Value, Multiple extends boolean | undefined = false>({
+  modal = false,
+  defaultOpen = false,
+  open: openProp,
+  onOpenChange,
   ...props
-}: React.ComponentProps<typeof ComboboxPrimitive.Root>) {
-  return <ComboboxPrimitive.Root modal={modal} {...props} />
+}: ComboboxPrimitive.Root.Props<Value, Multiple>) {
+  const isControlled = openProp !== undefined
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+  const open = isControlled ? openProp : uncontrolledOpen
+
+  const handleOpenChange = React.useCallback(
+    (
+      nextOpen: boolean,
+      eventDetails: ComboboxPrimitive.Root.ChangeEventDetails
+    ) => {
+      if (!isControlled) {
+        setUncontrolledOpen(nextOpen)
+      }
+
+      onOpenChange?.(nextOpen, eventDetails)
+    },
+    [isControlled, onOpenChange]
+  )
+
+  const closeOnScroll = React.useCallback(
+    (event: Event) => {
+      if (!open) {
+        return
+      }
+
+      handleOpenChange(
+        false,
+        createSyntheticOpenChangeEventDetails(event) as ComboboxPrimitive.Root.ChangeEventDetails
+      )
+    },
+    [handleOpenChange, open]
+  )
+
+  return (
+    <ComboboxScrollContext.Provider value={{ open, closeOnScroll }}>
+      <ComboboxPrimitive.Root
+        modal={modal}
+        open={open}
+        onOpenChange={handleOpenChange}
+        {...props}
+      />
+    </ComboboxScrollContext.Provider>
+  )
 }
 
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
@@ -58,15 +123,23 @@ function ComboboxInput({
   disabled = false,
   showTrigger = true,
   showClear = false,
+  renderValue,
   ...props
 }: ComboboxPrimitive.Input.Props & {
   showTrigger?: boolean
   showClear?: boolean
+  renderValue?: (value: string) => string
 }) {
   return (
     <InputGroup className={cn("w-auto", className)}>
       <ComboboxPrimitive.Input
-        render={<InputGroupInput disabled={disabled} />}
+        render={(inputProps) => {
+          const rawProps = inputProps as React.InputHTMLAttributes<HTMLInputElement>
+          const displayValue = renderValue && rawProps.value != null
+            ? renderValue(rawProps.value as string)
+            : rawProps.value
+          return <InputGroupInput {...rawProps} value={displayValue ?? ''} disabled={disabled} />
+        }}
         {...props}
       />
       <InputGroupAddon align="inline-end">
@@ -100,6 +173,15 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   >) {
+  const popupRef = React.useRef<HTMLDivElement | null>(null)
+  const scrollContext = React.useContext(ComboboxScrollContext)
+
+  useCloseOnScroll({
+    open: scrollContext?.open ?? false,
+    onDismiss: (event) => scrollContext?.closeOnScroll(event),
+    ignoreRef: popupRef,
+  })
+
   return (
     <ComboboxPrimitive.Portal>
       <ComboboxPrimitive.Positioner
@@ -111,6 +193,7 @@ function ComboboxContent({
         className="isolate z-50"
       >
         <ComboboxPrimitive.Popup
+          ref={popupRef}
           data-slot="combobox-content"
           data-chips={!!anchor}
           className={cn("bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 *:data-[slot=input-group]:bg-input/30 *:data-[slot=input-group]:border-input/30 overflow-hidden rounded-lg shadow-md ring-1 duration-100 *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:shadow-none data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 group/combobox-content relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) data-[chips=true]:min-w-(--anchor-width)", className )}

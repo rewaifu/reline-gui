@@ -1,4 +1,5 @@
-import {useContext} from "react"
+import {useContext, type Dispatch} from "react"
+import type { NodesAction } from "~/types/actions.ts"
 import {NodesContext, NodesDispatchContext} from "../../context/contexts"
 import {NumberInput} from "../ui/number-input"
 import type {LevelNodeOptions} from "~/types/options"
@@ -6,7 +7,7 @@ import {NodesActionType} from "~/types/actions.ts"
 import { Separator } from "../ui/separator"
 import {useTranslation} from "react-i18next"
 
-export function LevelNodeBody({id}: { id: number }) {
+export function LevelNodeBody({id, dispatch: dispatchProp}: { id: number; dispatch?: Dispatch<NodesAction> }) {
     const {t} = useTranslation()
     const nodes = useContext(NodesContext)
     const node = nodes.find((item) => item.id === id)
@@ -14,7 +15,8 @@ export function LevelNodeBody({id}: { id: number }) {
         return null
     }
     const options = node.options as LevelNodeOptions
-    const dispatch = useContext(NodesDispatchContext)
+    const contextDispatch = useContext(NodesDispatchContext)
+    const dispatch = dispatchProp ?? contextDispatch
     const changeValue = (newOptions: Partial<LevelNodeOptions>) => {
         dispatch({
             type: NodesActionType.CHANGE,

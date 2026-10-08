@@ -62,14 +62,25 @@ const convertToStackMapper: ToStackConvertMapper = {
   [PureNodeType.UNARCHIVE]: convertUnarchiveToStack,
 }
 
-export const convertToPure = (nodes: StackNode[]) => {
-  const result = []
+export const convertToPureWithSources = (nodes: StackNode[]): { node: PureNode; sourceId: number }[] => {
+  const result: { node: PureNode; sourceId: number }[] = []
   for (let i = 0; i < nodes.length; ) {
-    const [converted, nextIndex] = convertToPureMapper[nodes[i].type](nodes, i)
-    result.push(...converted)
+    const stackNode = nodes[i]
+    if (stackNode.enabled === false) {
+      i += 1
+      continue
+    }
+    const [converted, nextIndex] = convertToPureMapper[stackNode.type](nodes, i)
+    for (const node of converted) {
+      result.push({ node, sourceId: stackNode.id })
+    }
     i = nextIndex
   }
   return result
+}
+
+export const convertToPure = (nodes: StackNode[]) => {
+  return convertToPureWithSources(nodes).map(({ node }) => node)
 }
 
 export const convertToStack = (nodes: PureNode[]) => {

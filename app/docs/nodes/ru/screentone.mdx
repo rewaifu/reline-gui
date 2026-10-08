@@ -1,0 +1,21 @@
+# Полутон
+
+<DemoNode type="screentone"/>
+
+## Что делает?
+Накладывает полутоновый рисунок при помощи регулярного алгоритма, превращая обычные градиенты в точки.
+
+<DocImage src="/docs/screentone.webp" alt="screentone example" caption="Обычный градиент и его эквивалент в виде скринтона" />
+
+## Параметры
+* <code><T k="nodes.screentone.halftone-mode"/></code> — выбор режима наложения полутона (<a href="https://slow.pics/c/FV7Ecy0C" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400  underline">сравнение режимов</a>):
+    * <code><T k="nodes.screentone.halftone-mode-options.gray"/></code> — обычный скринтон, преобразует оттенки серого в точки разного размера;
+    * <code><T k="nodes.screentone.halftone-mode-options.rgb"/></code> — тоже скринтон, но можно настроить его параметры сразу для трёх каналов;
+    * <code><T k="nodes.screentone.halftone-mode-options.cmyk"/></code> — преобразует изображение в CMYK и позволяет настроить яркость всех четырёх каналов в виде точек (процесс аналогичен цветной печати);
+    * <code><T k="nodes.screentone.halftone-mode-options.hsv"/></code> — сохраняет цвета изображения, преобразуя в точки только яркость;
+* <code><T k="nodes.screentone.dot-type"/></code> — узор, используемый для алгоритма дизеринга;
+* <code><T k="nodes.screentone.angle"/></code> — угол, под которым строится сетка точек;
+* <code><T k="nodes.screentone.dot-size"/></code> — максимальный диаметр точки в пикселях;
+* <code><T k="nodes.screentone.ssaa-scale"/></code> — метод сглаживания скринтона, чем больше значение, тем точнее сглаживание (значение больше 4 необходимо почти всегда избыточно, подробнее в <ArticleRef slug="rescreentone"/>). При включении, справа от <code><T k="nodes.screentone.dot-size"/></code> появляется примерное значение накладываемой точки;
+* <code><T k="nodes.screentone.ssaa-filter"/></code> — фильтр интерполяции при уменьшении изображения до оригинального размера (подробнее о видах в <NodeRef type="resize"/>);
+* <code><T k="nodes.screentone.disable-auto-dot"/></code> — позволяет отключить расчёт значения <code><T k="nodes.screentone.dot-size"/></code> при включенном SSAA по формуле <code><T k="nodes.screentone.dot-size"/></code> * <code><T k="nodes.screentone.ssaa-scale"/></code>, и использовать <code><T k="nodes.screentone.dot-size"/></code> напрямую.

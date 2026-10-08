@@ -3,8 +3,75 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "~/lib/utils"
 import { IconSelector, IconCheck, IconChevronUp, IconChevronDown } from "@tabler/icons-react"
+import { useCloseOnScroll } from "~/hooks/useCloseOnScroll"
 
-const Select = SelectPrimitive.Root
+type SelectScrollContextValue = {
+  open: boolean
+  closeOnScroll: (event: Event) => void
+}
+
+const SelectScrollContext =
+  React.createContext<SelectScrollContextValue | null>(null)
+
+function createSyntheticOpenChangeEventDetails(event: Event) {
+  return {
+    reason: "none" as const,
+    event,
+    cancel() {},
+    allowPropagation() {},
+    isCanceled: false,
+    isPropagationAllowed: false,
+    trigger: undefined,
+  }
+}
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  modal = false,
+  defaultOpen = false,
+  open: openProp,
+  onOpenChange,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const isControlled = openProp !== undefined
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+  const open = isControlled ? openProp : uncontrolledOpen
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean, eventDetails: SelectPrimitive.Root.ChangeEventDetails) => {
+      if (!isControlled) {
+        setUncontrolledOpen(nextOpen)
+      }
+
+      onOpenChange?.(nextOpen, eventDetails)
+    },
+    [isControlled, onOpenChange]
+  )
+
+  const closeOnScroll = React.useCallback(
+    (event: Event) => {
+      if (!open) {
+        return
+      }
+
+      handleOpenChange(
+        false,
+        createSyntheticOpenChangeEventDetails(event) as SelectPrimitive.Root.ChangeEventDetails
+      )
+    },
+    [handleOpenChange, open]
+  )
+
+  return (
+    <SelectScrollContext.Provider value={{ open, closeOnScroll }}>
+      <SelectPrimitive.Root
+        modal={modal}
+        open={open}
+        onOpenChange={handleOpenChange}
+        {...props}
+      />
+    </SelectScrollContext.Provider>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -68,6 +135,15 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
   >) {
+  const popupRef = React.useRef<HTMLDivElement | null>(null)
+  const scrollContext = React.useContext(SelectScrollContext)
+
+  useCloseOnScroll({
+    open: scrollContext?.open ?? false,
+    onDismiss: (event) => scrollContext?.closeOnScroll(event),
+    ignoreRef: popupRef,
+  })
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -79,6 +155,7 @@ function SelectContent({
         className="isolate z-50"
       >
         <SelectPrimitive.Popup
+          ref={popupRef}
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn("bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 min-w-36 rounded-lg shadow-md ring-1 duration-100 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 relative isolate z-50 max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto data-[align-trigger=true]:animate-none", className )}

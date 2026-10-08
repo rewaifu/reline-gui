@@ -1,8 +1,19 @@
+import { useRef } from "react";
+
 export function KumaLogo() {
+        const audioRef = useRef<HTMLAudioElement | null>(null);
         const whiteToDark = "fill-white dark:fill-white transition-colors duration-150 group-active:fill-white dark:group-active:fill-primary";
 
+        const handleClick = () => {
+                const audio = audioRef.current ?? new Audio(`${import.meta.env.BASE_URL}boop.mp3`);
+                audio.volume = 0.05;
+                audioRef.current = audio;
+                audio.currentTime = 0;
+                void audio.play().catch(() => {});
+        };
+
         return(
-        <svg viewBox="0 0 550 550" fill="none" xmlns="http://www.w3.org/2000/svg" className="group w-7 h-7 text-logo active:text-primary active:dark:text-logo transition duration-150 select-none">
+        <svg onClick={handleClick} viewBox="0 0 550 550" fill="none" xmlns="http://www.w3.org/2000/svg" className="group w-7 h-7 text-logo active:text-primary active:dark:text-logo transition duration-150 select-none cursor-pointer active:scale-90">
             <circle cx="275" cy="275" r="275" className={whiteToDark}/>
             <circle cx="275" cy="275" r="250" fill="currentColor"/>
             <circle cx="275" cy="275" r="225" className={whiteToDark}/>

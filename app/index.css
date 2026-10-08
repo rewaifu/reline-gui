@@ -1,4 +1,3 @@
-@import "flag-icons/css/flag-icons.min.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -149,38 +148,40 @@
 
 :root {
   --radius: 0.6rem;
-  --background: oklch(1 0 0);
+  --background: oklch(0.965 0.007 286);
   --logo: oklch(0 0 0);
   --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.53 0.09 178);
+  --card: oklch(0.992 0.004 286);
+  --card-foreground: oklch(0.18 0.006 285.885);
+  --popover: oklch(0.992 0.004 286);
+  --popover-foreground: oklch(0.18 0.006 285.885);
+  --primary: oklch(0.56 0.115 178);
   --primary-foreground: oklch(0.969 0.016 293.756);
-  --secondary: oklch(0.967 0.001 286.375);
+  --secondary: oklch(0.942 0.012 286);
   --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
+  --muted: oklch(0.942 0.012 286);
+  --muted-foreground: oklch(0.48 0.02 286);
+  --accent: oklch(0.942 0.012 286);
   --accent-foreground: oklch(0.21 0.006 285.885);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.663 0.116 177.898);
-  --chart-1: oklch(0.53 0.09 178);
-  --chart-2: oklch(0.53 0.09 178);
+  --border: oklch(0.885 0.010 286);
+  --input: oklch(0.885 0.010 286);
+  --ring: oklch(0.62 0.12 178);
+  --chart-1: oklch(0.56 0.115 178);
+  --chart-2: oklch(0.56 0.115 178);
   --chart-3: oklch(0.541 0.281 293.009);
   --chart-4: oklch(0.491 0.27 292.581);
   --chart-5: oklch(0.432 0.232 292.759);
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(0.978 0.006 286);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.541 0.281 293.009);
   --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent: oklch(0.942 0.012 286);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-border: oklch(0.885 0.010 286);
   --sidebar-ring: oklch(0.702 0.183 293.541);
+  --panel-shadow: 0 1px 2px hsl(286 20% 20% / 0.05), 0 8px 20px -10px hsl(286 20% 20% / 0.18);
+  --panel-inset: inset 0 1px 3px hsl(286 20% 20% / 0.07);
 }
 
 .dark {
@@ -191,7 +192,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.70 0.10 186);
+  --primary: oklch(0.72 0.12 186);
   --primary-foreground: oklch(0.15 0.05 185);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
@@ -202,7 +203,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.701 0.1 185.94);
+  --ring: oklch(0.72 0.12 186);
   --chart-1: oklch(0.70 0.10 186);
   --chart-2: oklch(0.70 0.10 186);
   --chart-3: oklch(0.541 0.281 293.009);
@@ -216,6 +217,8 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.38 0.189 293.745);
+  --panel-shadow: 0 1px 2px hsl(0 0% 0% / 0.45), 0 10px 24px -12px hsl(0 0% 0% / 0.6);
+  --panel-inset: inset 0 1px 3px hsl(0 0% 0% / 0.45);
 }
 
 
@@ -260,4 +263,107 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  --shadow-panel: var(--panel-shadow);
+  --shadow-inset: var(--panel-inset);
 }
+
+.docs-article {
+  @apply text-sm leading-7 text-foreground;
+}
+
+.docs-article h1 {
+  @apply scroll-m-20 text-3xl font-semibold tracking-tight;
+}
+
+.docs-article h2 {
+  @apply mt-8 scroll-m-20 border-b pb-2 text-xl font-semibold tracking-tight;
+}
+
+.docs-article h3 {
+  @apply mt-6 scroll-m-20 text-lg font-semibold tracking-tight;
+}
+
+.docs-article p,
+.docs-article pre {
+  @apply mt-4;
+}
+
+.docs-article > ul,
+.docs-article > ol {
+  @apply mt-4;
+}
+
+.docs-article ul,
+.docs-article ol {
+  @apply ml-6 space-y-2;
+}
+
+.docs-article ul {
+  @apply list-disc;
+}
+
+.docs-article ol {
+  @apply list-decimal;
+}
+
+.docs-article li > ul,
+.docs-article li > ol {
+  @apply mt-1;
+}
+
+.docs-article ul ul {
+  list-style-type: circle;
+}
+
+.docs-article ul ul ul {
+  list-style-type: square;
+}
+
+.docs-article li > p {
+  @apply mt-0;
+}
+
+.docs-article code {
+  @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.9em];
+}
+
+.docs-article pre {
+  @apply overflow-x-auto rounded-xl border bg-card p-4;
+}
+
+.docs-article pre code {
+  @apply bg-transparent p-0 text-sm;
+}
+
+.docs-article img {
+  @apply max-w-full rounded-lg border;
+}
+
+.docs-article figure {
+  @apply my-5 w-full;
+}
+
+.docs-article figure img {
+  @apply w-full;
+}
+
+.docs-article figcaption {
+  @apply mt-2 text-center text-sm text-muted-foreground;
+}
+
+html, body {
+  overscroll-behavior: none;
+}
+
+/* base-ui renders a visually hidden input with `position: fixed; top: 0; left: 0`
+   when a Checkbox/Switch has no `name`. Inside the nodes list (which uses
+   `transform: translateZ(0)` for dnd) that transform becomes the containing
+   block, so focusing the input scrolls the list to the top. Pin it to the
+   control instead. */
+[data-slot="checkbox"] ~ input[aria-hidden="true"],
+[data-slot="switch"] ~ input[aria-hidden="true"] {
+  position: absolute !important;
+  top: auto !important;
+  left: auto !important;
+}
+

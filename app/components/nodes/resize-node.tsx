@@ -1,4 +1,5 @@
-import {useContext} from "react"
+import {useContext, type Dispatch} from "react"
+import type { NodesAction } from "~/types/actions"
 import {NodesContext, NodesDispatchContext} from "~/context/contexts"
 import {FilterType, ResizeType} from "~/types/enums"
 import {Label} from "../ui/label"
@@ -72,7 +73,7 @@ const renderSizeInput = (options: ResizeNodeOptions, changeValue: (newOptions: P
     )
 }
 
-export function ResizeNodeBody({id}: { id: number }) {
+export function ResizeNodeBody({id, dispatch: dispatchProp, idSuffix}: { id: number; dispatch?: Dispatch<NodesAction>; idSuffix?: string }) {
     const {t} = useTranslation()
     const nodes = useContext(NodesContext)
     const node = nodes.find((item) => item.id === id)
@@ -80,7 +81,9 @@ export function ResizeNodeBody({id}: { id: number }) {
         return null
     }
     const options = node.options as ResizeNodeOptions
-    const dispatch = useContext(NodesDispatchContext)
+    const contextDispatch = useContext(NodesDispatchContext)
+    const dispatch = dispatchProp ?? contextDispatch
+    const sid = (baseId: string) => idSuffix ? `${baseId}-${idSuffix}` : `${baseId}-${id}`
     const filterOptions = Object.values(FilterType)
     const changeValue = (newOptions: Partial<ResizeNodeOptions>) => {
         dispatch({
@@ -143,14 +146,14 @@ export function ResizeNodeBody({id}: { id: number }) {
                     value={options.resize_type}
                 >
                     <SelectTrigger className="w-[180px]">
-                        <SelectValue/>
+                        <SelectValue>{t(`nodes.resize.resize-type-options.${options.resize_type}`)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                         <SelectGroup>
                             {Object.values(ResizeType).map((type) => {
                                 return (
                                     <SelectItem key={type} value={type}>
-                                        {type}
+                                        {t(`nodes.resize.resize-type-options.${type}`)}
                                     </SelectItem>
                                 )
                             })}
@@ -162,7 +165,7 @@ export function ResizeNodeBody({id}: { id: number }) {
             <FieldGroup className="w-25">
                 <Field orientation="horizontal">
                     <Checkbox
-                        id="spread-check"
+                        id={sid("spread-check")}
                         checked={options.spread}
                         onCheckedChange={(value) => {
                             changeValue({
@@ -171,7 +174,7 @@ export function ResizeNodeBody({id}: { id: number }) {
                             })
                         }}
                     />
-                    <FieldLabel htmlFor="spread-check">{t('nodes.resize.spread')}</FieldLabel>
+                    <FieldLabel htmlFor={sid("spread-check")}>{t('nodes.resize.spread')}</FieldLabel>
                 </Field>
             </FieldGroup>
             {options.spread && (

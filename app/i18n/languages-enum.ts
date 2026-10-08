@@ -4,8 +4,8 @@ export enum LANG {
 }
 
 export enum LANG_FLAG {
-    en = "fi-gb",
-    ru = "fi-ru",
+    en = "gb",
+    ru = "ru",
 }
 
 export const AVAILABLE_LANGUAGES = [
