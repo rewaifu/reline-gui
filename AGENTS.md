@@ -30,7 +30,9 @@ Use `~/` consistently (existing code uses both; `~` is the convention).
 | `bun run lint` | `biome lint --write --unsafe .` — ⚠️ Never run on whole project; only on specific new/changed files |
 | `bun run format` | `biome format --write --no-errors-on-unmatched .` |
 | `bun tauri dev` | Start Vite + Tauri webview (dev mode) |
-| `bun tauri build` | Production Tauri build |
+| `bun tauri build` | Production Tauri build (all bundle targets for the current OS) |
+| `bun tauri build --bundles nsis,msi` | Windows-only: build just the installers |
+| `bun tauri build --bundles appimage,deb,rpm` | Linux-only: build just these packages |
 | `cargo check` | **Verify Rust compilation** (run in `src-tauri/`). Must pass with zero errors before committing Tauri changes |
 
 ### Verification pipeline (when changing Tauri/Rust files)
@@ -53,6 +55,29 @@ Both must pass with zero errors. Warnings are acceptable but should be reviewed.
 ```
 
 **CI** (`.github/workflows/pages.yaml`): `bun install --frozen-lockfile && bun run build` with `GITHUB_PAGES=true`.
+
+## Releases (desktop)
+
+Tauri builds are **native** — each OS must build its own bundles, so releases run in CI, not cross-compiled. Workflow: `.github/workflows/release.yaml` (triggers on `v*` tags or manual dispatch), using `tauri-apps/tauri-action` on a matrix:
+
+| Runner | Bundles | Artifacts |
+|---|---|---|
+| `ubuntu-22.04` | `appimage,deb,rpm` | `.AppImage`, `.deb`, `.rpm` |
+| `windows-latest` | `nsis,msi` | `.exe`, `.msi` |
+
+- **Linux** built on `ubuntu-22.04` (glibc 2.35) for maximum compatibility. AppImage is the universal fallback; deb/rpm add system integration.
+- **No code signing.** Windows installers are unsigned (SmartScreen warns "Unknown publisher"); Linux has no OS-level code signing.
+- **No macOS** support.
+- `bundle.targets: "all"` in `tauri.conf.json` is overridden per-run by the `--bundles` flag.
+
+### Releasing
+
+The app version has a **single source of truth**: `package.json > version`. `src-tauri/tauri.conf.json` points at it (`"version": "../package.json"`), so the resolved version is baked into the `.exe` resource (File/ProductVersion), the MSI/NSIS versions and `tauri-action`'s `__VERSION__`. It is exposed to the frontend as `__APP_VERSION__` via a Vite `define` (used in `settings-dialog.tsx`). The `version` field in `src-tauri/Cargo.toml` is a frozen `0.0.0` placeholder — Cargo requires the field but Tauri never reads it, so it is intentionally left out of sync.
+
+1. Edit `version` in `package.json`.
+2. Edit `release-notes.md` (used verbatim as the GitHub Release body).
+3. Commit, then push a matching tag: `git tag v3.0.0 && git push origin v3.0.0`.
+4. CI creates a **draft** GitHub Release with all installers attached — review and publish it.
 
 ## Architecture
 
@@ -167,7 +192,7 @@ Frontend state lives in `app/components/providers/model-downloads-provider.tsx` 
 
 ### Config
 
-`src-tauri/tauri.conf.json` — version 3.0.0, window 1200x700 (min 1200x700, `visible: false`, shown in `setup`), title "Reline Configurator", `frontendDist: "../dist"`, dev URL `http://localhost:5173`.
+`src-tauri/tauri.conf.json` — version from `../package.json`, window 1200x700 (min 1200x700, `visible: false`, shown in `setup`), title "Reline Configurator", `frontendDist: "../dist"`, dev URL `http://localhost:5173`.
 
 ### Data dir
 

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Reline Configurator",
-  "version": "3.0.0",
+  "version": "../package.json",
   "identifier": "com.rewaifu.reline-gui",
   "build": {
     "frontendDist": "../dist",

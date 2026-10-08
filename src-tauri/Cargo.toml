@@ -1,6 +1,6 @@
 [package]
 name = "reline-gui"
-version = "3.0.0"
+version = "0.0.0"
 description = "GUI configurator for Reline library"
 authors = ["rewaifu"]
 license = ""
