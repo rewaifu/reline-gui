@@ -26,10 +26,10 @@ import { DocsNavigationContext } from "~/context/contexts.ts"
 
 type DocumentationDialogProps = {
   triggerClassName?: string
-  iconOnly?: boolean
+  tauriVer?: boolean
 }
 
-export function DocumentationDialog({ triggerClassName, iconOnly }: DocumentationDialogProps) {
+export function DocumentationDialog({ triggerClassName, tauriVer }: DocumentationDialogProps) {
   const { t, i18n } = useTranslation()
   const [selectedSlug, setSelectedSlug] = useState(DOCUMENTATION_ARTICLES[0]?.slug ?? "")
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -80,9 +80,9 @@ export function DocumentationDialog({ triggerClassName, iconOnly }: Documentatio
   return (
     <Dialog>
       <DialogTrigger>
-        <Button size={iconOnly ? "icon-lg" : "sm"} variant="outline" className={triggerClassName} aria-label={t(DOCUMENTATION_UI.openLabel)}>
+        <Button size={tauriVer ? "lg" : "sm"} variant="outline" className={triggerClassName} aria-label={t(DOCUMENTATION_UI.openLabel)}>
           <IconBook2 />
-          {iconOnly ? null : t("docs.ui.title")}
+          {t("docs.ui.title")}
         </Button>
       </DialogTrigger>
       <DialogContent className="flex h-[min(90vh,900px)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100vw-2rem)] sm:!max-w-[min(1120px,calc(100vw-2rem))]">

@@ -8,6 +8,7 @@ import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "~/components/ui/popover"
 import { Separator } from "~/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 
 const GRAY = "#6b7280"
 const GREEN = "#22c55e"
@@ -53,20 +54,27 @@ export function ServerPopover() {
 
   return (
     <Popover>
-      <PopoverTrigger
-        render={
-          <Button size="icon-lg" variant="outline" className="relative shrink-0">
-            <IconServer />
-            <span
-              className="pointer-events-none absolute top-1 left-1 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card"
-              style={{ backgroundColor: dotColor }}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              render={
+                <Button size="icon-lg" variant="outline" className="relative shrink-0" aria-label={t("backend.serverSettings")}>
+                  <IconServer />
+                  <span
+                    className="pointer-events-none absolute top-1 left-1 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card"
+                    style={{ backgroundColor: dotColor }}
+                  />
+                </Button>
+              }
             />
-          </Button>
-        }
-      />
+          }
+        />
+        <TooltipContent>{t("backend.serverSettings")}</TooltipContent>
+      </Tooltip>
       <PopoverContent align="end" side="top" sideOffset={10} className="w-72 gap-3">
         <div className="flex flex-col gap-2">
-          <PopoverTitle className="text-xs font-medium text-muted-foreground">{t("backend.serverSettings")}</PopoverTitle>
+          <PopoverTitle className="text-center text-xs font-medium text-muted-foreground">{t("backend.serverSettings")}</PopoverTitle>
           <Separator />
         </div>
         {showDepsPrompt ? (

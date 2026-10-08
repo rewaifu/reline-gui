@@ -23,6 +23,7 @@ import { DocumentationDialog } from "~/components/docs/documentation-dialog.tsx"
 import { Button } from "~/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog"
 import { Progress } from "~/components/ui/progress"
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import { NodesContext } from "~/context/contexts"
 import { useMediaQuery } from "~/hooks/useMediaQuery"
 import { CollabLogo } from "~/svg/collab"
@@ -224,29 +225,42 @@ export function TauriFooter() {
         ) : null}
       </div>
 
-      <DocumentationDialog iconOnly />
+      <DocumentationDialog tauriVer/>
 
       <ServerPopover />
 
-      <Button
-        size="icon-lg"
-        variant="outline"
-        className="relative shrink-0"
-        onClick={() => openDialog()}
-        aria-label={t("backend.models.title")}
-        title={t("backend.models.title")}
-      >
-        {activeCount > 0 ? <IconLoader2 className="animate-spin" /> : <IconDownload />}
-        {activeCount > 0 ? (
-          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-            {activeCount}
-          </span>
-        ) : null}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="icon-lg"
+              variant="outline"
+              className="relative shrink-0"
+              onClick={() => openDialog()}
+              aria-label={t("backend.models.title")}
+            >
+              {activeCount > 0 ? <IconLoader2 className="animate-spin" /> : <IconDownload />}
+              {activeCount > 0 ? (
+                <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                  {activeCount}
+                </span>
+              ) : null}
+            </Button>
+          }
+        />
+        <TooltipContent>{t("backend.models.title")}</TooltipContent>
+      </Tooltip>
 
-      <Button size="icon-lg" variant="outline" className="shrink-0" onClick={() => openSettings("deps")}>
-        <IconSettings />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button size="icon-lg" variant="outline" className="shrink-0" onClick={() => openSettings("deps")} aria-label={t("backend.settings")}>
+              <IconSettings />
+            </Button>
+          }
+        />
+        <TooltipContent>{t("backend.settings")}</TooltipContent>
+      </Tooltip>
 
       <ModelDownloaderDialog
         open={dialogOpen}
