@@ -5,6 +5,7 @@ import type { DownloadState } from "~/types/backend"
 import type { ActiveConfig, ConfigBase, UserConfig } from "~/types/config"
 import type { NodeType } from "~/types/enums"
 import type { NodeOptions, StackNode } from "~/types/node"
+import type { UpdaterContextValue } from "~/types/updater"
 
 export const NodesContext = createContext<StackNode[]>([])
 export const NodesDispatchContext = createContext<Dispatch<NodesAction>>(() => {})
@@ -53,6 +54,7 @@ export interface Preferences {
   screentoneMinProduct: number
   screentoneFractionalDot: boolean
   forceStopBackend: boolean
+  autoCheckUpdates: boolean
   nodeDefaults: NodeDefaults
   defaultReaderPath: string
   defaultWriterPath: string
@@ -76,6 +78,7 @@ export interface PreferencesContextValue extends GeneralPreferences {
   setScreentoneMinProduct: (value: number) => void
   setScreentoneFractionalDot: (value: boolean) => void
   setForceStopBackend: (value: boolean) => void
+  setAutoCheckUpdates: (value: boolean) => void
   setDefaultReaderPath: (value: string) => void
   setDefaultWriterPath: (value: string) => void
   setModelsFolder: (value: string) => void
@@ -138,3 +141,5 @@ export interface ModelDownloadsContextValue {
 }
 
 export const ModelDownloadsContext = createContext<ModelDownloadsContextValue | null>(null)
+
+export const UpdaterContext = createContext<UpdaterContextValue | null>(null)

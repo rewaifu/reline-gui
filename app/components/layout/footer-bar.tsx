@@ -1,4 +1,5 @@
 import {
+  IconArrowUpCircle,
   IconBrandDiscordFilled,
   IconBrandGithub,
   IconDownload,
@@ -20,6 +21,8 @@ import { useSoundPlaying } from "~/hooks/useSoundPlaying"
 import { stopSound } from "~/lib/audio"
 import { ModelDownloaderDialog } from "~/components/layout/model-downloader-dialog.tsx"
 import { DocumentationDialog } from "~/components/docs/documentation-dialog.tsx"
+import { useUpdater } from "~/components/providers/updater-provider"
+import { UpdateDialog } from "~/components/updates/update-dialog"
 import { Button } from "~/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog"
 import { Progress } from "~/components/ui/progress"
@@ -106,7 +109,9 @@ export function TauriFooter() {
   const { activeCount, dialogOpen, dialogFilter, openDialog, closeDialog } = useModelDownloads()
   const soundPlaying = useSoundPlaying()
   const nodes = useContext(NodesContext)
+  const { status: updateStatus } = useUpdater()
   const [errorOpen, setErrorOpen] = useState(false)
+  const [updateOpen, setUpdateOpen] = useState(false)
   const [showPercent, setShowPercent] = useState(false)
   const [pendingStart, setPendingStart] = useState(false)
   const lastStageRef = useRef(stage)
@@ -131,6 +136,7 @@ export function TauriFooter() {
   const stopStyle = forceStopBackend ? (stopDisabled ? grayStyle : stopRed) : pipelineActive ? stopRed : grayStyle
 
   const isError = stage === "error"
+  const hasUpdate = updateStatus === "available" || updateStatus === "downloading" || updateStatus === "ready"
 
   const writer = [...nodes].reverse().find((node) => node.type === NodeType.FOLDER_WRITER)
   const outputPath = (writer?.options as FolderWriterNodeOptions | undefined)?.path
@@ -225,9 +231,29 @@ export function TauriFooter() {
         ) : null}
       </div>
 
-      <DocumentationDialog tauriVer/>
+      <DocumentationDialog tauriVer />
 
       <ServerPopover />
+
+      {hasUpdate ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon-lg"
+                variant="outline"
+                className="relative shrink-0"
+                onClick={() => setUpdateOpen(true)}
+                aria-label={t("backend.updates.title")}
+              >
+                {updateStatus === "downloading" ? <IconLoader2 className="animate-spin" /> : <IconArrowUpCircle />}
+                <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary" />
+              </Button>
+            }
+          />
+          <TooltipContent>{t("backend.updates.title")}</TooltipContent>
+        </Tooltip>
+      ) : null}
 
       <Tooltip>
         <TooltipTrigger
@@ -269,6 +295,8 @@ export function TauriFooter() {
         }}
         initialFilter={dialogFilter}
       />
+
+      <UpdateDialog open={updateOpen} onOpenChange={setUpdateOpen} />
 
       <Dialog open={errorOpen} onOpenChange={setErrorOpen}>
         <DialogContent className="max-w-md">

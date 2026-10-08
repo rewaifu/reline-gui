@@ -33,6 +33,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   screentoneMinProduct: 10,
   screentoneFractionalDot: false,
   forceStopBackend: false,
+  autoCheckUpdates: true,
   nodeDefaults: {},
   defaultReaderPath: "",
   defaultWriterPath: "",
@@ -127,6 +128,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPreferences((prev) => ({ ...prev, forceStopBackend: value }))
   }, [])
 
+  const setAutoCheckUpdates = useCallback((value: boolean) => {
+    setPreferences((prev) => ({ ...prev, autoCheckUpdates: value }))
+  }, [])
+
   const setDefaultReaderPath = useCallback((value: string) => {
     setPreferences((prev) => ({ ...prev, defaultReaderPath: value }))
   }, [])
@@ -182,6 +187,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       screentoneMinProduct: preferences.screentoneMinProduct,
       screentoneFractionalDot: preferences.screentoneFractionalDot,
       forceStopBackend: preferences.forceStopBackend,
+      autoCheckUpdates: preferences.autoCheckUpdates,
       nodeDefaults: preferences.nodeDefaults,
       defaultReaderPath: preferences.defaultReaderPath,
       defaultWriterPath: preferences.defaultWriterPath,
@@ -190,6 +196,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setScreentoneMinProduct,
       setScreentoneFractionalDot,
       setForceStopBackend,
+      setAutoCheckUpdates,
       setDefaultReaderPath,
       setDefaultWriterPath,
       setModelsFolder,
@@ -203,6 +210,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       preferences.screentoneMinProduct,
       preferences.screentoneFractionalDot,
       preferences.forceStopBackend,
+      preferences.autoCheckUpdates,
       preferences.nodeDefaults,
       preferences.defaultReaderPath,
       preferences.defaultWriterPath,
@@ -211,6 +219,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setScreentoneMinProduct,
       setScreentoneFractionalDot,
       setForceStopBackend,
+      setAutoCheckUpdates,
       setDefaultReaderPath,
       setDefaultWriterPath,
       setModelsFolder,

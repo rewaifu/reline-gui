@@ -20,6 +20,7 @@ import { PreferencesProvider } from "~/components/providers/preferences-provider
 import { LocalModelsProvider } from "~/components/providers/local-models-provider"
 import { ModelDownloadsProvider } from "~/components/providers/model-downloads-provider"
 import { SettingsProvider } from "~/components/providers/settings-provider"
+import { UpdaterProvider } from "~/components/providers/updater-provider"
 import { TauriSettingsHost, WebSettingsHost } from "~/components/settings/settings-host"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { useCustomTitlebar } from "~/hooks/useCustomTitlebar"
@@ -99,8 +100,10 @@ export function App() {
             <LocalModelsProvider>
               <ModelDownloadsProvider>
                 <SettingsProvider>
-                  <HomePage />
-                  <Toaster position="top-center" />
+                  <UpdaterProvider>
+                    <HomePage />
+                    <Toaster position="top-center" />
+                  </UpdaterProvider>
                 </SettingsProvider>
               </ModelDownloadsProvider>
             </LocalModelsProvider>

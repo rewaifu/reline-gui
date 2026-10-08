@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { IconFolderOpen, IconPlayerPlay, IconPlayerStop, IconRefresh, IconX } from "@tabler/icons-react"
+import { IconCheck, IconDownload, IconFolderOpen, IconLoader2, IconPlayerPlay, IconPlayerStop, IconRefresh, IconX } from "@tabler/icons-react"
 import { Button } from "~/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
+import { Progress } from "~/components/ui/progress"
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area"
 import { Separator } from "~/components/ui/separator"
 import { Slider } from "~/components/ui/slider"
@@ -19,10 +20,11 @@ import { stopSound } from "~/lib/audio"
 import { normalizeWebPath } from "~/lib/paths"
 import { cn } from "~/lib/utils"
 import { usePreferences, useSoundPreferences } from "~/components/providers/preferences-provider"
+import { useUpdater } from "~/components/providers/updater-provider"
 import { useLocalModels } from "~/components/providers/local-models-provider"
 import { useSettings } from "~/components/providers/settings-provider"
 import type { NotifyMode } from "~/context/contexts"
-import {InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput} from "~/components/ui";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "~/components/ui"
 
 function PathField({
   id,
@@ -68,26 +70,26 @@ function PathField({
       <div className="flex items-center gap-2">
         <InputGroup>
           <InputGroupInput
-              id={id}
-              className="flex-1"
-              value={local}
-              placeholder={placeholder}
-              onChange={(e) => setLocal(e.target.value)}
-              onBlur={commit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commit()
-              }}
+            id={id}
+            className="flex-1"
+            value={local}
+            placeholder={placeholder}
+            onChange={(e) => setLocal(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit()
+            }}
           />
           {local && (
             <InputGroupAddon align="inline-end">
               <InputGroupButton
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => {
-                    setLocal("")
-                    onChange("")
-                  }}
-                  aria-label="clear"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  setLocal("")
+                  onChange("")
+                }}
+                aria-label="clear"
               >
                 <IconX className="size-4" />
               </InputGroupButton>
@@ -181,6 +183,8 @@ export function PreferencesTab() {
     setScreentoneFractionalDot,
     forceStopBackend,
     setForceStopBackend,
+    autoCheckUpdates,
+    setAutoCheckUpdates,
     defaultReaderPath,
     setDefaultReaderPath,
     defaultWriterPath,
@@ -191,6 +195,7 @@ export function PreferencesTab() {
   const { localModels, loading, rescan } = useLocalModels()
   const { openSettings } = useSettings()
   const soundPlaying = useSoundPlaying()
+  const { status: updateStatus, update, progress: updateProgress, error: updateError, checkForUpdates, downloadAndInstall, restart } = useUpdater()
 
   const toggleSoundPreview = () => {
     if (soundPlaying) {
@@ -341,6 +346,56 @@ export function PreferencesTab() {
               <span className="text-xs text-muted-foreground">
                 {loading ? t("backend.preferences.modelsLoading") : t("backend.preferences.modelsCount", { count: localModels.length })}
               </span>
+            </CardContent>
+          </Card>
+        )}
+
+        {isTauri && (
+          <Card>
+            <CardHeader className="select-none">
+              <CardTitle>{t("backend.updates.title")}</CardTitle>
+              <CardDescription>{t("backend.updates.desc")}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <FieldGroup>
+                <Field orientation="horizontal">
+                  <Checkbox id="pref-auto-updates" checked={autoCheckUpdates} onCheckedChange={(checked) => setAutoCheckUpdates(!!checked)} />
+                  <FieldLabel htmlFor="pref-auto-updates">{t("backend.updates.autoCheck")}</FieldLabel>
+                </Field>
+              </FieldGroup>
+              <Separator />
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs text-muted-foreground tabular-nums">v{__APP_VERSION__}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void checkForUpdates()}
+                  disabled={updateStatus === "checking" || updateStatus === "downloading"}
+                >
+                  {updateStatus === "checking" ? <IconLoader2 className="size-4 animate-spin" /> : <IconRefresh className="size-4" />}
+                  {t("backend.updates.check")}
+                </Button>
+                {updateStatus === "up-to-date" ? (
+                  <span className="flex items-center gap-1 text-xs text-green-500">
+                    <IconCheck className="size-3.5" />
+                    {t("backend.updates.upToDate")}
+                  </span>
+                ) : null}
+                {updateStatus === "available" && update ? (
+                  <Button size="sm" onClick={() => void downloadAndInstall()}>
+                    <IconDownload className="size-4" />
+                    {t("backend.updates.installVersion", { version: update.version })}
+                  </Button>
+                ) : null}
+                {updateStatus === "ready" ? (
+                  <Button size="sm" onClick={() => void restart()}>
+                    <IconRefresh className="size-4" />
+                    {t("backend.updates.restart")}
+                  </Button>
+                ) : null}
+              </div>
+              {updateStatus === "downloading" ? <Progress value={updateProgress ?? 0} indicatorClassName="bg-green-500" /> : null}
+              {updateStatus === "error" && updateError ? <p className="break-words text-xs text-red-500">{updateError}</p> : null}
             </CardContent>
           </Card>
         )}

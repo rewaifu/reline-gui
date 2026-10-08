@@ -21,6 +21,8 @@
     "shell:default",
     "fs:default",
     "notification:default",
+    "updater:default",
+    "process:default",
     {
       "identifier": "fs:scope",
       "allow": ["**"]
