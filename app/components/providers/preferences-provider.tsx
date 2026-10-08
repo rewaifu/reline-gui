@@ -22,13 +22,13 @@ const LEGACY_MODELS_FOLDER_KEY = "upscale-models-folder"
 export { DEFAULT_COMPLETION_SOUND }
 
 const DEFAULT_PREFERENCES: Preferences = {
-  playSoundOnComplete: true,
-  notifyOnComplete: false,
+  playSoundOnComplete: false,
+  notifyOnComplete: true,
   notifyMode: "always",
   completionSound: DEFAULT_COMPLETION_SOUND,
   maxSoundDuration: 5,
   maxSoundDurationEnabled: true,
-  soundVolume: 0.2,
+  soundVolume: 0.1,
   screentoneUseSsaa: true,
   screentoneMinProduct: 10,
   screentoneFractionalDot: false,

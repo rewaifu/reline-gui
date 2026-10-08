@@ -29,7 +29,7 @@ export function ConfigsProvider({ children }: { children: ReactNode }) {
   const prepareNodes = usePrepareNodes()
 
   const [userConfigs, setUserConfigs] = useState<UserConfig[]>(loadUserConfigs)
-  const [activeConfig, setActiveConfig] = useState<ActiveConfig>(loadActiveConfig)
+  const [activeConfig, setActiveConfig] = useState<ActiveConfig>(() => loadActiveConfig() ?? { kind: "preset", id: CONFIG_PRESETS[0].id })
   const [dirty, setDirty] = useState(false)
   const [baseline, setBaseline] = useState<string | null>(() => {
     const active = loadActiveConfig()

@@ -127,6 +127,7 @@ export const ru = {
       "target-scale-warning": "Выбранный коэффициент увеличения превышает возможности модели ({{modelScale}}x)",
       "target-scale-unknown": "Коэффициент не найден, при превышении возможностей модели будет вызвана ошибка",
       "model-not-found": "Модель не найдена в выбранной папке",
+      "download-from-registry": "Найдена в реестре моделей. Скачать «{{name}}»",
     },
     "node-type-options": {
       folder_reader: "Чтение",

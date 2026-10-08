@@ -102,11 +102,10 @@ export function TauriFooter() {
   } = useBackendContext()
   const { openSettings } = useSettings()
   const { forceStopBackend } = usePreferences()
-  const { activeCount } = useModelDownloads()
+  const { activeCount, dialogOpen, dialogFilter, openDialog, closeDialog } = useModelDownloads()
   const soundPlaying = useSoundPlaying()
   const nodes = useContext(NodesContext)
   const [errorOpen, setErrorOpen] = useState(false)
-  const [modelsOpen, setModelsOpen] = useState(false)
   const [showPercent, setShowPercent] = useState(false)
   const [pendingStart, setPendingStart] = useState(false)
   const lastStageRef = useRef(stage)
@@ -233,7 +232,7 @@ export function TauriFooter() {
         size="icon-lg"
         variant="outline"
         className="relative shrink-0"
-        onClick={() => setModelsOpen(true)}
+        onClick={() => openDialog()}
         aria-label={t("backend.models.title")}
         title={t("backend.models.title")}
       >
@@ -249,7 +248,13 @@ export function TauriFooter() {
         <IconSettings />
       </Button>
 
-      <ModelDownloaderDialog open={modelsOpen} onOpenChange={setModelsOpen} />
+      <ModelDownloaderDialog
+        open={dialogOpen}
+        onOpenChange={(next) => {
+          if (!next) closeDialog()
+        }}
+        initialFilter={dialogFilter}
+      />
 
       <Dialog open={errorOpen} onOpenChange={setErrorOpen}>
         <DialogContent className="max-w-md">

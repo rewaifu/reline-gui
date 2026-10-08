@@ -127,6 +127,7 @@ export const en = {
       "target-scale-warning": "Current scale factor exceeds model capabilities ({{modelScale}}x)",
       "target-scale-unknown": "Scale factor not found, exceeding will cause an error",
       "model-not-found": "Model not found in the selected models folder",
+      "download-from-registry": "Found in the model registry. Download \"{{name}}\"",
     },
     "node-type-options": {
       folder_reader: "Folder reader",

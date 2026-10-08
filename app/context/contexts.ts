@@ -127,6 +127,10 @@ export const BackendContext = createContext<BackendContextValue | null>(null)
 export interface ModelDownloadsContextValue {
   downloads: Record<string, DownloadState>
   activeCount: number
+  dialogOpen: boolean
+  dialogFilter: string
+  openDialog: (filter?: string) => void
+  closeDialog: () => void
   startDownload: (filename: string, url: string) => Promise<void>
   cancelDownload: (filename: string) => void
   deleteModel: (modelName: string) => Promise<void>

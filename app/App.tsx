@@ -22,7 +22,7 @@ import { SettingsProvider } from "~/components/providers/settings-provider"
 import { TauriSettingsHost, WebSettingsHost } from "~/components/settings/settings-host"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { useCustomTitlebar } from "~/hooks/useCustomTitlebar"
-import { usePrepareNodes } from "~/hooks/usePrepareNodes"
+import { usePrepareNodes, useSyncLocalModelMatches } from "~/hooks/usePrepareNodes"
 
 const queryClient = new QueryClient()
 
@@ -33,6 +33,7 @@ function HomePage() {
   const prepareNodes = usePrepareNodes()
 
   const [nodes, dispatch] = useReducer(nodesReducer, undefined, () => loadInitialNodes(prepareNodes))
+  useSyncLocalModelMatches(nodes, dispatch)
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null)
   const activeNodeValue = useMemo(() => ({ activeNodeId, setActiveNodeId }), [activeNodeId])
 

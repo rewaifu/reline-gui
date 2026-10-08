@@ -12,6 +12,8 @@ export function ModelDownloadsProvider({ children }: { children: ReactNode }) {
   const isTauri = useIsTauri()
   const { modelsFolder, rescan } = useLocalModels()
   const [downloads, setDownloads] = useState<Record<string, DownloadState>>({})
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogFilter, setDialogFilter] = useState("")
   const modelsFolderRef = useRef(modelsFolder)
   modelsFolderRef.current = modelsFolder
 
@@ -108,14 +110,21 @@ export function ModelDownloadsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const openDialog = useCallback((filter = "") => {
+    setDialogFilter(filter)
+    setDialogOpen(true)
+  }, [])
+
+  const closeDialog = useCallback(() => setDialogOpen(false), [])
+
   const activeCount = useMemo(
     () => Object.values(downloads).filter((d) => d.status === "downloading" || d.status === "extracting").length,
     [downloads],
   )
 
   const value = useMemo<ModelDownloadsContextValue>(
-    () => ({ downloads, activeCount, startDownload, cancelDownload, deleteModel, clearDownload }),
-    [downloads, activeCount, startDownload, cancelDownload, deleteModel, clearDownload],
+    () => ({ downloads, activeCount, dialogOpen, dialogFilter, openDialog, closeDialog, startDownload, cancelDownload, deleteModel, clearDownload }),
+    [downloads, activeCount, dialogOpen, dialogFilter, openDialog, closeDialog, startDownload, cancelDownload, deleteModel, clearDownload],
   )
 
   return <ModelDownloadsContext.Provider value={value}>{children}</ModelDownloadsContext.Provider>

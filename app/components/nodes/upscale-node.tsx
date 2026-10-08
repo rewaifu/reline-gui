@@ -1,8 +1,9 @@
 import { Fragment, useCallback, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { ModelsContext, NodesContext, NodesDispatchContext } from "~/context/contexts"
 import { DType, TilerType } from "~/types/enums"
 import { Label } from "../ui/label"
-import { DEFAULT_MODEL, DEFAULT_TILE_SIZE } from "~/constants"
+import { DEFAULT_MODEL, DEFAULT_TILE_SIZE, MODELS } from "~/constants"
 import { Input } from "../ui/input"
 import { Checkbox } from "../ui/checkbox"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
@@ -27,7 +28,10 @@ import { useTranslation } from "react-i18next"
 import { cn } from "~/lib/utils"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { matchModel, useLocalModels } from "~/components/providers/local-models-provider"
-import { IconFile, IconFolderOpen } from "@tabler/icons-react"
+import { useModelDownloads } from "~/components/providers/model-downloads-provider"
+import { normalizeModelName } from "~/lib/model-names"
+import { remoteModelsQueryOptions } from "~/lib/queries"
+import { IconDownload, IconFile, IconFolderOpen } from "@tabler/icons-react"
 import { Button } from "~/components/ui/button"
 
 export function ModelsCombobox({
@@ -133,14 +137,7 @@ export function UpscaleNodeBody({ id, dispatch: dispatchProp, idSuffix }: { id: 
   const sid = (baseId: string) => (idSuffix ? `${baseId}-${idSuffix}` : `${baseId}-${id}`)
   const isTauri = useIsTauri()
   const { modelsFolder, setModelsFolder, localModels } = useLocalModels()
-
-  useEffect(() => {
-    if (!isTauri || options.is_own_model || !options.model) return
-    const matched = matchModel(options.model, localModels)
-    if (matched && matched !== options.model) {
-      changeValue({ model: matched })
-    }
-  }, [isTauri, options.is_own_model, options.model, localModels])
+  const { openDialog } = useModelDownloads()
 
   const handleBrowseFolder = async () => {
     try {
@@ -180,6 +177,17 @@ export function UpscaleNodeBody({ id, dispatch: dispatchProp, idSuffix }: { id: 
   const showUnknownScaleWarning = target && options.target_scale !== undefined && modelScale === null && options.target_scale !== 1
   const matchedModel = isTauri ? matchModel(options.model, localModels) : undefined
   const modelMissing = isTauri && !options.is_own_model && !!modelsFolder && !!options.model && !matchedModel
+  const localMatchMissing = isTauri && !options.is_own_model && !!options.model && !matchedModel
+  const registryCache = useMemo(() => new Set(MODELS.map(normalizeModelName)), [])
+  const targetModelName = normalizeModelName(options.model)
+  const cachedInRegistry = localMatchMissing && registryCache.has(targetModelName)
+  const { data: remoteModels } = useQuery({ ...remoteModelsQueryOptions, enabled: localMatchMissing && !cachedInRegistry })
+  const registryMatch = useMemo(() => {
+    if (!localMatchMissing) return undefined
+    if (registryCache.has(targetModelName)) return targetModelName
+    if (remoteModels?.some((item) => normalizeModelName(item.filename) === targetModelName)) return targetModelName
+    return undefined
+  }, [localMatchMissing, registryCache, targetModelName, remoteModels])
 
   const changeValue = (newOptions: Partial<UpscaleNodeOptions>) => {
     dispatch({
@@ -237,6 +245,17 @@ export function UpscaleNodeBody({ id, dispatch: dispatchProp, idSuffix }: { id: 
               </Button>
             </div>
             {modelMissing && <p className="text-sm text-destructive">{t("nodes.upscale.model-not-found")}</p>}
+            {registryMatch && (
+              <Button
+                variant="link"
+                size="xs"
+                className="h-auto justify-start gap-1.5 self-start p-0 text-sm"
+                onClick={() => openDialog(registryMatch)}
+              >
+                <IconDownload className="size-3.5" />
+                {t("nodes.upscale.download-from-registry", { name: registryMatch })}
+              </Button>
+            )}
           </div>
         ) : (
           <ModelsCombobox
@@ -369,7 +388,7 @@ export function UpscaleNodeBody({ id, dispatch: dispatchProp, idSuffix }: { id: 
               if (!value) {
                 if (isTauri) {
                   changeValue({
-                    model: localModels.includes(options.model) ? options.model : "",
+                    model: localModels.includes(options.model) ? options.model : modelsFolder ? (localModels[0] ?? "") : "",
                     is_own_model: value,
                   })
                 } else {

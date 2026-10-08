@@ -1,9 +1,10 @@
-import { useCallback } from "react"
+import { type Dispatch, useCallback, useEffect } from "react"
 import { matchModel, useLocalModels } from "~/components/providers/local-models-provider"
 import { usePreferences } from "~/components/providers/preferences-provider"
 import { useIsTauri } from "~/hooks/useIsTauri"
 import { migrateNodes } from "~/lib/config-migration"
 import { applyPathOverrides } from "~/lib/node-overrides"
+import { type NodesAction, NodesActionType } from "~/types/actions"
 import { NodeType } from "~/types/enums"
 import type { StackNode } from "~/types/node"
 import type { FolderReaderNodeOptions, UpscaleNodeOptions } from "~/types/options"
@@ -44,4 +45,17 @@ export function usePrepareNodes(): (nodes: StackNode[]) => StackNode[] {
     },
     [defaultReaderPath, defaultWriterPath, isTauri, localModels],
   )
+}
+
+export function useSyncLocalModelMatches(nodes: StackNode[], dispatch: Dispatch<NodesAction>): void {
+  const isTauri = useIsTauri()
+  const { localModels } = useLocalModels()
+
+  useEffect(() => {
+    if (!isTauri || localModels.length === 0) return
+    const next = applyLocalModelMatches(nodes, localModels)
+    if (next.some((node, index) => node !== nodes[index])) {
+      dispatch({ type: NodesActionType.IMPORT, payload: next })
+    }
+  }, [isTauri, localModels, nodes, dispatch])
 }

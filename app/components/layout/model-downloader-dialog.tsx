@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { IconChevronRight, IconDownload, IconFolderOpen, IconLoader2, IconPlayerStop, IconRefresh, IconSearch, IconTrash } from "@tabler/icons-react"
-import { modelBasename, useLocalModels } from "~/components/providers/local-models-provider.tsx"
+import { useLocalModels } from "~/components/providers/local-models-provider.tsx"
 import { useModelDownloads } from "~/components/providers/model-downloads-provider.tsx"
 import { Button } from "~/components/ui/button.tsx"
 import { Card } from "~/components/ui/card.tsx"
@@ -14,21 +14,20 @@ import { Progress } from "~/components/ui/progress.tsx"
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area.tsx"
 import { RECOMMENDED_MODELS } from "~/constants.ts"
 import { groupModels } from "~/lib/model-groups.ts"
+import { normalizeModelName } from "~/lib/model-names.ts"
 import { remoteModelsQueryOptions } from "~/lib/queries.ts"
 import { cn } from "~/lib/utils.ts"
 import type { ModelFile } from "~/types/api.ts"
 
-const ARCHIVE_EXT = /\.(tar\.xz|tar\.gz|zip|pt|pth|safetensors)$/i
-
-function remoteBasename(filename: string): string {
-  return filename.replace(ARCHIVE_EXT, "").toLowerCase()
-}
-
-function remoteModelName(filename: string): string {
-  return remoteBasename(filename.split(/[\\/]/).pop() ?? filename)
-}
-
-export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ModelDownloaderDialog({
+  open,
+  onOpenChange,
+  initialFilter = "",
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialFilter?: string
+}) {
   const { t } = useTranslation()
   const { modelsFolder, setModelsFolder, localModels } = useLocalModels()
   const { downloads, startDownload, cancelDownload, deleteModel, clearDownload } = useModelDownloads()
@@ -38,19 +37,23 @@ export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; o
   const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>({})
   const notifiedRef = useRef<Set<string>>(new Set())
 
+  useEffect(() => {
+    if (open) setFilter(initialFilter)
+  }, [open, initialFilter])
+
   const recommendedLabel = t("backend.models.recommended")
   const setGroupOpen = (value: string, open: boolean) => setGroupOverrides((prev) => ({ ...prev, [value]: open }))
 
-  const installedNames = useMemo(() => new Set(localModels.map(modelBasename)), [localModels])
+  const installedNames = useMemo(() => new Set(localModels.map(normalizeModelName)), [localModels])
 
   const filteredModels = useMemo(() => {
     const query = filter.trim().toLowerCase()
     if (!query) return remoteModels ?? []
-    return (remoteModels ?? []).filter((item) => remoteModelName(item.filename).includes(query))
+    return (remoteModels ?? []).filter((item) => normalizeModelName(item.filename).includes(query))
   }, [remoteModels, filter])
 
   const groupedModels = useMemo(() => {
-    const byName = new Map(filteredModels.map((item) => [remoteModelName(item.filename), item]))
+    const byName = new Map(filteredModels.map((item) => [normalizeModelName(item.filename), item]))
     const recommended: ModelFile[] = []
     for (const name of RECOMMENDED_MODELS) {
       const item = byName.get(name)
@@ -106,7 +109,7 @@ export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; o
   }
 
   const handleDelete = async (item: ModelFile) => {
-    const name = remoteBasename(item.filename)
+    const name = normalizeModelName(item.filename)
     setDeleting(name)
     try {
       await deleteModel(name)
@@ -120,7 +123,7 @@ export function ModelDownloaderDialog({ open, onOpenChange }: { open: boolean; o
   }
 
   const renderModelCard = (item: ModelFile) => {
-    const name = remoteBasename(item.filename)
+    const name = normalizeModelName(item.filename)
     const isInstalled = installedNames.has(name)
     const state = downloads[item.filename]
     const status = state?.status
