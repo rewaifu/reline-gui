@@ -19,10 +19,11 @@ import { NodeRef } from "~/components/docs/node-ref.tsx"
 import { ArticleRef } from "~/components/docs/article-ref.tsx"
 import { T } from "~/components/docs/t-ref.tsx"
 import { DocImage } from "~/components/docs/doc-image.tsx"
-import { DocImageCompare } from "~/components/docs/doc-image-compare.tsx"
 import { PlatformOnly } from "~/components/docs/platform-only.tsx"
 import { DemoNode } from "~/components/docs/demo-node.tsx"
 import { DocsNavigationContext } from "~/context/contexts.ts"
+
+const DocImageCompare = lazy(() => import("~/components/docs/doc-image-compare.tsx").then((m) => ({ default: m.DocImageCompare })))
 
 type DocumentationDialogProps = {
   triggerClassName?: string

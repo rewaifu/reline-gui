@@ -10,7 +10,7 @@ import {
   IconPlayerStop,
   IconSettings,
 } from "@tabler/icons-react"
-import { useContext, useEffect, useRef, useState } from "react"
+import { Suspense, useContext, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useBackendContext } from "~/components/providers/backend-provider"
 import { ServerPopover } from "~/components/layout/server-popover"
@@ -19,8 +19,9 @@ import { usePreferences } from "~/components/providers/preferences-provider"
 import { useSettings } from "~/components/providers/settings-provider"
 import { useSoundPlaying } from "~/hooks/useSoundPlaying"
 import { stopSound } from "~/lib/audio"
-import { ModelDownloaderDialog } from "~/components/layout/model-downloader-dialog.tsx"
 import { DocumentationDialog } from "~/components/docs/documentation-dialog.tsx"
+import { ModelDownloaderDialog } from "~/components/providers/lazy-dialogs"
+import { ReadySignal } from "~/components/providers/ready-signal"
 import { useUpdater } from "~/components/providers/updater-provider"
 import { UpdateDialog } from "~/components/updates/update-dialog"
 import { Button } from "~/components/ui/button"
@@ -46,7 +47,7 @@ function formatDuration(seconds: number | null): string {
 
 export function FooterBar() {
   const { t } = useTranslation()
-  const { openSettings } = useSettings()
+  const { openSettings, pending: settingsPending, preloadSettings } = useSettings()
   const isDesktop = useMediaQuery("(min-width: 768px)")
 
   const colab = isDesktop ? t("home-page.collab") : t("home-page.collab").split(" (")[0]
@@ -78,8 +79,16 @@ export function FooterBar() {
             RawkumaSR
           </Button>
         </a>
-        <Button variant="outline" size="icon-sm" onClick={() => openSettings("prefs")}>
-          <IconSettings />
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={() => openSettings("prefs")}
+          onPointerEnter={preloadSettings}
+          onFocus={preloadSettings}
+          disabled={settingsPending}
+          aria-busy={settingsPending}
+        >
+          {settingsPending ? <IconLoader2 className="animate-spin" /> : <IconSettings />}
         </Button>
       </div>
     </footer>
@@ -104,9 +113,18 @@ export function TauriFooter() {
     handleHardStop,
     handleOpenFolder,
   } = useBackendContext()
-  const { openSettings } = useSettings()
+  const { openSettings, pending: settingsPending, preloadSettings } = useSettings()
   const { forceStopBackend } = usePreferences()
-  const { activeCount, dialogOpen, dialogFilter, openDialog, closeDialog } = useModelDownloads()
+  const {
+    activeCount,
+    dialogOpen,
+    dialogFilter,
+    dialogPending,
+    openDialog,
+    closeDialog,
+    preloadDialog,
+    markModelDownloaderReady,
+  } = useModelDownloads()
   const soundPlaying = useSoundPlaying()
   const nodes = useContext(NodesContext)
   const { status: updateStatus } = useUpdater()
@@ -114,7 +132,12 @@ export function TauriFooter() {
   const [updateOpen, setUpdateOpen] = useState(false)
   const [showPercent, setShowPercent] = useState(false)
   const [pendingStart, setPendingStart] = useState(false)
+  const [modelsMounted, setModelsMounted] = useState(false)
   const lastStageRef = useRef(stage)
+
+  useEffect(() => {
+    if (dialogOpen) setModelsMounted(true)
+  }, [dialogOpen])
 
   useEffect(() => {
     if (pendingStart) {
@@ -187,9 +210,17 @@ export function TauriFooter() {
       <div className="flex min-w-0 flex-1 items-center gap-3 pl-1">
         <Progress value={progress} className="w-[200px] shrink-0" indicatorClassName={isError ? "bg-red-500" : "bg-green-500"} />
         {depsStatus != null && !depsReady && !installingDeps ? (
-          <Button variant="link" size="xs" className="shrink-0 whitespace-nowrap text-white hover:text-white/80" onClick={() => openSettings("deps")}>
+          <Button
+            variant="link"
+            size="xs"
+            className="shrink-0 whitespace-nowrap text-white hover:text-white/80"
+            onClick={() => openSettings("deps")}
+            onPointerEnter={preloadSettings}
+            onFocus={preloadSettings}
+            disabled={settingsPending}
+          >
             {t("backend.installDepsHint")}
-            <IconExternalLink className="size-3.5" />
+            {settingsPending ? <IconLoader2 className="size-3.5 animate-spin" /> : <IconExternalLink className="size-3.5" />}
           </Button>
         ) : null}
         {pipelineActive && metrics != null ? (
@@ -263,9 +294,12 @@ export function TauriFooter() {
               variant="outline"
               className="relative shrink-0"
               onClick={() => openDialog()}
+              onPointerEnter={preloadDialog}
+              onFocus={preloadDialog}
               aria-label={t("backend.models.title")}
+              aria-busy={dialogPending}
             >
-              {activeCount > 0 ? <IconLoader2 className="animate-spin" /> : <IconDownload />}
+              {activeCount > 0 || dialogPending ? <IconLoader2 className="animate-spin" /> : <IconDownload />}
               {activeCount > 0 ? (
                 <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
                   {activeCount}
@@ -280,21 +314,36 @@ export function TauriFooter() {
       <Tooltip>
         <TooltipTrigger
           render={
-            <Button size="icon-lg" variant="outline" className="shrink-0" onClick={() => openSettings("deps")} aria-label={t("backend.settings")}>
-              <IconSettings />
+            <Button
+              size="icon-lg"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => openSettings("deps")}
+              onPointerEnter={preloadSettings}
+              onFocus={preloadSettings}
+              disabled={settingsPending}
+              aria-label={t("backend.settings")}
+              aria-busy={settingsPending}
+            >
+              {settingsPending ? <IconLoader2 className="animate-spin" /> : <IconSettings />}
             </Button>
           }
         />
         <TooltipContent>{t("backend.settings")}</TooltipContent>
       </Tooltip>
 
-      <ModelDownloaderDialog
-        open={dialogOpen}
-        onOpenChange={(next) => {
-          if (!next) closeDialog()
-        }}
-        initialFilter={dialogFilter}
-      />
+      {modelsMounted && (
+        <Suspense fallback={null}>
+          <ModelDownloaderDialog
+            open={dialogOpen}
+            onOpenChange={(next) => {
+              if (!next) closeDialog()
+            }}
+            initialFilter={dialogFilter}
+          />
+          <ReadySignal onReady={markModelDownloaderReady} />
+        </Suspense>
+      )}
 
       <UpdateDialog open={updateOpen} onOpenChange={setUpdateOpen} />
 

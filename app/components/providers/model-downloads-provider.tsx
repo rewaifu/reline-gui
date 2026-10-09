@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { type UnlistenFn, listen } from "@tauri-apps/api/event"
+import { loadModelDownloaderDialog } from "~/components/providers/lazy-dialogs"
 import { useLocalModels } from "~/components/providers/local-models-provider"
 import { ModelDownloadsContext, type ModelDownloadsContextValue } from "~/context/contexts"
 import { useIsTauri } from "~/hooks/useIsTauri"
@@ -8,12 +9,19 @@ import type { DownloadState, ModelDownloadProgress } from "~/types/backend"
 
 const CANCELLED_MARKER = "cancelled"
 
+// Keep the spinner up at least this long so the feedback is actually visible
+// even when the chunk is served from cache and resolves within a microtask.
+const MIN_SPINNER_MS = 300
+
 export function ModelDownloadsProvider({ children }: { children: ReactNode }) {
   const isTauri = useIsTauri()
   const { modelsFolder, rescan } = useLocalModels()
   const [downloads, setDownloads] = useState<Record<string, DownloadState>>({})
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogFilter, setDialogFilter] = useState("")
+  const [dialogPending, setDialogPending] = useState(false)
+  const dialogReadyRef = useRef(false)
+  const dialogShownAtRef = useRef(0)
   const modelsFolderRef = useRef(modelsFolder)
   modelsFolderRef.current = modelsFolder
 
@@ -113,6 +121,24 @@ export function ModelDownloadsProvider({ children }: { children: ReactNode }) {
   const openDialog = useCallback((filter = "") => {
     setDialogFilter(filter)
     setDialogOpen(true)
+    if (!dialogReadyRef.current) {
+      dialogShownAtRef.current = performance.now()
+      setDialogPending(true)
+    }
+  }, [])
+
+  const preloadDialog = useCallback(() => {
+    void loadModelDownloaderDialog()
+  }, [])
+
+  const markModelDownloaderReady = useCallback(() => {
+    dialogReadyRef.current = true
+    const remaining = MIN_SPINNER_MS - (performance.now() - dialogShownAtRef.current)
+    if (remaining > 0) {
+      window.setTimeout(() => setDialogPending(false), remaining)
+    } else {
+      setDialogPending(false)
+    }
   }, [])
 
   const closeDialog = useCallback(() => setDialogOpen(false), [])
@@ -123,8 +149,36 @@ export function ModelDownloadsProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<ModelDownloadsContextValue>(
-    () => ({ downloads, activeCount, dialogOpen, dialogFilter, openDialog, closeDialog, startDownload, cancelDownload, deleteModel, clearDownload }),
-    [downloads, activeCount, dialogOpen, dialogFilter, openDialog, closeDialog, startDownload, cancelDownload, deleteModel, clearDownload],
+    () => ({
+      downloads,
+      activeCount,
+      dialogOpen,
+      dialogFilter,
+      dialogPending,
+      openDialog,
+      closeDialog,
+      preloadDialog,
+      markModelDownloaderReady,
+      startDownload,
+      cancelDownload,
+      deleteModel,
+      clearDownload,
+    }),
+    [
+      downloads,
+      activeCount,
+      dialogOpen,
+      dialogFilter,
+      dialogPending,
+      openDialog,
+      closeDialog,
+      preloadDialog,
+      markModelDownloaderReady,
+      startDownload,
+      cancelDownload,
+      deleteModel,
+      clearDownload,
+    ],
   )
 
   return <ModelDownloadsContext.Provider value={value}>{children}</ModelDownloadsContext.Provider>

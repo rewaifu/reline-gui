@@ -119,6 +119,11 @@ export interface SettingsContextValue {
   section: SettingsSection
   setOpen: (open: boolean) => void
   openSettings: (section: SettingsSection) => void
+  // True while the lazily-loaded settings dialog chunk is being fetched.
+  pending: boolean
+  preloadSettings: () => void
+  // Called once the settings dialog Suspense boundary has resolved.
+  markSettingsReady: () => void
 }
 
 export const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -132,8 +137,13 @@ export interface ModelDownloadsContextValue {
   activeCount: number
   dialogOpen: boolean
   dialogFilter: string
+  // True while the lazily-loaded model downloader chunk is being fetched.
+  dialogPending: boolean
   openDialog: (filter?: string) => void
   closeDialog: () => void
+  preloadDialog: () => void
+  // Called once the model downloader Suspense boundary has resolved.
+  markModelDownloaderReady: () => void
   startDownload: (filename: string, url: string) => Promise<void>
   cancelDownload: (filename: string) => void
   deleteModel: (modelName: string) => Promise<void>

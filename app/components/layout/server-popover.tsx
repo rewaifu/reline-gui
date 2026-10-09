@@ -29,7 +29,7 @@ export function ServerPopover() {
     handleStopServer,
     handleCheckPortFree,
   } = useBackendContext()
-  const { openSettings } = useSettings()
+  const { openSettings, pending: settingsPending, preloadSettings } = useSettings()
   const [checking, setChecking] = useState(false)
   const [checkResult, setCheckResult] = useState<boolean | null>(null)
 
@@ -87,8 +87,11 @@ export function ServerPopover() {
               onClick={() => {
                 openSettings("deps")
               }}
+              onPointerEnter={preloadSettings}
+              onFocus={preloadSettings}
+              disabled={settingsPending}
             >
-              <IconSettings />
+              {settingsPending ? <IconLoader2 className="animate-spin" /> : <IconSettings />}
               {t("backend.settings")}
             </Button>
           </div>

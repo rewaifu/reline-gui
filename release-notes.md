@@ -4,6 +4,11 @@
 
 We've completely rebuilt it from the ground up: the local configurator is now much lighter, faster, and more advanced.
 
+---
+## What's new in 3.0.1
+- Fixed splash screen preloading skip on release builds
+- Added more lazy imports to improve loading time
+
 ## Downloads
 
 | Platform | Package | Notes |

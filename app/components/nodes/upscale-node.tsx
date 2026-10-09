@@ -31,7 +31,7 @@ import { matchModel, useLocalModels } from "~/components/providers/local-models-
 import { useModelDownloads } from "~/components/providers/model-downloads-provider"
 import { normalizeModelName } from "~/lib/model-names"
 import { remoteModelsQueryOptions } from "~/lib/queries"
-import { IconDownload, IconFile, IconFolderOpen } from "@tabler/icons-react"
+import { IconDownload, IconFile, IconFolderOpen, IconLoader2 } from "@tabler/icons-react"
 import { Button } from "~/components/ui/button"
 
 export function ModelsCombobox({
@@ -137,7 +137,7 @@ export function UpscaleNodeBody({ id, dispatch: dispatchProp, idSuffix }: { id: 
   const sid = (baseId: string) => (idSuffix ? `${baseId}-${idSuffix}` : `${baseId}-${id}`)
   const isTauri = useIsTauri()
   const { modelsFolder, setModelsFolder, localModels } = useLocalModels()
-  const { openDialog } = useModelDownloads()
+  const { openDialog, dialogPending, preloadDialog } = useModelDownloads()
 
   const handleBrowseFolder = async () => {
     try {
@@ -251,8 +251,11 @@ export function UpscaleNodeBody({ id, dispatch: dispatchProp, idSuffix }: { id: 
                 size="xs"
                 className="h-auto justify-start gap-1.5 self-start p-0 text-sm"
                 onClick={() => openDialog(registryMatch)}
+                onPointerEnter={preloadDialog}
+                onFocus={preloadDialog}
+                disabled={dialogPending}
               >
-                <IconDownload className="size-3.5" />
+                {dialogPending ? <IconLoader2 className="size-3.5 animate-spin" /> : <IconDownload className="size-3.5" />}
                 {t("nodes.upscale.download-from-registry", { name: registryMatch })}
               </Button>
             )}

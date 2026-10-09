@@ -1,6 +1,6 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react"
+import React, { Suspense, lazy, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { NodesContext, NodesDispatchContext } from "~/context/contexts.ts"
-import { IconDownload, IconCopy, IconFileUpload, IconCheck } from "@tabler/icons-react"
+import { IconDownload, IconCopy, IconFileUpload, IconCheck, IconLoader2 } from "@tabler/icons-react"
 import { cn, nodesToString, scrollIntoViewWithOffset, stringToNodes } from "~/lib/utils.ts"
 import { convertToPureWithSources } from "~/lib/convert"
 import { toast } from "sonner"
@@ -16,8 +16,17 @@ import { useIsTauri } from "~/hooks/useIsTauri.ts"
 import { useActiveNode } from "~/hooks/useActiveNode.ts"
 import { NodesActionType } from "~/types/actions.ts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs.tsx"
-import { LevelsPreview } from "~/components/previews/levels-preview.tsx"
-import { ScreentonePreview } from "~/components/previews/screentone-preview"
+
+const LevelsPreview = lazy(() => import("~/components/previews/levels-preview.tsx").then((m) => ({ default: m.LevelsPreview })))
+const ScreentonePreview = lazy(() => import("~/components/previews/screentone-preview").then((m) => ({ default: m.ScreentonePreview })))
+
+function PreviewFallback() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <IconLoader2 className="size-5 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
 
 hljs.registerLanguage("json", json)
 
@@ -217,11 +226,15 @@ export function CodeSection() {
             </ScrollArea>
           </TabsContent>
           <TabsContent value="levels" className="h-full">
-            <LevelsPreview />
+            <Suspense fallback={<PreviewFallback />}>
+              <LevelsPreview />
+            </Suspense>
           </TabsContent>
           {isTauri && (
             <TabsContent value="screentone" className="h-full">
-              <ScreentonePreview />
+              <Suspense fallback={<PreviewFallback />}>
+                <ScreentonePreview />
+              </Suspense>
             </TabsContent>
           )}
         </CardContent>
