@@ -18,11 +18,12 @@ vi.mock("notepack.io", () => ({
     JSON.parse(new TextDecoder().decode(input)) as unknown,
 }));
 
-/** Reconnection is the behaviour of this file: a socket that dies mid-run must
- * not end the run silently. jsdom has no WebSocket, and a real one cannot be
- * made to die on demand — this stands in for it, records every frame the client
- * sends, and lets a test drop the pipe without a close handshake. */
-
+/** Resuming is the behaviour of this file: a socket that dies mid-run must
+ * not end the run, and must never repeat `start` — the job survives detached
+ * on the server (WS_API.md), so the client asks `status` and `attach`es by
+ * `run_id`. jsdom has no WebSocket, and a real one cannot be made to die on
+ * demand — this stands in for it, records every frame the client sends, and
+ * lets a test drop the pipe without a close handshake. */
 interface Frame {
   m: string;
   id?: number;
@@ -99,12 +100,15 @@ const journal = (client: RunClient): string[] =>
 
 const last = (): FakeSocket => FakeSocket.all[FakeSocket.all.length - 1];
 
-/** Start a run and let the socket open, the way the panel does. */
+/** Start a run and let the socket open, the way the panel does. The server
+ * answers `accepted {run_id}`; every later frame carries the same id. */
+const RUN_ID = "a1b2c3d4e5f6";
 const startRun = (client: RunClient): FakeSocket => {
   client.start("ws://runner/run", PIPELINE);
   flush();
   const socket = last();
   socket.open();
+  socket.server({ m: "accepted", id: 1, d: { run_id: RUN_ID } });
   flush();
   return socket;
 };
@@ -129,13 +133,20 @@ describe("run lifecycle", () => {
     const socket = startRun(client);
 
     expect(client.phase()).toBe("running");
+    expect(client.runId()).toBe(RUN_ID);
     expect(socket.methods()).toEqual(["start"]);
     expect(socket.sent[0]?.d).toEqual({ pipeline: PIPELINE });
 
     socket.server({
       m: "progress",
       id: 1,
-      d: { percent: 40, phase: "preprocess", stage: "download", label: "4x_a" },
+      d: {
+        percent: 40,
+        phase: "preprocess",
+        stage: "download",
+        label: "4x_a",
+        run_id: RUN_ID,
+      },
     });
     flush();
     expect(client.progress()?.percent).toBe(40);
@@ -145,34 +156,35 @@ describe("run lifecycle", () => {
     socket.server({
       m: "progress",
       id: 1,
-      d: { percent: 55, phase: "nonsense" },
+      d: { percent: 55, phase: "nonsense", run_id: RUN_ID },
     });
     flush();
     expect(client.progress()?.percent).toBe(55);
     expect(client.progress()?.phase).toBeUndefined();
 
-    socket.server({ m: "done", id: 1, d: { ok: true } });
+    socket.server({ m: "done", id: 1, d: { ok: true, run_id: RUN_ID } });
     flush();
     expect(client.phase()).toBe("idle");
+    expect(client.runId()).toBeUndefined();
     expect(journal(client)).toContain("Готово");
   });
 });
-
 describe("reconnect", () => {
-  it("dials again after a drop and repeats the run", () => {
+  it("asks status and attaches after a drop instead of repeating start", () => {
     const client = createRunClient();
     const first = startRun(client);
     first.server({
       m: "progress",
       id: 1,
-      d: { percent: 40, phase: "process" },
+      d: { percent: 40, phase: "process", run_id: RUN_ID },
     });
     flush();
 
     first.drop();
     flush();
     // the run is not over: the bar keeps its value and the journal says why
-    expect(client.phase()).toBe("connecting");
+    expect(client.phase()).toBe("recovering");
+    expect(client.runId()).toBe(RUN_ID);
     expect(client.progress()?.percent).toBe(40);
     expect(journal(client).at(-1)).toBe("Переподключение (1/4)…");
     expect(FakeSocket.all).toHaveLength(1);
@@ -183,22 +195,86 @@ describe("reconnect", () => {
 
     second.open();
     flush();
+    // the fresh socket asks where the run stands — it never repeats `start`
+    // (that would write the outputs twice and earn `worker busy` anyway)
+    expect(client.phase()).toBe("recovering");
+    expect(second.methods()).toEqual(["status"]);
+    expect(second.sent[0]?.d).toEqual({ run_id: RUN_ID });
+
+    second.server({
+      m: "status",
+      id: 2,
+      d: {
+        run_id: RUN_ID,
+        status: "running",
+        progress: { percent: 40, phase: "process", run_id: RUN_ID },
+      },
+    });
+    flush();
+    expect(second.methods()).toEqual(["status", "attach"]);
+    expect(second.sent[1]?.d).toEqual({ run_id: RUN_ID });
+
+    second.server({
+      m: "attached",
+      id: 3,
+      d: { run_id: RUN_ID, status: "running" },
+    });
+    flush();
     expect(client.phase()).toBe("running");
-    expect(second.methods()).toEqual(["start"]);
-    expect(second.sent[0]?.d).toEqual({ pipeline: PIPELINE });
-    expect(journal(client)).toContain(
-      "Соединение восстановлено, запуск повторён",
-    );
+    expect(journal(client)).toContain("Подключено к прогону, кадры идут");
 
     // the retry counter resets: the next drop gets a full set of attempts
     second.server({
       m: "progress",
       id: 1,
-      d: { percent: 80, phase: "process" },
+      d: { percent: 80, phase: "process", run_id: RUN_ID },
     });
+    flush();
+    expect(client.progress()?.percent).toBe(80);
     second.drop();
     flush();
     expect(journal(client).at(-1)).toBe("Переподключение (1/4)…");
+  });
+
+  it("adopts the run_id from worker busy instead of arguing with the gate", () => {
+    const client = createRunClient();
+    client.start("ws://runner/run", PIPELINE);
+    flush();
+    const first = last();
+    first.open();
+    flush();
+    // the server never answered `accepted` but the run exists (our own drop
+    // raced the accept): `worker busy` names it
+    first.server({
+      m: "error",
+      id: 1,
+      d: { message: "worker busy", run_id: RUN_ID },
+    });
+    flush();
+    expect(client.runId()).toBe(RUN_ID);
+    expect(first.methods()).toEqual(["start", "attach"]);
+    expect(first.sent[1]?.d).toEqual({ run_id: RUN_ID });
+  });
+
+  it("ends the watch when the run finished while we were away", () => {
+    const client = createRunClient();
+    const first = startRun(client);
+    first.drop();
+    flush();
+    vi.advanceTimersByTime(1000);
+    const second = last();
+    second.open();
+    flush();
+    second.server({
+      m: "status",
+      id: 2,
+      d: { run_id: RUN_ID, status: "done", result: { ok: true } },
+    });
+    flush();
+    expect(client.phase()).toBe("idle");
+    expect(client.runId()).toBeUndefined();
+    expect(journal(client)).toContain("Готово");
+    expect(second.methods()).toEqual(["status"]);
   });
 
   it("retries an address that never answered instead of going quiet", () => {
@@ -290,7 +366,7 @@ describe("reconnect", () => {
     // no echo reply: the watchdog fires, closes the socket, retries
     vi.advanceTimersByTime(30_000);
     flush();
-    expect(client.phase()).toBe("connecting");
+    expect(client.phase()).toBe("recovering");
     expect(journal(client)).toContain(
       "Соединение потеряно: нет ответа на echo",
     );
@@ -304,6 +380,7 @@ describe("reconnect", () => {
     flush();
     expect(client.phase()).toBe("stopping");
     expect(socket.methods()).toEqual(["start", "stop"]);
+    expect(socket.sent[1]?.d).toEqual({ run_id: RUN_ID });
 
     socket.server({ m: "done", id: 2, d: { ok: false, cancelled: true } });
     flush();
@@ -318,7 +395,7 @@ describe("reconnect", () => {
     const client = createRunClient();
     startRun(client).drop();
     flush();
-    expect(client.phase()).toBe("connecting");
+    expect(client.phase()).toBe("recovering");
 
     client.stop();
     flush();

@@ -1,4 +1,5 @@
 import { createSignal, type Accessor } from "solid-js";
+import { settleRowAnimations } from "~/instructions/hooks/use-flip-reorder";
 
 export interface DragHandlers {
   onPointerDown: (e: PointerEvent) => void;
@@ -73,8 +74,13 @@ export const createDragReorder = (
 ): DragReorder => {
   const [dragIndex, setDragIndex] = createSignal<number | null>(null);
   const [dropIndex, setDropIndex] = createSignal<number | null>(null);
-  let pressed: { index: number; id: number; x: number; y: number } | null =
-    null;
+  let pressed: {
+    index: number;
+    el: HTMLElement;
+    id: number;
+    x: number;
+    y: number;
+  } | null = null;
 
   const rows = (): HTMLElement[] => {
     const root = container();
@@ -99,17 +105,26 @@ export const createDragReorder = (
     setDropIndex(null);
   };
 
+  // The dragged row's live position, not the render-time index: a gesture
+  // whose pointerup never arrived (missed event under fast dragging) leaves
+  // a stale dragIndex behind, and the next gesture must not inherit it.
+  const currentFrom = (): number | null => {
+    if (pressed === null) return null;
+    const at = rows().indexOf(pressed.el);
+    return at === -1 ? pressed.index : at;
+  };
+
   // Dropping right before or right after the dragged row keeps the order, so
   // no placeholder is shown there — the gap must not promise a no-op move.
   const track = (clientY: number) => {
-    const from = dragIndex();
+    const from = currentFrom();
     if (from === null) return;
     const next = insertionIndex(clientY);
     setDropIndex(next === from || next === from + 1 ? null : next);
   };
 
   const commit = (clientY: number) => {
-    const from = dragIndex();
+    const from = currentFrom();
     const drop = from === null ? null : insertionIndex(clientY);
     reset();
     if (from === null || drop === null) return;
@@ -126,9 +141,20 @@ export const createDragReorder = (
     onPointerDown: (e) => {
       // primary button only: right/middle click stays native
       if (e.pointerType === "mouse" && e.button !== 0) return;
+      // a new press owns the gesture: a previous one whose pointerup never
+      // arrived (lost event under fast dragging) must not leak its dragIndex
+      // into this one — otherwise the next drop moves the wrong row while
+      // the old one keeps the dragging style
+      reset();
       // a press on the switch or the delete button belongs to that control
       if (ownsPress(e.target, e.currentTarget as Element)) return;
-      pressed = { index, id: e.pointerId, x: e.clientX, y: e.clientY };
+      pressed = {
+        index,
+        el: e.currentTarget as HTMLElement,
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+      };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     },
     onPointerMove: (e) => {
@@ -139,7 +165,10 @@ export const createDragReorder = (
           e.clientY - pressed.y,
         );
         if (travelled < DRAG_THRESHOLD_PX) return;
-        setDragIndex(pressed.index);
+        // a previous drop's FLIP may still be displacing rows: settle first,
+        // or the insertion slot measured below lands a slot off
+        settleRowAnimations(container());
+        setDragIndex(currentFrom() ?? pressed.index);
       }
       track(e.clientY);
     },
@@ -158,7 +187,9 @@ export const createDragReorder = (
       if (dragIndex() !== null) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
       e.preventDefault();
-      step(index, e.key === "ArrowUp" ? index - 1 : index + 1);
+      const at = rows().indexOf(e.currentTarget as HTMLElement);
+      const from = at === -1 ? index : at;
+      step(from, e.key === "ArrowUp" ? from - 1 : from + 1);
     },
   });
 

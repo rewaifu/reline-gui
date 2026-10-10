@@ -1,11 +1,14 @@
+import * as v from "valibot";
 import { NodeType, PureNodeType } from "~/types/enums";
 import type {
   NodeOptions,
   PureConfig,
   PureNode,
   PureNodeOptions,
+  PurePostprocessNodeOptions,
   StackNode,
 } from "~/types/node";
+import { psdPostprocessOptionsSchema } from "~/types/options/postprocess";
 
 import {
   convertHalftoneToStack,
@@ -26,11 +29,16 @@ import {
   convertFolderReaderToPure,
   convertFolderReaderToStack,
 } from "~/lib/convert/folder-reader";
+import {
+  convertFolderWriterToPure,
+  convertFolderWriterToStack,
+} from "~/lib/convert/folder-writer";
 
 export type ConvertToPureFunction = (
   nodes: StackNode[],
   index: number,
   preprocess: PureNode[],
+  postprocess: PureNode[],
 ) => [PureNode[], number];
 
 /** Import context: models downloaded by the preprocess section (name →
@@ -38,6 +46,10 @@ export type ConvertToPureFunction = (
 export interface StackImportContext {
   downloadedModels: ReadonlyMap<string, string | undefined>;
   unarchivedPaths: ReadonlySet<string>;
+  cleanedPaths: ReadonlySet<string>;
+  /** Writer output path → its psd_postprocess entry (paths are the stable
+   * identity: uids are reminted on every import). */
+  postprocessByParent: ReadonlyMap<string, PurePostprocessNodeOptions>;
   /** Model name → download link, from the loaded model database. */
   urlOf: (name: string) => string | undefined;
   /** Accumulates what a legacy config needed rewritten on import. */
@@ -97,9 +109,11 @@ const convertToPureMapper: Record<NodeType, ConvertToPureFunction> = {
   [NodeType.SCREENTONE]: convertScreentoneToPure,
   [NodeType.CVT_COLOR]: convertEqualsToPure,
   [NodeType.FOLDER_READER]: convertFolderReaderToPure,
-  [NodeType.FOLDER_WRITER]: convertEqualsToPure,
+  [NodeType.FOLDER_WRITER]: convertFolderWriterToPure,
   [NodeType.LEVEL]: convertEqualsToPure,
   [NodeType.SHARP]: convertEqualsToPure,
+  [NodeType.HYST_NORM]: convertEqualsToPure,
+  [NodeType.NOISE]: convertEqualsToPure,
 };
 
 const convertToStackMapper: Partial<
@@ -110,19 +124,23 @@ const convertToStackMapper: Partial<
   [PureNodeType.HALFTONE]: convertHalftoneToStack,
   [PureNodeType.CVT_COLOR]: convertEqualsToStack,
   [PureNodeType.FOLDER_READER]: convertFolderReaderToStack,
-  [PureNodeType.FOLDER_WRITER]: convertEqualsToStack,
+  [PureNodeType.FOLDER_WRITER]: convertFolderWriterToStack,
   [PureNodeType.LEVEL]: convertEqualsToStack,
   [PureNodeType.SHARP]: convertEqualsToStack,
+  [PureNodeType.HYST_NORM]: convertEqualsToStack,
+  [PureNodeType.NOISE]: convertEqualsToStack,
 };
 
 export const convertToPure = (nodes: StackNode[]): PureConfig => {
   const config: PureNode[] = [];
   const preprocess: PureNode[] = [];
+  const postprocess: PureNode[] = [];
   for (let i = 0; i < nodes.length;) {
     const [converted, nextIndex] = convertToPureMapper[nodes[i].type](
       nodes,
       i,
       preprocess,
+      postprocess,
     );
     // keep UI-only state on the head pure node of the group (API ignores it)
     const pureNode = nodes[i];
@@ -135,7 +153,11 @@ export const convertToPure = (nodes: StackNode[]): PureConfig => {
     config.push(...converted);
     i = nextIndex;
   }
-  return { nodes: config, preprocess: dedupeDownloads(preprocess) };
+  return {
+    nodes: config,
+    preprocess: dedupeDownloads(preprocess),
+    postprocess,
+  };
 };
 
 /**
@@ -171,10 +193,13 @@ const dedupeDownloads = (preprocess: PureNode[]): PureNode[] => {
 const importContext = (
   nodes: readonly PureNode[],
   preprocess: readonly PureNode[] | undefined,
+  postprocess: readonly PureNode[] | undefined,
   options: StackImportOptions,
 ): StackImportContext => {
   const downloadedModels = new Map<string, string | undefined>();
   const unarchivedPaths = new Set<string>();
+  const cleanedPaths = new Set<string>();
+  const postprocessByParent = new Map<string, PurePostprocessNodeOptions>();
   const migration: LegacyMigration = {
     downloads: [],
     unarchives: [],
@@ -197,12 +222,37 @@ const importContext = (
         const dir = node.options.path.replace(/\.zip$/, "");
         unarchivedPaths.add(dir);
         if (legacy) migration.unarchives.push(`${dir}.zip`);
+      } else if (
+        node.type === PureNodeType.CLEANDIR &&
+        "path" in node.options
+      ) {
+        cleanedPaths.add(node.options.path);
       }
+    }
+  };
+  const absorbPost = (list: readonly PureNode[]): void => {
+    for (const node of list) {
+      if (node.type !== PureNodeType.PSD_POSTPROCESS) continue;
+      const parsed = v.safeParse(psdPostprocessOptionsSchema, node.options);
+      if (!parsed.success) continue;
+      // keyed by the writer's own output path (== the entry's `path`): uids
+      // are reminted on every import, paths are the stable identity here
+      postprocessByParent.set(parsed.output.path, parsed.output);
+      for (const parent of node.meta?.parents ?? [])
+        postprocessByParent.set(parent, parsed.output);
     }
   };
   absorb(preprocess ?? [], false);
   absorb(nodes, true);
-  return { downloadedModels, unarchivedPaths, urlOf, migration };
+  absorbPost(postprocess ?? []);
+  return {
+    downloadedModels,
+    unarchivedPaths,
+    cleanedPaths,
+    postprocessByParent,
+    urlOf,
+    migration,
+  };
 };
 
 const convertPureList = (
@@ -217,6 +267,8 @@ const convertPureList = (
       i += 1;
       continue;
     }
+    // postprocess entries dissolve into the writer flags like preprocess
+    // entries do — they never become stack nodes
     const [converted, nextIndex] = converter(nodes, i, ctx);
     const stackSource = nodes[i];
     if (converted[0]) {
@@ -242,6 +294,7 @@ export const convertToStack = (
   const ctx = importContext(
     nodes,
     legacy ? undefined : pure.preprocess,
+    legacy ? undefined : (pure.postprocess ?? []),
     options,
   );
   const result = convertPureList(nodes, ctx);

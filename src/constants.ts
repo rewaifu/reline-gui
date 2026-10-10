@@ -11,6 +11,7 @@ import {
   TilerType,
   WriterNodeFormat,
 } from "./types/enums";
+import { NoiseMode } from "./types/options/noise";
 import type { NodeOptions, StackNode } from "./types/node";
 import { newUid } from "~/lib/uid";
 export const STORAGE_KEY = "reline-web:config";
@@ -37,6 +38,8 @@ export const OPTION_KEY: Record<NodeType, keyof typeof DEFAULT_NODE_OPTIONS> = {
   [NodeType.SCREENTONE]: "screentone",
   [NodeType.LEVEL]: "level",
   [NodeType.CVT_COLOR]: "cvt_color",
+  [NodeType.HYST_NORM]: "hyst_norm",
+  [NodeType.NOISE]: "noise",
 };
 
 export const DEFAULT_NODE_OPTIONS = {
@@ -89,6 +92,23 @@ export const DEFAULT_NODE_OPTIONS = {
   folder_writer: {
     path: "/content/drive/MyDrive/raws/output",
     format: WriterNodeFormat.PNG,
+    clean_before: false,
+  } satisfies NodeOptions,
+  hyst_norm: {
+    blur_n: 3,
+    window_radius: 3,
+    min_prominence: 0.5,
+    min_distance: 10,
+    percentage: 0.22,
+  } satisfies NodeOptions,
+  noise: {
+    a: 1,
+    b: 1,
+    alpha: 0.1,
+    noise_mode: NoiseMode.RGB,
+    th_min: 1,
+    th_max: 254,
+    seed: null,
   } satisfies NodeOptions,
 };
 

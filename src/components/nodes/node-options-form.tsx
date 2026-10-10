@@ -9,8 +9,9 @@ import { SharpForm } from "./forms/sharp";
 import { ResizeForm } from "./forms/resize";
 import { ScreentoneForm } from "./forms/screentone";
 import { LevelForm } from "./forms/level";
+import { HystNormForm } from "./forms/hyst-norm";
+import { NoiseForm } from "./forms/noise";
 import { CvtColorForm } from "./forms/cvt-color";
-
 export interface NodeFormProps {
   /** The row's node object, handed down from <For> via NodeCard. */
   node: StackNode;
@@ -25,6 +26,8 @@ const FORMS: Record<NodeType, Component<NodeFormProps>> = {
   [NodeType.SCREENTONE]: ScreentoneForm,
   [NodeType.LEVEL]: LevelForm,
   [NodeType.CVT_COLOR]: CvtColorForm,
+  [NodeType.HYST_NORM]: HystNormForm,
+  [NodeType.NOISE]: NoiseForm,
 };
 
 /** Routes the expanded node body to its hand-crafted per-type form. */

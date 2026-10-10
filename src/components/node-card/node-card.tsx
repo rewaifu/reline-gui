@@ -93,6 +93,7 @@ const NodeCard: Component<NodeCardProps> = (props) => {
         class={{
           [styles.card]: true,
           [styles.selected]: props.selected,
+          [styles.disabled]: node().enabled === false,
           [styles.dragging]: props.dragIndex() === props.index,
         }}
         onClick={() => props.onSelect(node().uid)}

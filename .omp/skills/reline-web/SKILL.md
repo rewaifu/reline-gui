@@ -162,7 +162,7 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
   with `document.elementFromPoint` a few px outside the button box, not by eye.
 - **Gestures do not rename.** Renaming is the pencil button. A single click
   anywhere on the card's header strip — the name and the wide empty stretch beside
-  it included — selects *and* folds the node; the grip is the one exception (a drop
+  it included — selects _and_ folds the node; the grip is the one exception (a drop
   must not fold the card it just dropped, and it is marked `data-drag-handle`, not
   detected by tag). Do not give the title its own handler: a zone handler has to
   `stopPropagation` to keep its zone, which is exactly what made the first click
@@ -170,7 +170,7 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
   swallow the fold.
 - **A whole row as drag source needs no selector list**: `createDragReorder`'s
   `ownsPress` walks from the press target up to the source and refuses the press
-  when any step is a control or *wraps* one — the visible parts of a Kobalte switch
+  when any step is a control or _wraps_ one — the visible parts of a Kobalte switch
   are plain divs, so matching the target alone misses them.
 - **Numeric entry is one component**: `NumberField` (input + ▲/▼ steppers) backs both
   `NumberRow` and `SliderRow`, so limits behave the same everywhere — in-range edits

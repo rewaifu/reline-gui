@@ -11,7 +11,7 @@ import { sanitizeNodes } from "~/lib/node-shape";
 import { preloadModelNames } from "~/lib/model-db";
 import { STORAGE_KEY, createDefaultNodes } from "~/constants";
 import { locale } from "~/lib/i18n";
-import { runClient } from "~/lib/run-client";
+import { RUN_ID_KEY, runClient } from "~/lib/run-client";
 import { faviconStatusFor, syncFavicon } from "~/lib/favicon-status";
 import type { StackNode } from "~/types/node";
 import { createNodesDispatch } from "~/context/reducer";
@@ -56,6 +56,14 @@ const App: Component = () => {
   // download links right away).
   onSettled(() => {
     void preloadModelNames();
+    // A reload in the middle of a run must not orphan it: the server keeps
+    // the job detached and the run id survived in storage, so ask the server
+    // where it stands instead of leaving a dead bar behind.
+    try {
+      if (localStorage.getItem(RUN_ID_KEY) !== null) runClient.recover();
+    } catch {
+      // storage blocked: nothing remembered, nothing to resume
+    }
     // A halt is invisible: the page paints, the inputs ignore the keyboard, and
     // the error that caused it is already behind us. The watchdog watches for
     // exactly that, and the listener keeps the cause around for the overlay.

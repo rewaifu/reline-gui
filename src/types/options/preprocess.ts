@@ -13,3 +13,7 @@ export const downloadOptionsSchema = v.object({
 export const unarchiveOptionsSchema = v.object({
   path: v.string(),
 });
+
+export const cleandirOptionsSchema = v.object({
+  path: v.string(),
+});

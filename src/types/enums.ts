@@ -18,6 +18,8 @@ export enum NodeType {
   SCREENTONE = "screentone",
   LEVEL = "level",
   CVT_COLOR = "cvt_color",
+  HYST_NORM = "hyst_norm",
+  NOISE = "noise",
 }
 
 export enum PureNodeType {
@@ -29,8 +31,12 @@ export enum PureNodeType {
   UPSCALE = "upscale",
   RESIZE = "resize",
   HALFTONE = "halftone",
+  HYST_NORM = "hyst_norm",
+  NOISE = "noise",
   DOWNLOAD = "download",
   UNARCHIVE = "unarchive",
+  CLEANDIR = "cleandir",
+  PSD_POSTPROCESS = "psd_postprocess",
 }
 
 export enum CvtType {
@@ -115,4 +121,12 @@ export enum HalftoneMode {
   RGB = "rgb",
   HSV = "hsv",
   CMYK = "cmyk",
+}
+
+/** Foreground fit inside the PSD canvas (pepecore OverlayFit). */
+export enum PsdFit {
+  ORIGINAL = "original",
+  FIT = "fit",
+  COVER = "cover",
+  STRETCH = "stretch",
 }

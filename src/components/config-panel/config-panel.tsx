@@ -37,6 +37,9 @@ import {
   type LocalText,
 } from "~/lib/i18n";
 import { Icon, UiTabs, UiSelect } from "~/components/ui";
+import { BetaChart } from "~/components/noise-chart/beta-chart";
+import type { StackNode } from "~/types/node";
+import type { NoiseNodeOptions } from "~/types/options/noise";
 import {
   endpoint,
   runClient,
@@ -81,6 +84,14 @@ const INSTRUCTION_DOCS: Record<string, string> = Object.fromEntries(
     src as string,
   ]),
 );
+/** Live Beta(a, b) density for the selected noise node, rendered above its
+ * guide: the chart follows the form's a/b, so the doc always pictures the
+ * actual noise. Other nodes render nothing. */
+const NoiseBetaChart: Component<{ node: StackNode | undefined }> = (props) => (
+  <Show when={props.node?.type === NodeType.NOISE}>
+    <BetaChart options={props.node!.options as NoiseNodeOptions} />
+  </Show>
+);
 
 const InstructionsTab: Component<ConfigPanelProps> = (props) => {
   const nodes = useContext(NodesContext);
@@ -111,6 +122,7 @@ const InstructionsTab: Component<ConfigPanelProps> = (props) => {
         when={def()}
         fallback={<p class={styles.empty}>{t("panel.instructions.empty")}</p>}
       >
+        <NoiseBetaChart node={node()} />
         {
           // Instructions are trusted local files authored by the user, so
           // rendering the compiled HTML directly is safe here. The callback
@@ -549,8 +561,9 @@ const RunTab: Component = () => {
   const nodes = useContext(NodesContext);
   const dispatch = useContext(NodesDispatchContext);
   // the client belongs to the module, not to this component: the tab unmounts
-  // whenever the user looks at another one, and a socket closed here would be
-  // read by the server as a disconnect and cancel the run (WS_API.md)
+  // whenever the user looks at another one, and the socket is the only thing
+  // that closes on the way out — the run itself survives detached on the
+  // server (WS_API.md) and the client re-attaches by run_id
   const run = runClient;
   let logEl: HTMLDivElement | undefined;
 
@@ -604,7 +617,10 @@ const RunTab: Component = () => {
 
   const phase = run.phase;
   const busy = () =>
-    phase() === "connecting" || phase() === "running" || phase() === "stopping";
+    phase() === "connecting" ||
+    phase() === "running" ||
+    phase() === "recovering" ||
+    phase() === "stopping";
   const stageText = () => {
     const current = run.progress();
     return current === undefined ? t("run.preparing") : describeStage(current);
@@ -654,9 +670,17 @@ const RunTab: Component = () => {
           disabled={busy() || !endpoint().trim()}
           onClick={connect}
         >
-          {phase() === "connecting"
+          {phase() === "connecting" || phase() === "recovering"
             ? t("panel.run.connecting")
             : t("panel.run.start")}
+        </button>
+        <button
+          type="button"
+          class={styles.runBtn}
+          disabled={busy() || !endpoint().trim()}
+          onClick={() => run.recover()}
+        >
+          {t("panel.run.resume")}
         </button>
         <button
           type="button"
@@ -667,6 +691,11 @@ const RunTab: Component = () => {
           {t("panel.run.stop")}
         </button>
       </div>
+      <Show when={run.runId() !== undefined}>
+        <p class={styles.runId}>
+          {t("panel.run.runId", { run: run.runId() ?? "" })}
+        </p>
+      </Show>
       <Show when={busy()}>
         <div
           class={{

@@ -4,18 +4,23 @@ import type {
   PureFolderReaderNodeOptions,
   PureFolderWriterNodeOptions,
   PureHalftoneNodeOptions,
-  PureLevelNodeOptions,
+  PureHystNormNodeOptions,
+  PureNoiseNodeOptions,
   PureResizeOptions,
   PureSharpNodeOptions,
   PureUpscaleNodeOptions,
 } from "~/types/options";
+import type { PurePostprocessNodeOptions } from "~/types/options/postprocess";
+export type { PurePostprocessNodeOptions };
 
 import type {
   CvtColorNodeOptions,
   FolderReaderNodeOptions,
   FolderWriterNodeOptions,
   ScreentoneNodeOptions,
+  HystNormNodeOptions,
   LevelNodeOptions,
+  NoiseNodeOptions,
   ResizeNodeOptions,
   SharpNodeOptions,
   UpscaleNodeOptions,
@@ -26,27 +31,34 @@ export type NodeOptions =
   | FolderReaderNodeOptions
   | FolderWriterNodeOptions
   | ScreentoneNodeOptions
+  | HystNormNodeOptions
   | LevelNodeOptions
+  | NoiseNodeOptions
   | ResizeNodeOptions
   | SharpNodeOptions
   | UpscaleNodeOptions;
 
-/** Options of the generated preprocessors (download / unarchive). */
+/** Options of the generated preprocessors (download / unarchive / cleandir). */
 export type PureDownloadNodeOptions = { name: string; url?: string };
 export type PureUnarchiveNodeOptions = { path: string };
+export type PureCleandirNodeOptions = { path: string };
 
 export type PureNodeOptions =
   | PureCvtColorNodeOptions
   | PureFolderReaderNodeOptions
   | PureFolderWriterNodeOptions
   | PureHalftoneNodeOptions
-  | PureLevelNodeOptions
+  | PureHystNormNodeOptions
+  | PureNoiseNodeOptions
   | PureResizeOptions
   | PureSharpNodeOptions
   | PureDownloadNodeOptions
   | PureUpscaleNodeOptions
-  | PureUnarchiveNodeOptions;
+  | PureUnarchiveNodeOptions
+  | PureCleandirNodeOptions
+  | PurePostprocessNodeOptions;
 
+export type PurePostprocess = PureNode[];
 export interface PureNode {
   type: PureNodeType;
   options: PureNodeOptions;
@@ -58,10 +70,12 @@ export interface PureNode {
   meta?: { name?: string; disabled?: boolean; parents?: string[] };
 }
 
-/** Serialized config shape: main pipeline plus its preprocessors section. */
+/** Serialized config shape: main pipeline, its preprocessors and postprocess. */
 export interface PureConfig {
   nodes: PureNode[];
   preprocess: PureNode[];
+  /** Absent in hand-written configs and legacy imports: treated as no postprocess. */
+  postprocess?: PurePostprocess;
 }
 
 export interface StackNode {

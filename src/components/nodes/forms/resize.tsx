@@ -8,30 +8,19 @@ import {
   SliderRow,
   ComboboxRow,
 } from "./shared";
-import type { ResizeNodeOptions } from "~/types/options";
+import type { ResizeNodeOptions, ResizeSizeParam } from "~/types/options";
+import { RESIZE_MODE_PARAMS as MODE_PARAMS } from "~/types/options/resize";
 import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
 
-type SizeParam = "width" | "height" | "percent";
-
-/** Backend picks the resize mode by which size param is present, so each
- * mode keeps only its own param on the node. The other values survive in
- * localStorage and are restored when their mode comes back. */
-const MODE_PARAMS: Record<ResizeType, readonly SizeParam[]> = {
-  [ResizeType.BY_WIDTH]: ["width"],
-  [ResizeType.BY_HEIGHT]: ["height"],
-  [ResizeType.ABSOLUTE]: ["width", "height"],
-  [ResizeType.PERCENT]: ["percent"],
-};
-
 const STASH_KEY = "reline-web:resize-stash";
 
-const readStash = (): Partial<Record<SizeParam, number>> => {
+const readStash = (): Partial<Record<ResizeSizeParam, number>> => {
   try {
     return JSON.parse(localStorage.getItem(STASH_KEY) ?? "{}") as Partial<
-      Record<SizeParam, number>
+      Record<ResizeSizeParam, number>
     >;
   } catch {
     return {};
@@ -55,7 +44,7 @@ export const ResizeForm: Component<FormProps> = (props) => {
     // Object.assign in the reducer overwrites with undefined, which the
     // serializer drops from the node options
     const patch: Partial<ResizeNodeOptions> = { resize_type: next };
-    const put = (key: SizeParam, value: number | undefined) => {
+    const put = (key: ResizeSizeParam, value: number | undefined) => {
       if (key === "width") patch.width = value;
       else if (key === "height") patch.height = value;
       else patch.percent = value;

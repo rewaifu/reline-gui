@@ -102,7 +102,30 @@ export interface NumberFieldProps {
   max?: number;
   step?: number;
   class?: string;
+  /** Pale, non-editable field (the switch next to it owns the row). */
+  disabled?: boolean;
 }
+
+/** Decimals of a step (0.1 → 1, 128 → 0) so stepped values never carry float
+ * residue (0.2 + 0.1 must store 0.3, not 0.30000000000000004). */
+export function roundToStep(value: number, step: number): number {
+  const decimals = (step.toString().split(".")[1] || "").length;
+  const factor = Math.pow(10, decimals);
+  return Math.round(value * factor) / factor;
+}
+
+/** Next grid line from a possibly off-grid value: typing 500 with a 128 step
+ * steps to 512, not 628 — the deviation does not survive the arrows. */
+export const snapToStep = (
+  value: number,
+  step: number,
+  dir: 1 | -1,
+): number => {
+  const ratio = value / step;
+  const line =
+    dir > 0 ? Math.floor(ratio + 1e-9) + 1 : Math.ceil(ratio - 1e-9) - 1;
+  return roundToStep(line * step, step);
+};
 
 /** Numeric entry with ▲/▼ steppers, clamped to the limits it is given.
  *
@@ -123,7 +146,7 @@ export const NumberField: Component<NumberFieldProps> = (props) => {
   const step = (dir: 1 | -1) => {
     setDraft(undefined);
     props.onInput(
-      clamp((props.value ?? props.min ?? 0) + dir * (props.step ?? 1)),
+      clamp(snapToStep(props.value ?? props.min ?? 0, props.step ?? 1, dir)),
     );
   };
   const [draft, setDraft] = createSignal<string>();
@@ -152,6 +175,7 @@ export const NumberField: Component<NumberFieldProps> = (props) => {
         max={props.max}
         step={props.step}
         value={shown()}
+        disabled={props.disabled}
         onInput={(e) => {
           const raw = e.currentTarget.value;
           setDraft(raw);
@@ -174,6 +198,7 @@ export const NumberField: Component<NumberFieldProps> = (props) => {
           type="button"
           class={styles.stepBtn}
           tabindex="-1"
+          disabled={props.disabled}
           aria-label={t("ui.increase", { label: props.label })}
           onClick={() => step(1)}
         >
@@ -183,6 +208,7 @@ export const NumberField: Component<NumberFieldProps> = (props) => {
           type="button"
           class={styles.stepBtn}
           tabindex="-1"
+          disabled={props.disabled}
           aria-label={t("ui.decrease", { label: props.label })}
           onClick={() => step(-1)}
         >
@@ -254,7 +280,13 @@ export const SliderRow: Component<SliderRowProps> = (props) => {
           min={props.min}
           max={props.max}
           step={props.step}
-          onChange={props.onInput}
+          // the slider interpolates along its track: without rounding a 0.1
+          // step lands 0.30000000000000004 in the store
+          onChange={(next) =>
+            props.onInput(
+              props.step === undefined ? next : roundToStep(next, props.step),
+            )
+          }
         />
         <NumberField
           class={styles.sliderValue}

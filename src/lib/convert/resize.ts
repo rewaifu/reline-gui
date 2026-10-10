@@ -3,18 +3,24 @@ import type {
   ConvertToStackFunction,
 } from "~/lib/convert/index";
 import type { PureResizeOptions, ResizeNodeOptions } from "~/types/options";
+import { RESIZE_MODE_PARAMS } from "~/types/options/resize";
 import { NodeType, PureNodeType, ResizeType } from "~/types/enums";
 import { DEFAULT_COLLAPSED } from "~/constants";
 
 export const convertResizeToPure: ConvertToPureFunction = (nodes, index) => {
   const node = nodes[index];
-  const { resize_type: _resize_type, ...options } =
-    node.options as ResizeNodeOptions;
+  const o = node.options as ResizeNodeOptions;
+  // The backend picks the mode by which size param is present: a stale width
+  // resurrected from defaults (or an old stored tree) next to a height would
+  // read as `absolute`. Emit only the current mode's own param.
+  const size: Partial<PureResizeOptions> = {};
+  for (const key of RESIZE_MODE_PARAMS[o.resize_type] ?? []) size[key] = o[key];
+  const { width: _w, height: _h, percent: _p, resize_type: _t, ...rest } = o;
   return [
     [
       {
         type: PureNodeType.RESIZE,
-        options,
+        options: { ...rest, ...size },
       },
     ],
     index + 1,

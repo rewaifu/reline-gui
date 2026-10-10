@@ -21,3 +21,18 @@ export const resizeOptionsSchema = v.object({
 });
 
 export type ResizeNodeOptions = v.InferOutput<typeof resizeOptionsSchema>;
+
+export type ResizeSizeParam = "width" | "height" | "percent";
+
+/** Backend picks the resize mode by which size param is present, so each
+ * mode keeps only its own param on the node. The other values survive in
+ * localStorage and are restored when their mode comes back. */
+export const RESIZE_MODE_PARAMS: Record<
+  ResizeType,
+  readonly ResizeSizeParam[]
+> = {
+  [ResizeType.BY_WIDTH]: ["width"],
+  [ResizeType.BY_HEIGHT]: ["height"],
+  [ResizeType.ABSOLUTE]: ["width", "height"],
+  [ResizeType.PERCENT]: ["percent"],
+};

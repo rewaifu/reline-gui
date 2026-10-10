@@ -9,7 +9,8 @@ bring the screentone back after descreentone models.
   - `gray` — pure screentone; a colour image on the input is converted to
     greyscale.
   - `rgb` — halftone of a synthetic kind; per-channel parameters appear.
-  - `hsv` — broken for now.
+  - `hsv` — halftone over the V (value) channel only; a single parameter set,
+    H and S are untouched.
   - `cmyk` — classic halftone, the comic kind; parameters per channel as well.
 - **Dot size** (slider) — the size of every dot; easier to reason about than dots
   per inch in editors, because it sets the size itself.
@@ -26,5 +27,5 @@ bring the screentone back after descreentone models.
 
 ## Notes
 
-- In the colour modes every channel has its own size, rotation and dot type; the
-  per-channel values survive a mode switch.
+- In the multi-channel modes (`rgb`, `cmyk`) every channel has its own size,
+  rotation and dot type; the per-channel values survive a mode switch.

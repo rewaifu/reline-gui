@@ -42,6 +42,7 @@ const writer = (): StackNode => ({
   options: {
     path: "/content/drive/MyDrive/raws/output",
     format: WriterNodeFormat.PNG,
+    clean_before: false,
   },
   collapsed: true,
 });

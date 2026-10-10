@@ -2,7 +2,9 @@ import * as v from "valibot";
 import { DEFAULT_COLLAPSED, DEFAULT_NODE_OPTIONS } from "~/constants";
 import { newUid } from "~/lib/uid";
 import type { NodeOptions, StackNode } from "~/types/node";
-import { NodeType } from "~/types/enums";
+import { NodeType, ResizeType } from "~/types/enums";
+import { RESIZE_MODE_PARAMS } from "~/types/options/resize";
+import type { ResizeNodeOptions } from "~/types/options/resize";
 
 /**
  * One place where node data from *outside* the app becomes node data inside it.
@@ -40,17 +42,30 @@ const toNode = (raw: RawNode): StackNode | undefined => {
   const defaults = defaultsFor(raw.type);
   if (defaults === undefined) return undefined;
   const stored = raw.options;
+  const merged = {
+    ...structuredClone(defaults),
+    ...(typeof stored === "object" && stored !== null && !Array.isArray(stored)
+      ? (stored as Record<string, unknown>)
+      : {}),
+  } as NodeOptions;
+  // Resize defaults carry `width` (the BY_WIDTH mode's value). A stored
+  // BY_HEIGHT node persists without `width` (undefined is dropped by JSON),
+  // so a plain merge resurrects the default width next to the height — and
+  // the backend reads width+height as `absolute`. Drop the size params the
+  // stored mode does not own right where outside data becomes a node.
+  if (raw.type === NodeType.RESIZE) {
+    const resize = merged as unknown as ResizeNodeOptions;
+    const owned: Record<string, true> = {};
+    for (const key of RESIZE_MODE_PARAMS[resize.resize_type as ResizeType] ??
+      [])
+      owned[key] = true;
+    for (const key of ["width", "height", "percent"] as const)
+      if (!owned[key]) delete resize[key];
+  }
   const node: StackNode = {
     uid: raw.uid !== undefined && raw.uid.length > 0 ? raw.uid : newUid(),
     type: raw.type,
-    options: {
-      ...structuredClone(defaults),
-      ...(typeof stored === "object" &&
-      stored !== null &&
-      !Array.isArray(stored)
-        ? (stored as Record<string, unknown>)
-        : {}),
-    } as NodeOptions,
+    options: merged,
     collapsed: raw.collapsed ?? DEFAULT_COLLAPSED,
   };
   if (raw.name !== undefined && raw.name.length > 0) node.name = raw.name;

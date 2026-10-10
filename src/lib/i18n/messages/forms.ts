@@ -13,6 +13,11 @@ export const ru = {
     folder_writer: {
       path: "Путь к папке",
       format: "Формат",
+      psd: "PSD",
+      psdFit: "Метод фита",
+      psdSource: "Папка фонов",
+      psdDelete: "Удалять исходники после PSD",
+      cleanBefore: "Очищать папку перед запуском",
     },
     upscale: {
       own: "Своя модель",
@@ -22,7 +27,7 @@ export const ru = {
       tiler: "Метод тайлинга",
       exactSize: "Размер плитки",
       allowCpu: "Разрешить апскейл на CPU",
-      targetScale: "Целевой масштаб (необязательно)",
+      targetScale: "Целевой масштаб",
     },
     resize: {
       type: "Тип изменения",
@@ -61,6 +66,22 @@ export const ru = {
     cvt_color: {
       conversion: "Преобразование",
     },
+    hyst_norm: {
+      blurN: "Проходов сглаживания",
+      windowRadius: "Радиус окна",
+      minProminence: "Мин. высота пика",
+      minDistance: "Мин. дистанция пиков",
+      percentage: "Допуск нейтральности",
+    },
+    noise: {
+      a: "Альфа-форма (a)",
+      b: "Бета-форма (b)",
+      alpha: "Сила шума",
+      noiseMode: "Режим шума",
+      thMin: "Порог чёрного",
+      thMax: "Порог белого",
+      seed: "Сид",
+    },
   },
 };
 
@@ -75,6 +96,11 @@ export const en: typeof ru = {
     folder_writer: {
       path: "Path to folder",
       format: "Format",
+      psd: "PSD",
+      psdFit: "Fit method",
+      psdSource: "Backgrounds folder",
+      psdDelete: "Delete originals after PSD",
+      cleanBefore: "Clean folder before run",
     },
     upscale: {
       own: "Own model",
@@ -84,7 +110,7 @@ export const en: typeof ru = {
       tiler: "Tiling method",
       exactSize: "Tiler size",
       allowCpu: "Allow CPU upscale",
-      targetScale: "Target scale (optional)",
+      targetScale: "Target scale",
     },
     resize: {
       type: "Resize type",
@@ -122,6 +148,22 @@ export const en: typeof ru = {
     },
     cvt_color: {
       conversion: "Conversion",
+    },
+    hyst_norm: {
+      blurN: "Smoothing passes",
+      windowRadius: "Window radius",
+      minProminence: "Min peak prominence",
+      minDistance: "Min peak distance",
+      percentage: "Neutrality tolerance",
+    },
+    noise: {
+      a: "Alpha shape (a)",
+      b: "Beta shape (b)",
+      alpha: "Noise strength",
+      noiseMode: "Noise mode",
+      thMin: "Black point",
+      thMax: "White point",
+      seed: "Seed",
     },
   },
 };

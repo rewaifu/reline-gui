@@ -61,6 +61,8 @@ export const ru = {
     run: {
       address: "Адрес запуска",
       start: "▶ Запустить",
+      resume: "⟳ Продолжить",
+      runId: "Прогон {run}",
       stop: "■ Стоп",
       connecting: "Подключение…",
       journal: "Журнал запуска",
@@ -129,6 +131,8 @@ export const en: typeof ru = {
     run: {
       address: "Run address",
       start: "▶ Start",
+      resume: "⟳ Resume",
+      runId: "Run {run}",
       stop: "■ Stop",
       connecting: "Connecting…",
       journal: "Run journal",

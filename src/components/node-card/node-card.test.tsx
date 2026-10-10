@@ -3,6 +3,7 @@ import { createStore } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { createNodesDispatch } from "~/context/reducer";
+import { NodesActionType } from "~/types/actions";
 import { NodeStack } from "~/components/node-card/node-card";
 import { createDefaultNodes } from "~/constants";
 import { nodeLabel } from "~/components/nodes/registry";
@@ -133,5 +134,35 @@ describe("path field under the node store", () => {
     await vi.waitFor(() =>
       expect(view.getAllByLabelText(t("chrome.nodeName"))).toHaveLength(1),
     );
+  });
+
+  it("marks a disabled node on its stack card", async () => {
+    const dispatch = createNodesDispatch(store[1]);
+    const [selected] = createStore<Record<string, boolean>>({});
+    const view = render(() => (
+      <NodesContext value={store[0]}>
+        <NodesDispatchContext value={dispatch}>
+          <NodeStack
+            selectedUid={() => null}
+            isSelected={selected}
+            onSelect={() => {}}
+            phone={false}
+          />
+        </NodesDispatchContext>
+      </NodesContext>
+    ));
+    const uid = store[0][1].uid;
+    const card = () => view.container.querySelector(`[data-node-id="${uid}"]`);
+    expect(card()?.className).not.toMatch(/disabled/);
+    dispatch({
+      type: NodesActionType.CHANGE,
+      payload: { uid, enabled: false },
+    });
+    await vi.waitFor(() => expect(card()?.className).toMatch(/disabled/));
+    dispatch({
+      type: NodesActionType.CHANGE,
+      payload: { uid, enabled: true },
+    });
+    await vi.waitFor(() => expect(card()?.className).not.toMatch(/disabled/));
   });
 });

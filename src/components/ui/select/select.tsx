@@ -24,6 +24,8 @@ export interface UiSelectProps {
   /** Set to link an external <label for> to this trigger. */
   id?: string;
   class?: string;
+  /** Pale, non-interactive trigger (the switch next to it owns the row). */
+  disabled?: boolean;
 }
 
 /** Single-value dropdown over the raw wire strings. Focus stays on the
@@ -39,6 +41,7 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
     "ariaLabel",
     "id",
     "class",
+    "disabled",
   );
   const [open, setOpen] = createSignal(false);
   const [highlight, setHighlight] = createSignal(-1);
@@ -115,11 +118,13 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
   };
 
   const onTriggerClick = () => {
+    if (props.disabled) return;
     if (open()) closeMenu();
     else openMenu(true);
   };
 
   const onTriggerKeyDown = (e: KeyboardEvent) => {
+    if (props.disabled) return;
     if (e.key === "Tab") {
       closeMenu();
       return;
@@ -164,6 +169,7 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
         type="button"
         id={props.id}
         class={[styles.trigger, props.class]}
+        disabled={props.disabled}
         aria-label={props.ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open() ? "true" : "false"}

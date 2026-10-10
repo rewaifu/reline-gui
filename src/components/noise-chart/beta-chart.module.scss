@@ -1,0 +1,36 @@
+.chart {
+  margin: 0 0 var(--space-2);
+}
+
+.plot {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.axis {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+}
+
+.zero {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.curve {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.caption {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  padding: 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+}

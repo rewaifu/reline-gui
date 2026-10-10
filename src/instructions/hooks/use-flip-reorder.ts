@@ -1,4 +1,29 @@
 /**
+ * Snap rows to their settled layout. A running FLIP transform shifts
+ * `getBoundingClientRect`, so any measurement taken mid-flight — the next
+ * drop's insertion slot, the next flip's start positions — lands a slot off
+ * and the dropped row teleports. A cancelled flip ends exactly where it was
+ * going (every flip finishes at `transform: none`), so the snap is jump-free.
+ * CSS transitions (the drag scale) are left alone — only WAAPI flips cancel.
+ */
+export const settleRowAnimations = (
+  container: HTMLElement | undefined,
+  itemSelector = "[data-flip-key]",
+): void => {
+  if (!container) return;
+  for (const el of Array.from(
+    container.querySelectorAll<HTMLElement>(itemSelector),
+  )) {
+    const get = el.getAnimations;
+    if (typeof get !== "function") continue;
+    for (const animation of get.call(el)) {
+      if ("transitionProperty" in animation) continue;
+      animation.cancel();
+    }
+  }
+};
+
+/**
  * FLIP reorder animation: capture item positions keyed by a stable identity
  * (see `getKey`), apply the mutation, then animate every item from its old
  * spot to the new one with the Web Animations API.
@@ -20,6 +45,7 @@ export const flipReorder = (
     mutate();
     return;
   }
+  settleRowAnimations(container, itemSelector);
 
   const relativeTop = (el: HTMLElement): number =>
     el.getBoundingClientRect().top - container.getBoundingClientRect().top;

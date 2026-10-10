@@ -19,12 +19,12 @@ type FormProps = { node: StackNode };
  * its own, and its order in the enum is the order in the menu. */
 const DOT_TYPES = Object.values(DotType);
 
-/** Channels per halftone mode: gray drives one dot grid, the color modes
- * drive one grid per channel. */
+/** Channels per halftone mode: gray and hsv drive one dot grid (hsv works
+ * the V channel only), the other color modes drive one grid per channel. */
 const CHANNELS: Record<HalftoneMode, string[]> = {
   [HalftoneMode.GRAY]: [""],
   [HalftoneMode.RGB]: ["R", "G", "B"],
-  [HalftoneMode.HSV]: ["H", "S", "V"],
+  [HalftoneMode.HSV]: ["V"],
   [HalftoneMode.CMYK]: ["C", "M", "Y", "K"],
 };
 
@@ -64,7 +64,7 @@ const lastType = (value: unknown): DotType => {
 export const ScreentoneForm: Component<FormProps> = (props) => {
   const form = useNodeForm(() => props.node);
   const options = () => form.options() as ScreentoneNodeOptions;
-  const multi = () => options().halftone_mode !== HalftoneMode.GRAY;
+  const multi = () => channels().length > 1;
   // A tree saved by an older build can name a mode this build no longer has
   // (or a hand-edited config can invent one). Looking that up returns
   // undefined, which reaches `<For>` and throws *during render* — the kind of
@@ -158,7 +158,10 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
           {(channel, i) => (
             <div class={styles.group}>
               <p class={styles.groupTitle}>
-                <Show when={multi()} fallback={t("form.screentone.channel")}>
+                <Show
+                  when={multi() || channel !== ""}
+                  fallback={t("form.screentone.channel")}
+                >
                   {channel}
                 </Show>
               </p>
@@ -188,11 +191,6 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
           )}
         </For>
       </div>
-      <CheckRow
-        label={t("form.screentone.disableAutoDot")}
-        checked={options().disable_auto_dot ?? false}
-        onChange={(disable_auto_dot) => form.set({ disable_auto_dot })}
-      />
       <NumberRow
         label={t("form.screentone.ssaaScale")}
         value={options().ssaa_scale}
@@ -200,6 +198,11 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
         step={1}
         max={16}
         onInput={(ssaa_scale) => form.set({ ssaa_scale })}
+      />
+      <CheckRow
+        label={t("form.screentone.disableAutoDot")}
+        checked={options().disable_auto_dot ?? false}
+        onChange={(disable_auto_dot) => form.set({ disable_auto_dot })}
       />
     </div>
   );

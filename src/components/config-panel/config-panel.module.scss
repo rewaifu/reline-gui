@@ -384,6 +384,14 @@
   font-size: var(--font-size-sm);
 }
 
+.runId {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
 .runStage {
   margin: 0;
   color: var(--color-text);
@@ -391,13 +399,6 @@
   // a file path or a node label can be long: break it instead of widening the
   // panel (220 px on desktop, ~320 px on a phone)
   overflow-wrap: anywhere;
-}
-
-.runMetrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  min-width: 0;
 }
 
 .runChip {

@@ -27,7 +27,7 @@
   // differ by more than hue: hover tints the border, selected tints the
   // whole card background and keeps the accent border
   &:hover:not(.selected) {
-    border-color: var(--color-primary);
+    border-color: var(--color-success);
   }
 
   &.selected {
@@ -40,12 +40,15 @@
     }
   }
 
+  &.disabled {
+    opacity: 0.55;
+  }
+
   &.dragging {
     opacity: 0.35;
     transform: scale(0.97);
   }
 }
-
 .dragHandle {
   @include ghost-button;
 

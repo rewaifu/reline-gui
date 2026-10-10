@@ -1,5 +1,5 @@
 import { fireEvent, render } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setLocale, t } from "~/lib/i18n";
 import { SliderRow } from "./shared";
@@ -99,5 +99,25 @@ describe("slider row: entry and steppers respect the limits", () => {
     expect(seen).toEqual([1.1]);
     blur();
     expect(seen).toEqual([1.1, 10]);
+  });
+
+  it("stores no float residue when stepping fractions", () => {
+    const { seen, arrow } = setup(0.2, 0, 10, 0.1);
+    arrow("up")?.click();
+    expect(seen).toEqual([0.3]);
+    expect(seen[0]).toBe(0.3);
+  });
+
+  it("snaps an off-grid value to the step grid instead of keeping the offset", () => {
+    const { seen, arrow } = setup(500, 0, 2048, 128);
+    arrow("up")?.click();
+    flush();
+    expect(seen).toEqual([512]);
+    arrow("up")?.click();
+    flush();
+    expect(seen).toEqual([512, 640]);
+    arrow("down")?.click();
+    flush();
+    expect(seen).toEqual([512, 640, 512]);
   });
 });

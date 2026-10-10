@@ -75,6 +75,60 @@ describe("sanitizeNode", () => {
   });
 });
 
+describe("sanitizeNode resize modes", () => {
+  it("does not resurrect the default width on a stored height node", () => {
+    // stored trees persist without `width` (JSON drops undefined), while the
+    // defaults carry width 2000 — a plain merge sends width+height, which the
+    // backend reads as `absolute` instead of `height`
+    const node = sanitizeNode({
+      type: "resize",
+      options: {
+        resize_type: "height",
+        height: 1000,
+        filter: "slinear4",
+        spread: true,
+        spread_size: 2800,
+      },
+    });
+    expect(node?.options).toMatchObject({
+      resize_type: "height",
+      height: 1000,
+    });
+    expect(node?.options).not.toHaveProperty("width");
+    expect(node?.options).not.toHaveProperty("percent");
+  });
+
+  it("keeps both sizes for absolute and drops the idle ones elsewhere", () => {
+    const absolute = sanitizeNode({
+      type: "resize",
+      options: {
+        resize_type: "absolute",
+        width: 2000,
+        height: 1000,
+        percent: 50,
+        filter: "slinear4",
+        spread: true,
+      },
+    });
+    expect(absolute?.options).toMatchObject({ width: 2000, height: 1000 });
+    expect(absolute?.options).not.toHaveProperty("percent");
+
+    const width = sanitizeNode({
+      type: "resize",
+      options: {
+        resize_type: "width",
+        width: 2000,
+        height: 1000,
+        filter: "slinear4",
+        spread: true,
+        spread_size: 2800,
+      },
+    });
+    expect(width?.options).toMatchObject({ width: 2000 });
+    expect(width?.options).not.toHaveProperty("height");
+  });
+});
+
 describe("sanitizeNodes", () => {
   it("keeps the order and drops garbage", () => {
     const nodes = sanitizeNodes([

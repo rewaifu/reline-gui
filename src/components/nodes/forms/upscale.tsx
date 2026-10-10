@@ -1,7 +1,15 @@
 import type { StackNode } from "~/types/node";
-import { type Component, Show } from "solid-js";
+import { type Component, Show, createUniqueId } from "solid-js";
 import { DType, TilerType } from "~/types/enums";
-import { useNodeForm, PathRow, NumberRow, SelectRow, CheckRow } from "./shared";
+import {
+  useNodeForm,
+  PathRow,
+  NumberRow,
+  NumberField,
+  SelectRow,
+  CheckRow,
+} from "./shared";
+import { Label, UiSwitch } from "~/components/ui";
 import type { UpscaleNodeOptions } from "~/types/options";
 import { t } from "~/lib/i18n";
 import styles from "./forms.module.scss";
@@ -11,6 +19,12 @@ type FormProps = { node: StackNode };
 export const UpscaleForm: Component<FormProps> = (props) => {
   const form = useNodeForm(() => props.node);
   const options = () => form.options() as UpscaleNodeOptions;
+  const scaleId = createUniqueId();
+  // off = the key is absent (undefined is dropped by the serializers), so an
+  // unticked scale never reaches the config; on with nothing typed = 1
+  const scaleOn = () => options().target_scale !== undefined;
+  const setScale = (on: boolean) =>
+    form.set({ target_scale: on ? (options().target_scale ?? 1) : undefined });
   return (
     <div class={styles.form}>
       <PathRow
@@ -58,13 +72,34 @@ export const UpscaleForm: Component<FormProps> = (props) => {
         checked={options().allow_cpu_upscale}
         onChange={(allow_cpu_upscale) => form.set({ allow_cpu_upscale })}
       />
-      <NumberRow
-        label={t("form.upscale.targetScale")}
-        value={options().target_scale}
-        min={0}
-        step={0.5}
-        onInput={(target_scale) => form.set({ target_scale })}
-      />
+      <div class={styles.row}>
+        <Label
+          for={scaleId}
+          onClick={(e) => {
+            e.preventDefault();
+            setScale(!scaleOn());
+          }}
+        >
+          {t("form.upscale.targetScale")}
+        </Label>
+        <div class={styles.inlineRow}>
+          <UiSwitch
+            id={scaleId}
+            checked={scaleOn()}
+            onChange={setScale}
+            ariaLabel={t("form.upscale.targetScale")}
+          />
+          <NumberField
+            class={styles.inlineFill}
+            label={t("form.upscale.targetScale")}
+            value={options().target_scale}
+            min={0}
+            step={0.5}
+            onInput={(target_scale) => form.set({ target_scale })}
+            disabled={!scaleOn()}
+          />
+        </div>
+      </div>
     </div>
   );
 };

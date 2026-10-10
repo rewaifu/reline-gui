@@ -57,6 +57,16 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
     labelKey: "node.screentone",
     defaults: DEFAULT_NODE_OPTIONS.screentone,
   },
+  [NodeType.HYST_NORM]: {
+    type: NodeType.HYST_NORM,
+    labelKey: "node.hyst_norm",
+    defaults: DEFAULT_NODE_OPTIONS.hyst_norm,
+  },
+  [NodeType.NOISE]: {
+    type: NodeType.NOISE,
+    labelKey: "node.noise",
+    defaults: DEFAULT_NODE_OPTIONS.noise,
+  },
 };
 
 /** The node's name in the current language. Call it where the name renders —

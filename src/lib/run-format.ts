@@ -34,6 +34,8 @@ const NODE_NAME_KEYS: Record<string, MessageKey | undefined> = {
   [PureNodeType.UPSCALE]: "node.upscale",
   [PureNodeType.RESIZE]: "node.resize",
   [PureNodeType.HALFTONE]: "node.halftone",
+  [PureNodeType.HYST_NORM]: "node.hyst_norm",
+  [PureNodeType.NOISE]: "node.noise",
 };
 
 /** Binary units, largest last — `scaleBytes` walks this by index. */

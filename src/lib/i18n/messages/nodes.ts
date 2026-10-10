@@ -14,6 +14,8 @@ export const ru = {
     level: "Уровни",
     cvt_color: "Цветовое пространстово",
     halftone: "Скринтон",
+    hyst_norm: "Гист-норма",
+    noise: "Шум",
   },
 };
 
@@ -28,5 +30,7 @@ export const en: typeof ru = {
     level: "Level",
     cvt_color: "Cvt Color",
     halftone: "Halftone",
+    hyst_norm: "Hyst norm",
+    noise: "Noise",
   },
 };
