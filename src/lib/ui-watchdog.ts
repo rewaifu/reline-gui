@@ -22,6 +22,10 @@ export interface WatchdogOptions {
   rendered: () => string | null;
   /** Called once, on the first confirmed stall. */
   onStall: () => void;
+  /** Called once, after `healthyTicks` checks in a row in which the DOM kept up
+   * with the probe — the page is alive and rendering. */
+  onHealthy?: () => void;
+  healthyTicks?: number;
   /** Ticks between checks. */
   intervalMs?: number;
   /** Missed ticks that confirm a stall. */
@@ -36,7 +40,17 @@ export interface Watchdog {
 }
 
 export const createWatchdog = (options: WatchdogOptions): Watchdog => {
-  const { beat, rendered, onStall, intervalMs = 1000, strikes = 3 } = options;
+  const {
+    beat,
+    rendered,
+    onStall,
+    onHealthy,
+    healthyTicks = 3,
+    intervalMs = 1000,
+    strikes = 3,
+  } = options;
+  let healthy = 0;
+  let announced = false;
   // The token written on the previous tick: the DOM has had a whole tick to
   // catch up, so anything else means the update never arrived.
   let pending: string | undefined;
@@ -61,8 +75,16 @@ export const createWatchdog = (options: WatchdogOptions): Watchdog => {
     const late = lastAt !== 0 && now - lastAt > intervalMs * 2;
     lastAt = now;
     if (pending !== undefined) {
-      if (late || rendered() === pending) missed = 0;
+      const followed = rendered() === pending;
+      if (late || followed) missed = 0;
       else missed += 1;
+      // counted only on a tick the DOM really followed (a late one proves nothing)
+      if (!late && followed) healthy += 1;
+      else healthy = 0;
+      if (!announced && healthy >= healthyTicks) {
+        announced = true;
+        onHealthy?.();
+      }
     }
     pending = beat();
     if (missed >= strikes) {
@@ -113,7 +135,15 @@ export const rememberErrors = (): (() => void) => {
 
 /** The overlay is built with plain DOM on purpose: it exists to survive a dead
  * reactive system, so it must not depend on one. */
-export const showHaltOverlay = (detail?: string): void => {
+export interface HaltOverlayOptions {
+  /** Offered as a button when given: switch the plugins off and reload. */
+  onDisablePlugins?: () => void;
+}
+
+export const showHaltOverlay = (
+  detail?: string,
+  options: HaltOverlayOptions = {},
+): void => {
   if (document.getElementById("reline-halt") !== null) return;
   const box = document.createElement("div");
   box.id = "reline-halt";
@@ -147,6 +177,19 @@ export const showHaltOverlay = (detail?: string): void => {
   reload.textContent = t("chrome.crash.reload");
   reload.addEventListener("click", () => window.location.reload());
   actions.append(reload);
+
+  if (options.onDisablePlugins !== undefined) {
+    const disable = options.onDisablePlugins;
+    const safe = document.createElement("button");
+    safe.type = "button";
+    safe.className = styles.button;
+    safe.textContent = t("chrome.crash.disablePlugins");
+    safe.addEventListener("click", () => {
+      disable();
+      window.location.reload();
+    });
+    actions.append(safe);
+  }
 
   const copy = document.createElement("button");
   copy.type = "button";

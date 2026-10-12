@@ -19,6 +19,35 @@
     opacity: 0.45;
   }
 }
+// square icon-only trigger: no field chrome, the pressed look is the open menu
+.iconTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: var(--color-surface-strong);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    color: var(--color-text);
+  }
+
+  &[aria-expanded="true"] {
+    color: var(--color-text);
+    border-color: var(--color-border);
+  }
+
+  @media (pointer: coarse) {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+}
+
 .value {
   @include truncate;
 

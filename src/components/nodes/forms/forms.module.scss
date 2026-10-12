@@ -95,18 +95,6 @@
   letter-spacing: 0.04em;
 }
 
-.modeToggle {
-  @include ghost-button;
-
-  margin-left: var(--space-2);
-  padding: 0 2px;
-  color: var(--color-primary);
-  font-size: 0.6875rem;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
 // Classic number field: ONE border wraps the whole control; spin buttons
 // live on the right as a stacked strip separated by a single divider line.
 .stepper {
@@ -179,12 +167,6 @@
     background: color-mix(in srgb, var(--color-primary) 35%, transparent);
     color: var(--color-text);
   }
-}
-
-.hint {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
 }
 
 // Touch: two 20px-tall arrows stacked in a 40px field cannot be told apart by
@@ -265,4 +247,13 @@
     align-items: center;
     min-height: var(--touch-min);
   }
+}
+
+// A node whose type has no definition (or no form): a note, not an empty card.
+.orphan {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: left;
 }

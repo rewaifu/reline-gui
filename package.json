@@ -12,7 +12,11 @@
     "test": "vitest",
     "lint": "oxlint --type-aware --type-check",
     "typecheck": "tsc --noEmit",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "plugin:build": "vite build --config examples/sequence/vite.config.ts && node scripts/build-catalog.mjs",
+    "plugin:catalog": "node scripts/build-catalog.mjs",
+    "plugin:pin": "node scripts/pin-plugin.mjs writer-suffix",
+    "sdk:exports": "node --conditions=browser scripts/gen-host-exports.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

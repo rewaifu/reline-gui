@@ -1,10 +1,6 @@
-import type {
-  ConvertToPureFunction,
-  ConvertToStackFunction,
-} from "~/lib/convert/index";
+import type { FromPure, ToPure } from "~/lib/nodes/types";
 import type { ScreentoneNodeOptions } from "~/types/options";
-import { HalftoneMode, NodeType, PureNodeType } from "~/types/enums";
-import { DEFAULT_COLLAPSED } from "~/constants";
+import { HalftoneMode, PureNodeType } from "~/types/enums";
 
 const unwrap = (value: unknown) =>
   Array.isArray(value) && value.length === 1 ? value[0] : value;
@@ -15,47 +11,27 @@ const unwrap = (value: unknown) =>
 const first = <T>(value: T | T[]): T =>
   Array.isArray(value) ? (value[0] as T) : value;
 
-export const convertScreentoneToPure: ConvertToPureFunction = (
-  nodes,
-  index,
-) => {
-  const node = nodes[index];
+export const convertScreentoneToPure: ToPure = (node) => {
   const options = node.options as ScreentoneNodeOptions;
   const single =
     options.halftone_mode === HalftoneMode.GRAY ||
     options.halftone_mode === HalftoneMode.HSV;
   return [
-    [
-      {
-        type: PureNodeType.HALFTONE,
-        options: {
-          ...options,
-          ssaa_scale: options.ssaa_scale ? options.ssaa_scale : undefined,
-          ssaa_filter: options.ssaa_scale ? options.ssaa_filter : undefined,
-          dot_size: single ? first(options.dot_size) : unwrap(options.dot_size),
-          angle: single ? first(options.angle) : unwrap(options.angle),
-          dot_type: single ? first(options.dot_type) : unwrap(options.dot_type),
-        } as ScreentoneNodeOptions,
+    {
+      type: PureNodeType.HALFTONE,
+      options: {
+        ...options,
+        ssaa_scale: options.ssaa_scale ? options.ssaa_scale : undefined,
+        ssaa_filter: options.ssaa_scale ? options.ssaa_filter : undefined,
+        dot_size: single ? first(options.dot_size) : unwrap(options.dot_size),
+        angle: single ? first(options.angle) : unwrap(options.angle),
+        dot_type: single ? first(options.dot_type) : unwrap(options.dot_type),
       },
-    ],
-    index + 1,
+    },
   ];
 };
 
-export const convertHalftoneToStack: ConvertToStackFunction = (
-  nodes,
-  index,
-) => {
-  const node = nodes[index];
-  const options = node.options as ScreentoneNodeOptions;
-  return [
-    [
-      {
-        type: NodeType.SCREENTONE,
-        options: options,
-        collapsed: DEFAULT_COLLAPSED,
-      },
-    ],
-    index + 1,
-  ];
-};
+/** The wire options are the node's own; the editor has no extra flags here. */
+export const convertHalftoneToStack: FromPure = (node) => ({
+  ...node.options,
+});

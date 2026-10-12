@@ -1,0 +1,290 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sectionLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.install {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.installRow {
+  display: flex;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+// the field itself is the editor's `Input`; here it only takes the row's slack
+.input {
+  flex: 1;
+  min-width: 0;
+}
+
+.consent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.consentTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.name {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.id {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--font-size-sm);
+
+  dt {
+    color: var(--color-text-muted);
+  }
+
+  dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.hash {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+}
+
+.caps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cap {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+
+  input {
+    flex: none;
+    margin-top: 3px;
+  }
+}
+
+.badge {
+  color: var(--color-warning);
+  font-weight: 700;
+}
+
+.warn {
+  margin: 0;
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.err {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  &[data-state="error"] {
+    border-color: var(--color-danger);
+  }
+
+  &[data-state="active"] {
+    border-color: color-mix(
+      in srgb,
+      var(--color-success) 55%,
+      var(--color-border)
+    );
+  }
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.state {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.iconBtn {
+  flex: none;
+  padding: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    color: var(--color-danger);
+  }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.chip {
+  padding: 1px var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+}
+
+.log {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+
+  p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.link {
+  align-self: flex-start;
+  padding: 0;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.failures {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+
+  li {
+    overflow-wrap: anywhere;
+  }
+}
+
+.catalog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.disclosure {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-1);
+  padding: 0;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border: 0;
+
+  &:hover {
+    color: var(--color-text);
+  }
+}
+
+.count {
+  padding: 0 var(--space-2);
+  font-weight: 400;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+}
+
+// a long catalog scrolls inside itself: the tab keeps the installed plugins and
+// the way back to the search field in reach
+.catalogList {
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

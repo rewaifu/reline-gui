@@ -1,36 +1,48 @@
-import type { Component } from "solid-js";
+import { type Accessor, type Component, Errored, Show } from "solid-js";
 import { Dynamic } from "@solidjs/web";
-import { NodeType } from "~/types/enums";
 import type { StackNode } from "~/types/node";
-import { FolderReaderForm } from "./forms/folder-reader";
-import { FolderWriterForm } from "./forms/folder-writer";
-import { UpscaleForm } from "./forms/upscale";
-import { SharpForm } from "./forms/sharp";
-import { ResizeForm } from "./forms/resize";
-import { ScreentoneForm } from "./forms/screentone";
-import { LevelForm } from "./forms/level";
-import { HystNormForm } from "./forms/hyst-norm";
-import { NoiseForm } from "./forms/noise";
-import { CvtColorForm } from "./forms/cvt-color";
+import { nodeRegistry } from "~/lib/nodes";
+import { pipeline } from "~/lib/pipeline/hooks";
+import { t } from "~/lib/i18n";
+import "~/nodes/builtin-ui";
+import styles from "./forms/forms.module.scss";
+
 export interface NodeFormProps {
   /** The row's node object, handed down from <For> via NodeCard. */
   node: StackNode;
 }
 
-const FORMS: Record<NodeType, Component<NodeFormProps>> = {
-  [NodeType.FOLDER_READER]: FolderReaderForm,
-  [NodeType.FOLDER_WRITER]: FolderWriterForm,
-  [NodeType.UPSCALE]: UpscaleForm,
-  [NodeType.SHARP]: SharpForm,
-  [NodeType.RESIZE]: ResizeForm,
-  [NodeType.SCREENTONE]: ScreentoneForm,
-  [NodeType.LEVEL]: LevelForm,
-  [NodeType.CVT_COLOR]: CvtColorForm,
-  [NodeType.HYST_NORM]: HystNormForm,
-  [NodeType.NOISE]: NoiseForm,
+/** The body of an expanded card: the form its type's definition carries. An
+ * orphan node (its type is not defined — a plugin that is off) and a type
+ * without a form get a note instead; the options stay in the tree untouched. */
+export const NodeOptionsForm: Component<NodeFormProps> = (props) => {
+  const form = () => nodeRegistry.get(props.node.type)?.Form;
+  return (
+    <Show
+      when={form()}
+      fallback={
+        <p class={styles.orphan}>
+          {t(
+            nodeRegistry.get(props.node.type) === undefined
+              ? "form.orphan"
+              : "form.noForm",
+            { type: props.node.type },
+          )}
+        </p>
+      }
+    >
+      {(Form) => (
+        // a node type's form may come from a plugin: a render error costs this
+        // card its body, not the stack
+        <Errored
+          fallback={(error: Accessor<unknown>) => {
+            pipeline.report("ui", `form:${props.node.type}`, error());
+            return <p class={styles.orphan}>{t("form.broken")}</p>;
+          }}
+        >
+          <Dynamic component={Form()} node={props.node} />
+        </Errored>
+      )}
+    </Show>
+  );
 };
-
-/** Routes the expanded node body to its hand-crafted per-type form. */
-export const NodeOptionsForm: Component<NodeFormProps> = (props) => (
-  <Dynamic component={FORMS[props.node.type]} node={props.node} />
-);

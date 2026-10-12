@@ -1,38 +1,39 @@
 import type { Component } from "solid-js";
-import { NODE_ORDER, nodeLabel } from "~/components/nodes/registry";
+import { nodeMenuEntries } from "~/lib/nodes";
 import type { NodeType } from "~/types/enums";
-import { UiCombobox } from "~/components/ui";
+import { UiSearchMenu } from "~/components/ui";
+import { overridable } from "~/components/slot/overridable";
 import { t } from "~/lib/i18n";
-import styles from "./nodes-list.module.scss";
 
 export interface AddNodeMenuProps {
   onAdd: (type: NodeType) => void;
 }
 
-/** Searchable add-node field: type to filter the node registry, Enter or
- * click adds the highlighted node. */
-export const AddNodeMenu: Component<AddNodeMenuProps> = (props) => {
-  // The field deals in displayed text and hands back what was picked; the
-  // wire type comes from the same registry order the labels were built off.
-  const add = (label: string) => {
-    const type = NODE_ORDER.find((candidate) => nodeLabel(candidate) === label);
-    if (type !== undefined) props.onAdd(type);
+/** The "+" that adds a node: opens a search list of the node registry and
+ * focuses its field — type, Enter, done. */
+const AddNodeMenu: Component<AddNodeMenuProps> = (props) => {
+  // The list deals in displayed text and hands back what was picked; the
+  // type is read from the very entry list the text was built from, whose
+  // texts are unique by construction.
+  const add = (text: string) => {
+    const entry = nodeMenuEntries().find(
+      (candidate) => candidate.text === text,
+    );
+    if (entry !== undefined) props.onAdd(entry.type);
   };
 
   return (
-    <div class={styles.addNode}>
-      <UiCombobox
-        class={styles.addCombo}
-        value=""
-        placeholder={t("chrome.addNode")}
-        ariaLabel={t("chrome.addNode")}
-        // formatted where it renders, never hoisted: a module-level list
-        // would freeze the language the app started in
-        items={NODE_ORDER.map(nodeLabel)}
-        placement="top-start"
-        onChange={add}
-        onEnterMatch={add}
-      />
-    </div>
+    <UiSearchMenu
+      icon="plus"
+      label={t("chrome.addNode")}
+      placeholder={t("chrome.searchNode")}
+      // formatted where it renders, never hoisted: a module-level list
+      // would freeze the language the app started in
+      items={nodeMenuEntries().map((entry) => entry.text)}
+      onPick={add}
+    />
   );
 };
+
+/** What the panels render: the menu above, or a plugin's replacement of it. */
+export const AddNode = overridable("AddNodeMenu", AddNodeMenu);

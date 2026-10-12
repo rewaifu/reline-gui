@@ -1,0 +1,64 @@
+@use "../../../styles/mixins" as *;
+
+.button {
+  @include surface(var(--radius-sm), var(--color-surface-raised));
+
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+
+  &[data-variant="primary"] {
+    border-color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  @media (pointer: coarse) {
+    min-height: var(--touch-min);
+  }
+}
+
+.icon {
+  @include surface(var(--radius-sm), var(--color-surface-strong));
+
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-text-muted);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  @media (pointer: coarse) {
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
+}

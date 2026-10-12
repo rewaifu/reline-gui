@@ -51,37 +51,6 @@ export const useNodeForm = (node: () => StackNode): NodeForm => {
   };
 };
 
-export interface TextRowProps {
-  label: string;
-  value: string;
-  onInput: (value: string) => void;
-  placeholder?: string;
-}
-
-export const TextRow: Component<TextRowProps> = (props) => {
-  const id = createUniqueId();
-  return (
-    <div class={styles.row}>
-      <Label
-        for={id}
-        onClick={(e) => {
-          e.preventDefault();
-          document.getElementById(id)?.focus();
-        }}
-      >
-        {props.label}
-      </Label>
-      <Input
-        id={id}
-        type="text"
-        placeholder={props.placeholder}
-        value={props.value}
-        onInput={(e) => props.onInput(e.currentTarget.value)}
-      />
-    </div>
-  );
-};
-
 export interface NumberRowProps {
   label: string;
   value: number | undefined;
@@ -108,7 +77,7 @@ export interface NumberFieldProps {
 
 /** Decimals of a step (0.1 → 1, 128 → 0) so stepped values never carry float
  * residue (0.2 + 0.1 must store 0.3, not 0.30000000000000004). */
-export function roundToStep(value: number, step: number): number {
+function roundToStep(value: number, step: number): number {
   const decimals = (step.toString().split(".")[1] || "").length;
   const factor = Math.pow(10, decimals);
   return Math.round(value * factor) / factor;
@@ -116,11 +85,7 @@ export function roundToStep(value: number, step: number): number {
 
 /** Next grid line from a possibly off-grid value: typing 500 with a 128 step
  * steps to 512, not 628 — the deviation does not survive the arrows. */
-export const snapToStep = (
-  value: number,
-  step: number,
-  dir: 1 | -1,
-): number => {
+const snapToStep = (value: number, step: number, dir: 1 | -1): number => {
   const ratio = value / step;
   const line =
     dir > 0 ? Math.floor(ratio + 1e-9) + 1 : Math.ceil(ratio - 1e-9) - 1;
@@ -386,84 +351,6 @@ export const CheckRow: Component<CheckRowProps> = (props) => {
   );
 };
 
-export interface NumberOrListRowProps {
-  label: string;
-  value: number | number[];
-  onInput: (value: number | number[]) => void;
-}
-
-/** Edits a `number | number[]` option: scalar via number input, arrays via comma-separated text. */
-export const NumberOrListRow: Component<NumberOrListRowProps> = (props) => {
-  const id = createUniqueId();
-  const isList = () => Array.isArray(props.value);
-  const text = () =>
-    isList() ? (props.value as number[]).join(", ") : String(props.value);
-
-  const toggleMode = () =>
-    props.onInput(
-      isList()
-        ? Number((props.value as number[])[0] ?? 0)
-        : [Number(props.value) || 0],
-    );
-
-  const parseNumbers = (raw: string): number[] =>
-    raw
-      .split(",")
-      .map((part) => Number(part.trim()))
-      .filter((n) => Number.isFinite(n) && raw.trim() !== "");
-
-  return (
-    <div class={styles.row}>
-      <Label
-        for={id}
-        onClick={(e) => {
-          // the mode toggle inside the label handles its own click — don't
-          // focus the input or let the native label forwarding steal it
-          if (
-            e.target instanceof Element &&
-            e.target.closest("button") !== null
-          ) {
-            e.preventDefault();
-            return;
-          }
-          document.getElementById(id)?.focus();
-        }}
-      >
-        {props.label}
-        <button type="button" class={styles.modeToggle} onClick={toggleMode}>
-          {t(isList() ? "ui.list" : "ui.single")}
-        </button>
-      </Label>
-      <Show
-        when={isList()}
-        fallback={
-          <Input
-            id={id}
-            type="number"
-            value={text()}
-            onInput={(e) => {
-              const parsed = Number(e.currentTarget.value);
-              if (e.currentTarget.value !== "" && Number.isFinite(parsed))
-                props.onInput(parsed);
-            }}
-          />
-        }
-      >
-        <Input
-          id={id}
-          type="text"
-          placeholder="1, 2, 3"
-          value={text()}
-          onInput={(e) => {
-            const parsed = parseNumbers(e.currentTarget.value);
-            if (parsed.length > 0) props.onInput(parsed);
-          }}
-        />
-      </Show>
-    </div>
-  );
-};
-
 export interface PathRowProps {
   label: string;
   placeholder?: string;
@@ -485,13 +372,13 @@ const WEIGHT_EXTS = ["pth", "pt", "safetensors", "safetensor"];
  * nothing and the field looks dead until the user types a slash. `./raws`
  * names the same folder, keeps the same last-segment prefix the server
  * matches on, and lists the same entries on every build. */
-export const queryPath = (value: string): string =>
+const queryPath = (value: string): string =>
   value.includes("/") ? value : `./${value}`;
 
 /** Directory part of a path, through the last slash (`/content/raw` →
  * `/content/`, a bare `raws` → ``). Focusing a field lists this whole
  * directory; the last-segment prefix filters only once editing starts. */
-export const dirOf = (value: string): string =>
+const dirOf = (value: string): string =>
   value.slice(0, value.lastIndexOf("/") + 1);
 
 /** Text input with path completion: debounced `ls` lookups populate a

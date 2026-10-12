@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main, solid-v2]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # the pnpm version is pinned by `packageManager` in package.json
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test --run
+      - run: pnpm build
+      # the published example plugins are pinned by hash: they must be exactly
+      # what the sources build to, or `plugin.json` would pin stale bytes
+      - run: pnpm plugin:build && pnpm plugin:pin
+      - run: git diff --exit-code -- public/plugins

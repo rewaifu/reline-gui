@@ -13,13 +13,18 @@ export default defineConfig(({ command }) => ({
         find: "~",
         replacement: fileURLToPath(new URL("./src", import.meta.url)),
       },
+      // plugins import their types and `definePlugin` from the SDK
+      {
+        find: "@reline/plugin-sdk",
+        replacement: fileURLToPath(new URL("./sdk/index.ts", import.meta.url)),
+      },
     ],
   },
-  // generates the entries around src/App.tsx, wrapped in src/Document.tsx
-  // (or a built-in shell). `vite build` prerenders the shell into
-  // dist/client/index.html and emits a purely static dist/client.
+  // generates the entries around src/App.tsx, wrapped in src/Document.tsx.
+  // `vite build` prerenders the shell into dist/client/index.html and emits a
+  // purely static dist/client.
   plugins: [
-    solid({ start: true, extensions: [".jsx", ".tsx"], diagnostics: true }), // add `ssr: true` for streaming SSR
+    solid({ start: true, extensions: [".jsx", ".tsx"], diagnostics: true }),
   ],
   server: {
     port: 3000,
@@ -28,8 +33,8 @@ export default defineConfig(({ command }) => ({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./vitest-setup.ts"],
-    // if you have few tests, try commenting this
-    // out to improve performance:
+    // test files share one module graph: much faster, and the suites that need
+    // a clean slate reset modules themselves (`vi.resetModules`)
     isolate: false,
   },
   build: {

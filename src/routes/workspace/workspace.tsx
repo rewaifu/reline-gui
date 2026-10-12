@@ -11,20 +11,15 @@ import { MIN_RIGHT_WIDTH, MIN_SIDE_WIDTH } from "~/constants";
 import { NodesList } from "~/components/nodes-list/nodes-list";
 import { NodeStack } from "~/components/node-card/node-card";
 import { ConfigPanel } from "~/components/config-panel/config-panel";
-import { createMediaQuery } from "~/instructions/hooks/use-media-query";
+import { StackToolbar } from "~/components/stack-toolbar/stack-toolbar";
+import { createMediaQuery } from "~/hooks/use-media-query";
 import {
   COLUMN_KEYS,
   createColumnsLayout,
   type ColumnKey,
   type ResizableSide,
-} from "~/instructions/hooks/use-columns-layout";
-import {
-  LOCALE_NAMES,
-  locale,
-  setLocale,
-  t,
-  type MessageKey,
-} from "~/lib/i18n";
+} from "~/hooks/use-columns-layout";
+import { t, type MessageKey } from "~/lib/i18n";
 import styles from "./workspace.module.scss";
 
 // Keys, not text: the panel names are formatted where they render, so the
@@ -80,65 +75,54 @@ const Workspace: Component = () => {
   const shown = () => (phone() ? [phonePanel()] : columns());
   const hidden = (key: ColumnKey) =>
     phone() ? key !== phonePanel() : layout().hidden[key];
-  const sole = () => shown().length === 1;
-  /** Column that eats the remaining space: the stack, or the last one when it is hidden. */
-  const flexKey = () =>
-    phone() || hidden("middle") ? shown()[shown().length - 1]! : "middle";
-  /** The divider left of `key` resizes the stack's neighbour — right column, or left when the stack is hidden. */
+  /** Column that eats the remaining space: always the stack on a desktop (it is
+   * never hidden), the single visible panel on a phone. */
+  const flexKey = (): ColumnKey => (phone() ? phonePanel() : "middle");
+  /** The divider left of `key` resizes the stack's neighbour: the settings
+   * column's divider moves the right panel, the stack's moves the left one. */
   const neighbourOf = (key: ColumnKey): ColumnKey =>
-    key === "right" && !hidden("middle") ? "middle" : "left";
+    key === "right" ? "middle" : "left";
   const sideOf = (key: ColumnKey): ResizableSide =>
     neighbourOf(key) === "middle" ? "right" : "left";
   /** Columns are kept mounted (only hidden) — unmounting Kobalte tabs halts Solid's reactive graph. */
   const splitterActive = (key: ColumnKey) =>
     !phone() && !hidden(key) && shown().indexOf(key) > 0;
 
-  /** What a click on the switcher switches to. One button instead of a pair:
-   * the bar has to fit a 320px screen, and the label always names the language
-   * the click gets you (the full name is in the tooltip). */
-  const otherLocale = () => (locale() === "ru" ? "en" : "ru");
+  /** The splitter's line points at the pointer: its height within the gap. */
+  const followPointer = (e: PointerEvent & { currentTarget: HTMLElement }) => {
+    const gap = e.currentTarget;
+    gap.style.setProperty(
+      "--handle-y",
+      `${e.clientY - gap.getBoundingClientRect().top}px`,
+    );
+  };
 
   return (
     <div class={styles.workspace}>
-      <header class={styles.topbar}>
-        <span class={styles.logo}>Reline</span>
-        <button
-          type="button"
-          class={[styles.toggle, styles.localeToggle]}
-          // the label is the language the click switches TO, its full name
-          // lives in the tooltip: the bar has to fit a 320px screen
-          title={LOCALE_NAMES[otherLocale()]}
-          aria-label={t("app.switchLanguage", {
-            language: LOCALE_NAMES[otherLocale()],
-          })}
-          onClick={() => setLocale(otherLocale())}
-        >
-          {otherLocale().toUpperCase()}
-        </button>
+      {/* A phone has no room for a toolbar of panel toggles: one panel at a
+          time, switched from a bar pinned to the bottom edge. Everywhere else
+          the toggles live in the stack's own toolbar and nothing spans the
+          window above the columns. */}
+      <Show when={phone()}>
         <div
           class={styles.viewToggles}
           role="group"
           aria-label={t("chrome.panels")}
         >
-          <For each={phone() ? PHONE_COLUMN_KEYS : COLUMN_KEYS}>
+          <For each={PHONE_COLUMN_KEYS}>
             {(key) => (
               <button
                 type="button"
                 class={styles.toggle}
                 aria-pressed={!hidden(key) ? "true" : "false"}
-                // on a phone the group is a switcher: one panel is always
-                // active, so nothing may look disabled
-                disabled={!phone() && !hidden(key) && sole()}
-                onClick={() =>
-                  phone() ? setPhonePanel(key) : toggleHidden(key)
-                }
+                onClick={() => setPhonePanel(key)}
               >
                 {t(COLUMN_LABEL_KEYS[key])}
               </button>
             )}
           </For>
         </div>
-      </header>
+      </Show>
 
       <div class={[styles.columns, resizing() && styles.resizing]}>
         <For each={COLUMN_KEYS}>
@@ -157,7 +141,16 @@ const Workspace: Component = () => {
                   })}
                   tabindex="0"
                   onPointerDown={(e) => startResize(sideOf(key), e)}
-                  onPointerMove={moveResize}
+                  onPointerMove={(e) => {
+                    followPointer(e);
+                    moveResize(e);
+                  }}
+                  onPointerLeave={(e) => {
+                    // a drag keeps the pointer captured, so this only fires for a
+                    // plain hover: the line goes back to the middle
+                    if (e.buttons === 0)
+                      e.currentTarget.style.removeProperty("--handle-y");
+                  }}
                   onPointerUp={endResize}
                   onLostPointerCapture={endResize}
                   onDblClick={() => resetWidth(sideOf(key))}
@@ -194,6 +187,14 @@ const Workspace: Component = () => {
                     />
                   </Match>
                   <Match when={key === "middle"}>
+                    <StackToolbar
+                      phone={phone()}
+                      leftOpen={!layout().hidden.left}
+                      rightOpen={!layout().hidden.right}
+                      onToggleLeft={() => toggleHidden("left")}
+                      onToggleRight={() => toggleHidden("right")}
+                      onSelect={setSelectedUid}
+                    />
                     <NodeStack
                       selectedUid={selectedUid}
                       isSelected={isSelected}

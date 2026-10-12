@@ -26,6 +26,12 @@ export interface UiSelectProps {
   class?: string;
   /** Pale, non-interactive trigger (the switch next to it owns the row). */
   disabled?: boolean;
+  /** `icon`: a square burger button instead of a field showing the value — for
+   * "more…" lists whose items are not a setting. Needs `ariaLabel`. */
+  variant?: "field" | "icon";
+  /** Text shown (and typed-ahead) for an item, when it is not the item itself:
+   * the items stay the wire values. */
+  itemLabel?: (item: string) => string;
 }
 
 /** Single-value dropdown over the raw wire strings. Focus stays on the
@@ -42,7 +48,10 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
     "id",
     "class",
     "disabled",
+    "variant",
+    "itemLabel",
   );
+  const label = (item: string) => props.itemLabel?.(item) ?? item;
   const [open, setOpen] = createSignal(false);
   const [highlight, setHighlight] = createSignal(-1);
   const listId = `${createUniqueId()}-listbox`;
@@ -58,7 +67,7 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
     open,
     () => triggerEl,
     () => contentEl,
-    () => "bottom-start",
+    () => (props.variant === "icon" ? "bottom-end" : "bottom-start"),
   );
 
   const scrollHighlight = () => {
@@ -109,7 +118,7 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
       typeBuf = "";
     }, 500);
     const at = props.items.findIndex((item) =>
-      item.toLowerCase().startsWith(typeBuf),
+      label(item).toLowerCase().startsWith(typeBuf),
     );
     if (at >= 0) {
       setHighlight(at);
@@ -168,7 +177,10 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
         ref={triggerEl}
         type="button"
         id={props.id}
-        class={[styles.trigger, props.class]}
+        class={[
+          props.variant === "icon" ? styles.iconTrigger : styles.trigger,
+          props.class,
+        ]}
         disabled={props.disabled}
         aria-label={props.ariaLabel}
         aria-haspopup="listbox"
@@ -180,15 +192,22 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
         onClick={onTriggerClick}
         onKeyDown={onTriggerKeyDown}
       >
-        <span
-          class={styles.value}
-          data-placeholder-shown={props.value == null ? "" : undefined}
+        <Show
+          when={props.variant !== "icon"}
+          fallback={<Icon name="menu-2" size={16} />}
         >
-          {props.value ?? props.placeholder ?? t("ui.select")}
-        </span>
-        <span class={styles.icon} aria-hidden="true">
-          <Icon name="chevron-down" size={14} />
-        </span>
+          <span
+            class={styles.value}
+            data-placeholder-shown={props.value == null ? "" : undefined}
+          >
+            {props.value == null
+              ? (props.placeholder ?? t("ui.select"))
+              : label(props.value)}
+          </span>
+          <span class={styles.icon} aria-hidden="true">
+            <Icon name="chevron-down" size={14} />
+          </span>
+        </Show>
       </button>
       <Show when={open()}>
         <Portal>
@@ -217,7 +236,7 @@ export const UiSelect: Component<UiSelectProps> = (props) => {
                     onPointerMove={() => setHighlight(index())}
                     onPointerDown={(e) => e.preventDefault()}
                   >
-                    {item}
+                    {label(item)}
                   </li>
                 )}
               </For>

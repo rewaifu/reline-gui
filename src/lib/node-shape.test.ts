@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_NODE_OPTIONS } from "~/constants";
+import { defaultOptions } from "~/lib/nodes";
 import { sanitizeNode, sanitizeNodes } from "./node-shape";
 
 /** Nodes come from localStorage, pasted configs and presets, and the store is
@@ -23,8 +23,30 @@ describe("sanitizeNode", () => {
     }
   });
 
-  it("drops a type this build does not have", () => {
-    expect(sanitizeNode({ type: "teleporter" })).toBeUndefined();
+  it("keeps a type this build does not have as an orphan, options verbatim", () => {
+    // a plugin that is switched off must not take its nodes with it
+    const options = { radius: 4, nested: { keep: [1, 2] } };
+    const node = sanitizeNode({ type: "acme.teleporter", uid: "t", options });
+    expect(node).toMatchObject({ type: "acme.teleporter", uid: "t" });
+    expect(node?.options).toEqual(options);
+    expect(sanitizeNode({ type: "acme.teleporter" })?.options).toEqual({});
+    expect(
+      sanitizeNode({ type: "acme.teleporter", options: [1] })?.options,
+    ).toEqual({});
+  });
+
+  it("resets a field the schema rejects to its default and keeps the rest", () => {
+    // used to pass the door and then throw in the serialiser, inside a memo
+    const node = sanitizeNode({
+      type: "upscale",
+      options: { exact_tiler_size: "abc", dtype: "nope", model: "mine" },
+    });
+    const defaults = defaultOptions("upscale")!;
+    expect(node?.options).toMatchObject({
+      exact_tiler_size: defaults.exact_tiler_size,
+      dtype: defaults.dtype,
+      model: "mine",
+    });
   });
 
   it("fills options a payload leaves out or nulls out", () => {
@@ -32,7 +54,7 @@ describe("sanitizeNode", () => {
     // its form (`options().halftone_mode`)
     for (const options of [undefined, null, "nope", 3]) {
       const node = sanitizeNode({ type: "screentone", options });
-      expect(node?.options).toEqual(DEFAULT_NODE_OPTIONS.screentone);
+      expect(node?.options).toEqual(defaultOptions("screentone"));
     }
   });
 
@@ -44,7 +66,7 @@ describe("sanitizeNode", () => {
     expect(node?.options).toMatchObject({ gamma: 2, future_flag: true });
     // the keys the form reads are all there, from the constants — except the
     // one the payload overrode
-    const { gamma: _gamma, ...fromDefaults } = DEFAULT_NODE_OPTIONS.level;
+    const { gamma: _gamma, ...fromDefaults } = defaultOptions("level")!;
     expect(node?.options).toMatchObject(fromDefaults);
   });
 
@@ -72,6 +94,59 @@ describe("sanitizeNode", () => {
     });
     // collapsed defaults to collapsed, like a node added by hand
     expect(sanitizeNode({ type: "resize" })?.collapsed).toBe(true);
+  });
+});
+describe("sanitizeNode old writer flags", () => {
+  it("fills clean_before and a partial psd block so old flags toggle", () => {
+    const node = sanitizeNode({
+      type: "folder_writer",
+      options: {
+        path: "/o",
+        format: "png",
+        postprocess: { psd: { enabled: true } },
+      },
+    });
+    expect(node?.options).toMatchObject({
+      clean_before: false,
+      postprocess: {
+        psd: {
+          source_path: "",
+          fit: "original",
+          enabled: true,
+          delete_originals: false,
+        },
+      },
+    });
+  });
+
+  it("leaves a full psd block alone", () => {
+    const node = sanitizeNode({
+      type: "folder_writer",
+      options: {
+        path: "/o",
+        format: "png",
+        clean_before: true,
+        postprocess: {
+          psd: {
+            source_path: "/s",
+            fit: "cover",
+            enabled: true,
+            delete_originals: true,
+          },
+        },
+      },
+    });
+    expect(node?.options).toMatchObject({
+      clean_before: true,
+      postprocess: {
+        psd: {
+          source_path: "/s",
+          fit: "cover",
+          enabled: true,
+          delete_originals: true,
+        },
+      },
+    });
   });
 });
 
@@ -140,11 +215,13 @@ describe("sanitizeNodes", () => {
       { type: "nope", uid: "c" },
       { type: "sharp", uid: "d" },
     ]);
-    expect(nodes.map((node) => node.uid)).toEqual(["a", "b", "b", "d"]);
+    // an unknown type is kept (orphan); only what cannot be a node is dropped
+    expect(nodes.map((node) => node.uid)).toEqual(["a", "b", "b", "c", "d"]);
     expect(nodes.map((node) => node.type)).toEqual([
       "level",
       "resize",
       "resize",
+      "nope",
       "sharp",
     ]);
   });

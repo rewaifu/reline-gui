@@ -11,6 +11,7 @@ import {
 } from "./shared";
 import type { ScreentoneNodeOptions } from "~/types/options";
 import { t } from "~/lib/i18n";
+import { storage } from "~/lib/storage";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -41,11 +42,10 @@ type Stash = Partial<
 >;
 
 const readStash = (): Stash => {
-  try {
-    return JSON.parse(localStorage.getItem(STASH_KEY) ?? "{}") as Stash;
-  } catch {
-    return {};
-  }
+  const stored = storage.getJson(STASH_KEY);
+  return typeof stored === "object" && stored !== null && !Array.isArray(stored)
+    ? (stored as Stash)
+    : {};
 };
 
 const lastNum = (value: unknown, dflt: number): number =>
@@ -81,7 +81,7 @@ export const ScreentoneForm: Component<FormProps> = (props) => {
       angle: options().angle,
       dot_type: options().dot_type,
     };
-    localStorage.setItem(STASH_KEY, JSON.stringify(stash));
+    storage.setJson(STASH_KEY, stash);
 
     const from = stash[next] ?? {};
     const count = CHANNELS[next].length;

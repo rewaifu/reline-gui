@@ -8,6 +8,11 @@ export const ru = {
       code: "Код",
       presets: "Пресеты",
       run: "Запуск",
+      settings: "Настройки",
+      plugins: "Плагины",
+    },
+    settings: {
+      language: "Язык интерфейса",
     },
     instructions: {
       empty:
@@ -15,6 +20,8 @@ export const ru = {
     },
     code: {
       json: "Конфиг JSON",
+      issues:
+        "Ноды не собрались и выгружены как есть, запуск с ними отключён — {nodes}",
       apply: "Применить правку",
       cancel: "Отменить правку",
       edit: "Править код",
@@ -78,6 +85,11 @@ export const en: typeof ru = {
       code: "Code",
       presets: "Presets",
       run: "Run",
+      settings: "Settings",
+      plugins: "Plugins",
+    },
+    settings: {
+      language: "Interface language",
     },
     instructions: {
       empty:
@@ -85,6 +97,8 @@ export const en: typeof ru = {
     },
     code: {
       json: "Config JSON",
+      issues:
+        "These nodes could not be built and are exported as they are; running with them is blocked — {nodes}",
       apply: "Apply edit",
       cancel: "Discard edit",
       edit: "Edit code",

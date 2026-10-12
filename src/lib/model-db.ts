@@ -1,11 +1,17 @@
+import * as v from "valibot";
+import { storage } from "~/lib/storage";
+
 /** Remote model database (mdb.yor.ovh): the non-own-model picker completes
  * against these entries; the download link goes into the Download
- * preprocessor, the upscale keeps only the bare name. */
-const ENDPOINT = "https://cdn.animeai.ovh/wtp_forover/files.json";
+ * preprocessor, the upscale keeps only the bare name. The endpoint lists the
+ * files of the model bucket; only `name` and `url` of each are used. */
+const MODELS_ENDPOINT = "https://mdb.yor.ovh/v1/files";
 
 /** The list changes slowly: a warm copy in localStorage lets a reload
  * complete model names without touching the network at all. */
-const CACHE_KEY = "reline-web:mdb";
+// v2: the list moved to another endpoint with other download links — a copy
+// of the old one must not be served for the next six hours
+const CACHE_KEY = "reline-web:mdb:v2";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export interface MdbModel {
@@ -13,10 +19,10 @@ export interface MdbModel {
   url: string;
 }
 
-interface ModelFile {
-  name: string;
-  url: string;
-}
+const ModelFilesSchema = v.array(
+  v.object({ name: v.string(), url: v.pipe(v.string(), v.url()) }),
+);
+type ModelFile = v.InferOutput<typeof ModelFilesSchema>[number];
 
 interface MdbCache {
   at: number;
@@ -35,42 +41,38 @@ const normalize = (files: readonly ModelFile[]): MdbModel[] =>
     .sort((a, b) => a.name.localeCompare(b.name));
 
 const readCache = (): MdbCache | undefined => {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (raw === null) return undefined;
-    const parsed = JSON.parse(raw) as MdbCache;
-    if (!Array.isArray(parsed.models) || typeof parsed.at !== "number") {
-      return undefined;
-    }
-    return parsed;
-  } catch {
-    // unreadable or invalid cache — fall back to the network
+  // unreadable or invalid cache — fall back to the network
+  const parsed = storage.getJson(CACHE_KEY) as Partial<MdbCache> | undefined;
+  if (
+    parsed === undefined ||
+    parsed === null ||
+    !Array.isArray(parsed.models) ||
+    typeof parsed.at !== "number"
+  )
     return undefined;
-  }
+  return parsed as MdbCache;
 };
 
 const writeCache = (all: MdbModel[]): void => {
-  try {
-    localStorage.setItem(
-      CACHE_KEY,
-      JSON.stringify({ at: Date.now(), models: all } satisfies MdbCache),
-    );
-  } catch {
-    // quota or storage disabled — the in-memory index still works
-  }
+  // quota or storage disabled — the in-memory index still works
+  storage.setJson(CACHE_KEY, {
+    at: Date.now(),
+    models: all,
+  } satisfies MdbCache);
 };
 
 /** The whole database is fetched once per session and kept in memory: the
  * completion list used to refetch it on the first interaction, which showed
  * up as a lag exactly when a model was being picked. */
 const fetchModels = (): Promise<MdbModel[]> => {
-  inflight ??= fetch(ENDPOINT)
+  inflight ??= fetch(MODELS_ENDPOINT)
     .then((r) => {
       if (!r.ok) throw new Error(`mdb: ${r.status}`);
-      return r.json() as Promise<ModelFile[]>;
+      return r.json() as Promise<unknown>;
     })
-    .then((files) => {
-      const all = normalize(files);
+    .then((json) => {
+      // a changed or broken payload is an error, not an empty list
+      const all = normalize(v.parse(ModelFilesSchema, json));
       models = all;
       writeCache(all);
       return all;

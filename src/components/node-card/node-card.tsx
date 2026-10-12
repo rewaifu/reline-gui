@@ -7,27 +7,27 @@ import {
   useContext,
 } from "solid-js";
 import type { Store } from "solid-js";
-import { NodesContext, NodesDispatchContext } from "~/context/contexts";
+import {
+  AnalysisContext,
+  NodesContext,
+  NodesDispatchContext,
+} from "~/context/contexts";
 import { NodesActionType } from "~/types/actions";
 import type { StackNode } from "~/types/node";
-import {
-  createDragReorder,
-  type DragHandlers,
-} from "~/instructions/hooks/use-drag-reorder";
-import { flipReorder } from "~/instructions/hooks/use-flip-reorder";
-import {
-  useAddNode,
-  useToggleEnabled,
-} from "~/instructions/hooks/use-node-actions";
-import { nodeLabel } from "~/components/nodes/registry";
+import { createDragReorder, type DragHandlers } from "~/hooks/use-drag-reorder";
+import { flipReorder } from "~/hooks/use-flip-reorder";
+import { useToggleEnabled } from "~/hooks/use-node-actions";
+import { nodeLabel } from "~/lib/nodes";
 import { NodeOptionsForm } from "~/components/nodes/node-options-form";
+import { Slot } from "~/components/slot/slot";
+import { overridable } from "~/components/slot/overridable";
 import { NodeSwap } from "~/components/node-swap/node-swap";
-import { AddNodeMenu } from "~/components/nodes-list/add-node-menu";
+import { DiagnosticList } from "~/components/diagnostics/diagnostic-list";
 import { Icon, UiSwitch } from "~/components/ui";
 import { t } from "~/lib/i18n";
 import styles from "./node-card.module.scss";
 
-interface NodeCardProps {
+export interface NodeCardProps {
   /** The row's node object, handed straight down from <For> — no re-find by id. */
   node: StackNode;
   /** Position in the stack — drag state is index-based. */
@@ -42,9 +42,12 @@ interface NodeCardProps {
   phone: boolean;
 }
 
-const NodeCard: Component<NodeCardProps> = (props) => {
+const NodeBody = overridable("NodeBody", NodeOptionsForm);
+
+const NodeCardImpl: Component<NodeCardProps> = (props) => {
   const dispatch = useContext(NodesDispatchContext);
   const toggleEnabled = useToggleEnabled();
+  const analysis = useContext(AnalysisContext);
   const [editing, setEditing] = createSignal(false);
   const [draft, setDraft] = createSignal("");
   let renameInput: HTMLInputElement | undefined;
@@ -60,6 +63,14 @@ const NodeCard: Component<NodeCardProps> = (props) => {
   );
 
   const node = () => props.node;
+  const findings = () => analysis().byUid.get(node().uid) ?? [];
+  // the worst finding tints the card edge, so a folded card still says so
+  const worst = () =>
+    findings().some((d) => d.severity === "error")
+      ? "error"
+      : findings().length > 0
+        ? "warn"
+        : undefined;
 
   const change = (patch: Partial<StackNode>) => {
     dispatch({
@@ -90,6 +101,7 @@ const NodeCard: Component<NodeCardProps> = (props) => {
       <section
         data-node-id={node().uid}
         data-flip-key={node().uid}
+        data-diagnostics={worst()}
         class={{
           [styles.card]: true,
           [styles.selected]: props.selected,
@@ -129,6 +141,22 @@ const NodeCard: Component<NodeCardProps> = (props) => {
           >
             <Icon name="drag-drop" size={18} />
           </span>
+          {/* The enable switch lives on the card on every width: the node list
+              that used to carry it is closed by default, and on a phone it
+              does not exist at all. */}
+          <span
+            class={styles.enable}
+            onClick={(e) => e.stopPropagation()}
+            onDblClick={(e) => e.stopPropagation()}
+          >
+            <UiSwitch
+              checked={node().enabled !== false}
+              onChange={(enabled) => toggleEnabled(node(), enabled)}
+              ariaLabel={t("chrome.enable", {
+                name: node().name ?? nodeLabel(node().type),
+              })}
+            />
+          </span>
           <button
             type="button"
             class={styles.iconBtn}
@@ -141,38 +169,6 @@ const NodeCard: Component<NodeCardProps> = (props) => {
           >
             <Icon name="pencil" size={13} />
           </button>
-          <NodeSwap node={node()} />
-          <Show when={!props.phone}>
-            <button
-              type="button"
-              class={styles.iconBtn}
-              aria-label={t("chrome.remove")}
-              title={t("chrome.remove")}
-              onClick={(e) => {
-                e.stopPropagation();
-                dispatch({ type: NodesActionType.DELETE, payload: node().uid });
-              }}
-            >
-              <Icon name="trash" size={13} />
-            </button>
-          </Show>
-          <Show when={props.phone}>
-            {/* The node list carries this switch on wider screens; on a phone
-                it is the only way to take a node out of the run. */}
-            <span
-              class={styles.enable}
-              onClick={(e) => e.stopPropagation()}
-              onDblClick={(e) => e.stopPropagation()}
-            >
-              <UiSwitch
-                checked={node().enabled !== false}
-                onChange={(enabled) => toggleEnabled(node(), enabled)}
-                ariaLabel={t("chrome.enable", {
-                  name: node().name ?? nodeLabel(node().type),
-                })}
-              />
-            </span>
-          </Show>
           <Show
             when={!editing()}
             fallback={
@@ -203,6 +199,22 @@ const NodeCard: Component<NodeCardProps> = (props) => {
                 <span class={styles.typeHint}>{nodeLabel(node().type)}</span>
               </Show>
             </span>
+          </Show>
+          <Slot name="node.card.header" context={{ node: node() }} />
+          <NodeSwap node={node()} />
+          <Show when={!props.phone}>
+            <button
+              type="button"
+              class={styles.iconBtn}
+              aria-label={t("chrome.remove")}
+              title={t("chrome.remove")}
+              onClick={(e) => {
+                e.stopPropagation();
+                dispatch({ type: NodesActionType.DELETE, payload: node().uid });
+              }}
+            >
+              <Icon name="trash" size={13} />
+            </button>
           </Show>
           <button
             type="button"
@@ -246,25 +258,27 @@ const NodeCard: Component<NodeCardProps> = (props) => {
               </button>
             </div>
           </Show>
-          <NodeOptionsForm node={node()} />
+          <DiagnosticList items={findings()} class={styles.findings} />
+          <NodeBody node={node()} />
+          <Slot name="node.card.footer" context={{ node: node() }} />
         </Show>
       </section>
     </>
   );
 };
 
+const NodeCardView = overridable("NodeCard", NodeCardImpl);
+
 export interface NodeCardsProps {
   selectedUid: () => string | null;
   isSelected: Store<Record<string, boolean>>;
   onSelect: (uid: string) => void;
-  /** Phone: the node list is hidden — the stack adds nodes itself. */
+  /** Phone: there is no node list, so the card carries what the list did. */
   phone: boolean;
 }
 export const NodeStack: Component<NodeCardsProps> = (props) => {
   const nodes = useContext(NodesContext);
   const dispatch = useContext(NodesDispatchContext);
-  // the arrow defers the props read to selection time (not a reactive scope)
-  const addNode = useAddNode((uid) => props.onSelect(uid));
   let stack: HTMLDivElement | undefined;
   const { dragIndex, dropIndex, handlers } = createDragReorder(
     () => stack,
@@ -305,7 +319,7 @@ export const NodeStack: Component<NodeCardsProps> = (props) => {
       <div class={styles.stack} ref={stack}>
         <For each={nodes}>
           {(node, index) => (
-            <NodeCard
+            <NodeCardView
               node={node}
               index={index()}
               selected={props.isSelected[node.uid] === true}
@@ -324,11 +338,7 @@ export const NodeStack: Component<NodeCardsProps> = (props) => {
           }}
         />
       </div>
-      {/* Pinned below the scroll area, not inside it: adding a node is the
-          most common action on a phone and must never need a scroll. */}
-      <Show when={props.phone}>
-        <AddNodeMenu onAdd={addNode} />
-      </Show>
+      <Slot name="stack.footer" />
     </>
   );
 };

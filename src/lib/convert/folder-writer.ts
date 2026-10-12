@@ -1,11 +1,7 @@
 import * as v from "valibot";
-import type {
-  ConvertToPureFunction,
-  ConvertToStackFunction,
-} from "~/lib/convert/index";
+import type { FromPure, ToPure } from "~/lib/nodes/types";
 import { folderWriterOptionsSchema } from "~/types/options";
-import { NodeType, PureNodeType } from "~/types/enums";
-import { DEFAULT_COLLAPSED } from "~/constants";
+import { PureNodeType } from "~/types/enums";
 
 // `clean_before: true` is a UI flag of the writer: it spawns one Cleandir
 // preprocessor for `path`. A switched-on PSD block spawns one `psd_postprocess`
@@ -13,13 +9,10 @@ import { DEFAULT_COLLAPSED } from "~/constants";
 // composes into `psd/` inside it). Neither flag is sent on the node itself;
 // ownership is recorded in `meta.parents` by uid (same as unarchive).
 
-export const convertFolderWriterToPure: ConvertToPureFunction = (
-  nodes,
-  index,
-  preprocess,
-  postprocess,
+export const convertFolderWriterToPure: ToPure = (
+  node,
+  { preprocess, postprocess },
 ) => {
-  const node = nodes[index];
   const stored = node.options as Record<string, unknown>;
   const {
     clean_before,
@@ -53,22 +46,14 @@ export const convertFolderWriterToPure: ConvertToPureFunction = (
       meta: node.uid ? { parents: [node.uid] } : undefined,
     });
   }
-  return [
-    [{ type: PureNodeType.FOLDER_WRITER, options: pureOptions }],
-    index + 1,
-  ];
+  return [{ type: PureNodeType.FOLDER_WRITER, options: pureOptions }];
 };
 
 // Import: the serialized writer carries neither UI flag — `clean_before` comes
 // from the preprocess section (a cleandir node for the same path), the PSD
 // block from the postprocess section (the entry whose `path` is this writer's
 // own output path; uids are reminted on every import, paths are stable).
-export const convertFolderWriterToStack: ConvertToStackFunction = (
-  nodes,
-  index,
-  ctx,
-) => {
-  const node = nodes[index];
+export const convertFolderWriterToStack: FromPure = (node, ctx) => {
   const parsed = v.parse(folderWriterOptionsSchema, {
     ...(node.options as Record<string, unknown>),
     clean_before: false,
@@ -77,7 +62,7 @@ export const convertFolderWriterToStack: ConvertToStackFunction = (
   const { postprocess: _dropped, ...rest } = parsed;
   void _dropped;
   const owned = ctx.postprocessByParent.get(parsed.path);
-  const options = {
+  return {
     ...rest,
     clean_before: ctx.cleanedPaths.has(parsed.path),
     ...(owned === undefined
@@ -93,14 +78,4 @@ export const convertFolderWriterToStack: ConvertToStackFunction = (
           },
         }),
   };
-  return [
-    [
-      {
-        type: NodeType.FOLDER_WRITER,
-        options,
-        collapsed: DEFAULT_COLLAPSED,
-      },
-    ],
-    index + 1,
-  ];
 };

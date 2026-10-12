@@ -1,12 +1,14 @@
-import { encode, decode } from "notepack.io";
 import { createSignal, type Accessor } from "solid-js";
 import { message, raw, type LocalText } from "~/lib/i18n";
+import { storage } from "~/lib/storage";
 import type { PureConfig } from "~/types/node";
+import { STOP_WATCHDOG_MS } from "~/lib/ws/protocol";
 import {
-  ECHO_INTERVAL_MS,
-  ECHO_TIMEOUT_MS,
-  STOP_WATCHDOG_MS,
-} from "./ws-protocol";
+  endpoint,
+  openConnection,
+  type Connection,
+  type Frame,
+} from "~/lib/ws";
 
 export type RunPhase =
   | "idle"
@@ -54,19 +56,6 @@ export interface RunMessage {
   text: LocalText;
 }
 
-interface Envelope {
-  m: string;
-  id?: number;
-  d?: Record<string, unknown>;
-}
-
-// Heartbeat constants come from ws-protocol.ts — one module so both
-// WebSocket clients cannot drift out of the echo contract.
-
-export const RUN_ENDPOINT_KEY = "reline-web:runEndpoint";
-export const RUN_ID_KEY = "reline-web:runId";
-export const DEFAULT_ENDPOINT = "ws://127.0.0.1:8000/run";
-
 /** Newest journal lines kept; older ones are dropped so a long session (or a
  * stream of errors) cannot grow the array without bound. */
 const MAX_MESSAGES = 50;
@@ -74,82 +63,27 @@ const MAX_MESSAGES = 50;
 /** `done.output` is a whole run log; the journal shows its head only. */
 const MAX_OUTPUT = 400;
 
-export const apiEndpointFromUrl = (): string | undefined => {
-  const q = new URLSearchParams(window.location.search).get("api")?.trim();
-  if (!q) return undefined;
-  return q.replace(/^http/, "ws");
-};
-
-/** ?api= wins, then the last value typed in the run tab, then the default. */
-export const resolveEndpoint = (): string =>
-  apiEndpointFromUrl() ??
-  localStorage.getItem(RUN_ENDPOINT_KEY) ??
-  DEFAULT_ENDPOINT;
-
-const initialEndpoint = (): string => {
-  if (typeof window === "undefined") return DEFAULT_ENDPOINT;
-  try {
-    return resolveEndpoint();
-  } catch {
-    return DEFAULT_ENDPOINT;
-  }
-};
-
-/** The address the runner is reached at, as one live setting.
-
- * The run tab edits it, `ls` dials it, and every keystroke is stored right
- * away. When the field only fed `start()` while `ls` kept dialling
- * `resolveEndpoint()` — and a value typed but never used in a run vanished on
- * the next tab switch — the app looked like it ignored the address entirely.
- */
-const [endpoint, setEndpointSignal] = createSignal(initialEndpoint());
-export { endpoint };
-export const setEndpoint = (value: string) => {
-  setEndpointSignal(value);
-  try {
-    localStorage.setItem(RUN_ENDPOINT_KEY, value);
-  } catch {
-    // private mode or a full quota: the field keeps the value in memory
-  }
-  dropApiParam();
-};
-
-/** Typing an address settles it.
-
- * `?api=` is a seed for a shared link, but one that keeps winning on every
- * reload would silently undo the field — so the first edit drops it from the
- * URL, and the stored value is the only thing left to read.
- */
-const dropApiParam = () => {
-  try {
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("api")) return;
-    url.searchParams.delete("api");
-    window.history.replaceState({}, "", url);
-  } catch {
-    // no history (or an opaque origin): the stored value is enough
-  }
-};
+export const RUN_ID_KEY = "reline-web:runId";
 
 /** The run we follow across reconnects and reloads: written on `accepted`,
  * refreshed by every snapshot (`status`/`attached`), cleared on `done`.
  * A tab that slept through the whole run still knows which `run_id` to ask
  * about instead of repeating `start` blindly. */
-const storedRunId = (): string | undefined => {
-  try {
-    return localStorage.getItem(RUN_ID_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
-};
+const storedRunId = (): string | undefined => storage.get(RUN_ID_KEY);
 const rememberRunId = (runId: string | undefined) => {
-  try {
-    if (runId === undefined) localStorage.removeItem(RUN_ID_KEY);
-    else localStorage.setItem(RUN_ID_KEY, runId);
-  } catch {
-    // storage unavailable: the id lives for this page load
-  }
+  // storage unavailable: the id lives for this page load
+  if (runId === undefined) storage.remove(RUN_ID_KEY);
+  else storage.set(RUN_ID_KEY, runId);
 };
+
+/** How a run ended. `ok` is a run that completed; a run the user stopped is
+ * `cancelled` and not `ok`. */
+export interface RunOutcome {
+  ok: boolean;
+  cancelled: boolean;
+  /** The journal line the end left behind. */
+  text: LocalText;
+}
 
 export interface RunClient {
   readonly phase: Accessor<RunPhase>;
@@ -157,11 +91,18 @@ export interface RunClient {
   readonly messages: Accessor<RunMessage[]>;
   /** The run we watch, if any — shown in the panel so a resume is expected. */
   readonly runId: Accessor<string | undefined>;
-  start(url: string, pipeline: PureConfig): void;
+  /** Begin a run. `false` when one is already going or there is no address. */
+  start(url: string, pipeline: PureConfig): boolean;
   stop(): void;
   /** Ask the server what our run is doing and re-attach when it is alive. */
   recover(url?: string, id?: string): void;
   clearMessages(): void;
+  /** Told when a run ends, however it ends (done, failed, stopped, given up on).
+   * What a sequence of runs waits for. */
+  onFinish(listener: (outcome: RunOutcome) => void): () => void;
+  /** Put a line in the journal without a run behind it — a run that could not
+   * even start still has to leave a reason where the user looks. */
+  report(kind: RunMessage["kind"], text: LocalText): void;
 }
 
 /** Render an unknown server payload (MessagePack `error`/`message`) for a
@@ -226,8 +167,11 @@ const readProgress = (d: Record<string, unknown>): RunProgress => {
 /** The journal line for a `done` payload. Cancellation is tested first: a run
  * stopped by the user reports `ok: false, cancelled: true` (WS_API.md), and
  * "stopped" is not an error. */
-const doneMessage = (d: Record<string, unknown>): Omit<RunMessage, "at"> => {
-  if (d.cancelled === true) return { kind: "ok", text: "run.stopped" };
+const doneMessage = (
+  d: Record<string, unknown>,
+): Omit<RunMessage, "at"> & { cancelled?: boolean } => {
+  if (d.cancelled === true)
+    return { kind: "ok", text: "run.stopped", cancelled: true };
   if (d.ok === true) {
     const output = readText(d.output);
     return {
@@ -252,12 +196,9 @@ const RECONNECT_ATTEMPTS = 4;
 const RECONNECT_BASE_MS = 1000;
 
 export const createRunClient = (): RunClient => {
-  let ws: WebSocket | undefined;
-  let echoTimer: number | undefined;
+  let conn: Connection | undefined;
   let stopWatchdog: number | undefined;
   let retryTimer: number | undefined;
-  let lastEcho = 0;
-  let nextId = 1;
   /** Bumped by every dial and every `finish`: callbacks of a socket (or a
    * retry) that we have moved on from compare their own ticket and go quiet. */
   let ticket = 0;
@@ -271,6 +212,7 @@ export const createRunClient = (): RunClient => {
   const [phase, setPhase] = createSignal<RunPhase>("idle");
   const [progress, setProgress] = createSignal<RunProgress>();
   const [messages, setMessages] = createSignal<RunMessage[]>([]);
+  const finishListeners = new Set<(outcome: RunOutcome) => void>();
   /** The run we watch. Survives a dropped socket; cleared when the run ends. */
   const [runId, setRunId] = createSignal<string | undefined>(
     typeof window === "undefined" ? undefined : storedRunId(),
@@ -292,30 +234,21 @@ export const createRunClient = (): RunClient => {
   };
 
   const closeSocket = () => {
-    window.clearInterval(echoTimer);
-    if (ws !== undefined) {
-      ws.onclose = ws.onerror = ws.onmessage = ws.onopen = null;
-      ws.close();
-      ws = undefined;
-    }
+    conn?.close();
+    conn = undefined;
   };
 
   const send = (m: string, d: Record<string, unknown> = {}) => {
-    if (ws?.readyState !== WebSocket.OPEN) return;
-    try {
-      ws.send(encode({ m, id: nextId, d } as Envelope));
-    } catch {
-      // the socket closed between the state check and the write: the close
-      // handler is already on its way, and a throw here would escape into
-      // whoever asked (a timer, an event handler) for no gain
-      return;
-    }
-    nextId += 1;
+    conn?.send(m, d);
   };
 
   /** End the run: drop the socket, the watchdog and any pending retry, and
    * leave one journal line that outlives the busy phase. */
-  const finish = (kind: RunMessage["kind"], text: LocalText) => {
+  const finish = (
+    kind: RunMessage["kind"],
+    text: LocalText,
+    cancelled = false,
+  ) => {
     // a retry in flight (or a socket callback on its way) must not resurrect
     // the run we are closing here
     ticket += 1;
@@ -327,6 +260,18 @@ export const createRunClient = (): RunClient => {
     setPhase("idle");
     rememberRun(undefined);
     log(kind, text);
+    const outcome: RunOutcome = {
+      ok: kind === "ok" && !cancelled,
+      cancelled,
+      text,
+    };
+    for (const listener of finishListeners) {
+      try {
+        listener(outcome);
+      } catch {
+        // a listener's bug must not undo the end of the run
+      }
+    }
   };
 
   /** A snapshot (`status` / `attached`) places the bar at once: the progress
@@ -349,7 +294,7 @@ export const createRunClient = (): RunClient => {
         error: result.error,
         output: result.output,
       } as Record<string, unknown>);
-      finish(line.kind, line.text);
+      finish(line.kind, line.text, line.cancelled);
       return true;
     }
     return true;
@@ -386,22 +331,6 @@ export const createRunClient = (): RunClient => {
     );
   };
 
-  const startEcho = () => {
-    lastEcho = Date.now();
-    window.clearInterval(echoTimer);
-    echoTimer = window.setInterval(() => {
-      if (Date.now() - lastEcho > ECHO_TIMEOUT_MS) {
-        // A silent socket is not necessarily a dead run: drop it and let the
-        // reconnect path dial again instead of ending the run here.
-        window.clearInterval(echoTimer);
-        closeSocket();
-        reconnect("run.echoLost");
-        return;
-      }
-      send("echo", { t: Date.now() });
-    }, ECHO_INTERVAL_MS);
-  };
-
   /** What the fresh socket asks for once it opens: a new run starts it, a
    * known run checks its status first (the server may have finished it while
    * we were away — then there is nothing to attach to). */
@@ -412,6 +341,93 @@ export const createRunClient = (): RunClient => {
     }
     const id = runId();
     send("status", id === undefined ? {} : { run_id: id });
+  };
+
+  /** One frame from the runner (heartbeats never get this far: the connection
+   * answers them itself). */
+  const handleFrame = (msg: Frame) => {
+    const d = (msg.d ?? {}) as Record<string, unknown>;
+    switch (msg.m) {
+      case "accepted": {
+        const id = readText(d.run_id);
+        rememberRun(id);
+        runPipeline = undefined;
+        setPhase("running");
+        log("info", "run.accepted");
+        break;
+      }
+      case "status": {
+        const named = readText(d.run_id);
+        if (named !== undefined) rememberRun(named);
+        const status = readText(d.status);
+        if (status === "idle") {
+          finish("info", "run.nothingToRecover");
+          return;
+        }
+        if (
+          status === "done" ||
+          status === "failed" ||
+          status === "cancelled"
+        ) {
+          // the run finished while we were away: the snapshot already
+          // carried its outcome, there is nothing to attach to
+          applySnapshot(d);
+          return;
+        }
+        applySnapshot(d);
+        const id = runId();
+        log("info", "run.recovered");
+        setPhase("running");
+        send("attach", id === undefined ? {} : { run_id: id });
+        break;
+      }
+      case "attached": {
+        const named = readText(d.run_id);
+        if (named !== undefined) rememberRun(named);
+        applySnapshot(d);
+        runPipeline = undefined;
+        log("info", "run.reattached");
+        setPhase("running");
+        break;
+      }
+      case "progress":
+        if (readText(d.run_id) !== undefined && runId() === undefined)
+          rememberRun(readText(d.run_id));
+        setProgress(readProgress(d));
+        break;
+      case "done": {
+        const line = doneMessage(d);
+        finish(line.kind, line.text, line.cancelled);
+        break;
+      }
+      case "error": {
+        const detail = describePayload(d.message);
+        // `worker busy` after our own drop carries the run we lost: adopt
+        // it and attach instead of arguing with the gate.
+        if (
+          typeof d.message === "string" &&
+          d.message.includes("worker busy") &&
+          typeof d.run_id === "string" &&
+          d.run_id.length > 0 &&
+          runId() === undefined
+        ) {
+          rememberRun(d.run_id as string);
+          runPipeline = undefined;
+          setPhase("recovering");
+          send("attach", { run_id: d.run_id });
+          log("info", "run.recovered");
+          return;
+        }
+        const text = message("run.serverError", { detail });
+        // `fatal` means the server drops the connection right after sending
+        // (WS_API.md): end the run here, with the reason as its last line,
+        // instead of leaving the buttons busy until onclose arrives. A
+        // non-fatal error is part of a live run — the failed `done` follows.
+        if (d.fatal === true) finish("error", text);
+        else log("error", text);
+        break;
+      }
+    }
   };
 
   /** One dial: open the socket, say hello on `onopen`, recover on `onclose`.
@@ -425,9 +441,47 @@ export const createRunClient = (): RunClient => {
     // writes is the deployment's business (`--root` / `--models`, WS_API.md).
     watchMode = runPipeline !== undefined ? "start" : "recover";
 
-    let socket: WebSocket;
+    // The dial itself is a busy state, not idle: an address that never answers
+    // (typo, wrong port, runner down) used to leave the panel looking idle
+    // until the socket opened, so a second click would start a second run and
+    // the buttons lied about what was happening.
+    if (phase() === "idle")
+      setPhase(watchMode === "start" ? "connecting" : "recovering");
+
+    // every callback checks its own ticket: a socket (or a retry) we have moved
+    // on from must go quiet
+    const current = (): boolean => conn === dialled && ticket === mine;
+    let dialled: Connection;
     try {
-      socket = new WebSocket(runUrl);
+      dialled = openConnection(runUrl, {
+        open: () => {
+          if (!current()) return;
+          if (attempt > 0) log("info", "run.reconnected");
+          attempt = 0;
+          if (watchMode === "recover") setPhase("recovering");
+          else setPhase("running");
+          hello();
+        },
+        closed: (reason) => {
+          if (!current()) return;
+          conn = undefined;
+          // No idle check here: a run that is over already went through
+          // `finish`, which bumped the ticket and cleared `runId`/`runPipeline`
+          // — both checked inside `reconnect()`. Testing the phase instead made
+          // the most common failure silent: a socket that dies *before* it
+          // opens never set `running`, so a dead address retried zero times
+          // and logged nothing.
+          // A silent socket is not necessarily a dead run: reconnect dials
+          // again instead of ending the run here.
+          reconnect(reason === "silent" ? "run.echoLost" : undefined);
+        },
+        badFrame: () => {
+          if (current()) finish("error", "run.badFrame");
+        },
+        frame: (msg) => {
+          if (current()) handleFrame(msg);
+        },
+      });
     } catch (err) {
       // a malformed address cannot be fixed by retrying
       finish(
@@ -438,134 +492,11 @@ export const createRunClient = (): RunClient => {
       );
       return;
     }
-    socket.binaryType = "arraybuffer";
-    ws = socket;
-    // The dial itself is a busy state, not idle: an address that never answers
-    // (typo, wrong port, runner down) used to leave the panel looking idle
-    // until the socket opened, so a second click would start a second run and
-    // the buttons lied about what was happening.
-    if (phase() === "idle")
-      setPhase(watchMode === "start" ? "connecting" : "recovering");
-
-    socket.onopen = () => {
-      if (ticket !== mine) return;
-      if (attempt > 0) log("info", "run.reconnected");
-      attempt = 0;
-      if (watchMode === "recover") setPhase("recovering");
-      else setPhase("running");
-      startEcho();
-      hello();
-    };
-    socket.onclose = () => {
-      if (ws !== socket || ticket !== mine) return;
-      ws = undefined;
-      window.clearInterval(echoTimer);
-      // No idle check here: a run that is over already went through `finish`,
-      // which bumped the ticket and cleared `runId`/`runPipeline` — both
-      // checked above/inside `reconnect()`. Testing the phase instead made the
-      // most common failure silent: a socket that dies *before* it opens never
-      // set `running`, so a dead address retried zero times and logged nothing.
-      reconnect();
-    };
-    socket.onmessage = (ev: MessageEvent) => {
-      if (ws !== socket || ticket !== mine) return;
-      let msg: Envelope;
-      try {
-        msg = decode(new Uint8Array(ev.data)) as Envelope;
-      } catch {
-        finish("error", "run.badFrame");
-        return;
-      }
-      const d = (msg.d ?? {}) as Record<string, unknown>;
-      switch (msg.m) {
-        case "echo":
-          lastEcho = Date.now();
-          break;
-        case "accepted": {
-          const id = readText(d.run_id);
-          rememberRun(id);
-          runPipeline = undefined;
-          setPhase("running");
-          log("info", "run.accepted");
-          break;
-        }
-        case "status": {
-          const named = readText(d.run_id);
-          if (named !== undefined) rememberRun(named);
-          const status = readText(d.status);
-          if (status === "idle") {
-            finish("info", "run.nothingToRecover");
-            return;
-          }
-          if (
-            status === "done" ||
-            status === "failed" ||
-            status === "cancelled"
-          ) {
-            // the run finished while we were away: the snapshot already
-            // carried its outcome, there is nothing to attach to
-            applySnapshot(d);
-            return;
-          }
-          applySnapshot(d);
-          const id = runId();
-          log("info", "run.recovered");
-          setPhase("running");
-          send("attach", id === undefined ? {} : { run_id: id });
-          break;
-        }
-        case "attached": {
-          const named = readText(d.run_id);
-          if (named !== undefined) rememberRun(named);
-          applySnapshot(d);
-          runPipeline = undefined;
-          log("info", "run.reattached");
-          setPhase("running");
-          break;
-        }
-        case "progress":
-          if (readText(d.run_id) !== undefined && runId() === undefined)
-            rememberRun(readText(d.run_id));
-          setProgress(readProgress(d));
-          break;
-        case "done": {
-          const line = doneMessage(d);
-          finish(line.kind, line.text);
-          break;
-        }
-        case "error": {
-          const detail = describePayload(d.message);
-          // `worker busy` after our own drop carries the run we lost: adopt
-          // it and attach instead of arguing with the gate.
-          if (
-            typeof d.message === "string" &&
-            d.message.includes("worker busy") &&
-            typeof d.run_id === "string" &&
-            d.run_id.length > 0 &&
-            runId() === undefined
-          ) {
-            rememberRun(d.run_id as string);
-            runPipeline = undefined;
-            setPhase("recovering");
-            send("attach", { run_id: d.run_id });
-            log("info", "run.recovered");
-            return;
-          }
-          const text = message("run.serverError", { detail });
-          // `fatal` means the server drops the connection right after sending
-          // (WS_API.md): end the run here, with the reason as its last line,
-          // instead of leaving the buttons busy until onclose arrives. A
-          // non-fatal error is part of a live run — the failed `done` follows.
-          if (d.fatal === true) finish("error", text);
-          else log("error", text);
-          break;
-        }
-      }
-    };
+    conn = dialled;
   };
 
-  const start = (url: string, pipeline: PureConfig) => {
-    if (phase() !== "idle" || !url) return;
+  const start = (url: string, pipeline: PureConfig): boolean => {
+    if (phase() !== "idle" || !url) return false;
     window.clearTimeout(retryTimer);
     setProgress(undefined);
     // a new run gets a fresh journal; the previous run's lines are its own
@@ -576,6 +507,7 @@ export const createRunClient = (): RunClient => {
     rememberRun(undefined);
     attempt = 0;
     connect();
+    return true;
   };
 
   /** Ask the server about the run we remember (or any run at all) without
@@ -605,7 +537,7 @@ export const createRunClient = (): RunClient => {
     )
       return;
     if (phase() === "connecting" || phase() === "recovering") {
-      finish("ok", "run.cancelledEarly");
+      finish("ok", "run.cancelledEarly", true);
       return;
     }
     setPhase("stopping");
@@ -628,6 +560,13 @@ export const createRunClient = (): RunClient => {
     stop,
     recover,
     clearMessages,
+    onFinish: (listener) => {
+      finishListeners.add(listener);
+      return () => {
+        finishListeners.delete(listener);
+      };
+    },
+    report: log,
   };
 };
 

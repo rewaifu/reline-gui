@@ -1,6 +1,7 @@
 import { type Accessor, type Component } from "solid-js";
 import { STORAGE_KEY } from "~/constants";
 import { t } from "~/lib/i18n";
+import { storage } from "~/lib/storage";
 import styles from "./crash.module.scss";
 
 /** Rendered by the workspace error boundary.
@@ -28,11 +29,8 @@ const describe = (error: unknown): string => {
  * config it loaded, and a plain reload would only crash again. Exported
  * without the reload so a test can check what it clears. */
 export const clearStoredNodes = (): void => {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // storage unavailable (private mode): the reload still gets a fresh tree
-  }
+  // storage unavailable (private mode): the reload still gets a fresh tree
+  storage.remove(STORAGE_KEY);
 };
 
 export const Crash: Component<CrashProps> = (props) => {

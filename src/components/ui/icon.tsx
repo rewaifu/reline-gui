@@ -48,6 +48,30 @@ const PATHS = {
   check: ["M5 12l5 5L20 6"],
   // two opposing arrows: node type swap (replace, keep position)
   swap: ["M4 7h13l-3 -3", "M17 7l-3 3", "M20 17h-13l3 3", "M7 17l3 -3"],
+  // the stack toolbar: side panels (the outline on the left, the settings on
+  // the right) and fold-everything / unfold-everything
+  "layout-sidebar": [
+    "M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z",
+    "M9 4v16",
+  ],
+  "layout-sidebar-right": [
+    "M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z",
+    "M15 4v16",
+  ],
+  "menu-2": ["M4 6l16 0", "M4 12l16 0", "M4 18l16 0"],
+  "arrow-up": ["M12 5l0 14", "M18 11l-6 -6", "M6 11l6 -6"],
+  "arrow-down": ["M12 5l0 14", "M18 13l-6 6", "M6 13l6 6"],
+  refresh: [
+    "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4",
+    "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4",
+  ],
+  play: ["M7 4v16l13 -8z"],
+  stop: [
+    "M5 5m0 2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z",
+  ],
+  search: ["M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "M21 21l-6 -6"],
+  "chevrons-down": ["M7 7l5 5l5 -5", "M7 13l5 5l5 -5"],
+  "chevrons-up": ["M7 11l5 -5l5 5", "M7 17l5 -5l5 5"],
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -1,8 +1,10 @@
 import * as chrome from "./chrome";
 import * as common from "./common";
+import * as diagnostics from "./diagnostics";
 import * as forms from "./forms";
 import * as nodes from "./nodes";
 import * as panel from "./panel";
+import * as plugins from "./plugins";
 import * as run from "./run";
 
 /** The dictionaries, merged by area. Each area file keeps `ru` and `en` in one
@@ -10,10 +12,12 @@ import * as run from "./run";
  * English (or a misspelled key) fails the type check. */
 export const ru = {
   ...common.ru,
+  ...diagnostics.ru,
   ...nodes.ru,
   ...forms.ru,
   ...chrome.ru,
   ...panel.ru,
+  ...plugins.ru,
   ...run.ru,
 };
 
@@ -21,9 +25,11 @@ export type Messages = typeof ru;
 
 export const en: Messages = {
   ...common.en,
+  ...diagnostics.en,
   ...nodes.en,
   ...forms.en,
   ...chrome.en,
   ...panel.en,
+  ...plugins.en,
   ...run.en,
 };

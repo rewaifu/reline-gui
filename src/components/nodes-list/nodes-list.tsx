@@ -1,17 +1,14 @@
 import { type Component, For, Show, useContext } from "solid-js";
 import type { Store } from "solid-js";
-import { createDragReorder } from "~/instructions/hooks/use-drag-reorder";
-import { flipReorder } from "~/instructions/hooks/use-flip-reorder";
-import {
-  useAddNode,
-  useToggleEnabled,
-} from "~/instructions/hooks/use-node-actions";
-import { nodeLabel } from "~/components/nodes/registry";
+import { createDragReorder } from "~/hooks/use-drag-reorder";
+import { flipReorder } from "~/hooks/use-flip-reorder";
+import { useAddNode, useToggleEnabled } from "~/hooks/use-node-actions";
+import { nodeLabel } from "~/lib/nodes";
 import { NodeSwap } from "~/components/node-swap/node-swap";
 import { Icon, UiSwitch } from "~/components/ui";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { NodesActionType } from "~/types/actions";
-import { AddNodeMenu } from "~/components/nodes-list/add-node-menu";
+import { AddNode } from "~/components/nodes-list/add-node-menu";
 import { t } from "~/lib/i18n";
 import styles from "./nodes-list.module.scss";
 
@@ -51,6 +48,13 @@ export const NodesList: Component<NodesListProps> = (props) => {
 
   return (
     <aside class={styles.panel}>
+      <header class={styles.header}>
+        <h2 class={styles.title}>
+          {t("chrome.columns.left")}
+          <span class={styles.count}>{count()}</span>
+        </h2>
+        <AddNode onAdd={addNode} />
+      </header>
       <div class={styles.items} ref={itemsEl}>
         <For each={nodes}>
           {(node, index) => (
@@ -123,7 +127,6 @@ export const NodesList: Component<NodesListProps> = (props) => {
           }}
         />
       </div>
-      <AddNodeMenu onAdd={addNode} />
     </aside>
   );
 };

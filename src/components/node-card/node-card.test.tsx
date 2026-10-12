@@ -1,12 +1,16 @@
 import { fireEvent, render } from "@solidjs/testing-library";
-import { createStore } from "solid-js";
+import { createMemo, createStore } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NodesContext, NodesDispatchContext } from "~/context/contexts";
+import {
+  AnalysisContext,
+  NodesContext,
+  NodesDispatchContext,
+} from "~/context/contexts";
+import { analyze } from "~/lib/config";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodesActionType } from "~/types/actions";
 import { NodeStack } from "~/components/node-card/node-card";
-import { createDefaultNodes } from "~/constants";
-import { nodeLabel } from "~/components/nodes/registry";
+import { createDefaultNodes, nodeLabel } from "~/lib/nodes";
 import { NodeType } from "~/types/enums";
 import { t } from "~/lib/i18n";
 import type { FolderReaderNodeOptions } from "~/types/options";
@@ -55,18 +59,23 @@ describe("path field under the node store", () => {
     setSelected((state) => {
       state[store[0][0].uid] = true;
     });
-    return render(() => (
-      <NodesContext value={store[0]}>
-        <NodesDispatchContext value={dispatch}>
-          <NodeStack
-            selectedUid={() => store[0][0].uid}
-            isSelected={selected}
-            onSelect={() => {}}
-            phone={false}
-          />
-        </NodesDispatchContext>
-      </NodesContext>
-    ));
+    return render(() => {
+      const analysis = createMemo(() => analyze([...store[0]]));
+      return (
+        <NodesContext value={store[0]}>
+          <NodesDispatchContext value={dispatch}>
+            <AnalysisContext value={analysis}>
+              <NodeStack
+                selectedUid={() => store[0][0].uid}
+                isSelected={selected}
+                onSelect={() => {}}
+                phone={false}
+              />
+            </AnalysisContext>
+          </NodesDispatchContext>
+        </NodesContext>
+      );
+    });
   };
 
   it("keeps the same input element while its options change", async () => {
@@ -139,18 +148,23 @@ describe("path field under the node store", () => {
   it("marks a disabled node on its stack card", async () => {
     const dispatch = createNodesDispatch(store[1]);
     const [selected] = createStore<Record<string, boolean>>({});
-    const view = render(() => (
-      <NodesContext value={store[0]}>
-        <NodesDispatchContext value={dispatch}>
-          <NodeStack
-            selectedUid={() => null}
-            isSelected={selected}
-            onSelect={() => {}}
-            phone={false}
-          />
-        </NodesDispatchContext>
-      </NodesContext>
-    ));
+    const view = render(() => {
+      const analysis = createMemo(() => analyze([...store[0]]));
+      return (
+        <NodesContext value={store[0]}>
+          <NodesDispatchContext value={dispatch}>
+            <AnalysisContext value={analysis}>
+              <NodeStack
+                selectedUid={() => null}
+                isSelected={selected}
+                onSelect={() => {}}
+                phone={false}
+              />
+            </AnalysisContext>
+          </NodesDispatchContext>
+        </NodesContext>
+      );
+    });
     const uid = store[0][1].uid;
     const card = () => view.container.querySelector(`[data-node-id="${uid}"]`);
     expect(card()?.className).not.toMatch(/disabled/);

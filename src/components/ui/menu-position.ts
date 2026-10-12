@@ -8,7 +8,7 @@ import {
 } from "@floating-ui/dom";
 import { createEffect } from "solid-js";
 
-export type MenuPlacement = "bottom-start" | "top-start";
+export type MenuPlacement = "bottom-start" | "bottom-end" | "top-start";
 
 /** Portaled menu positioning (replaces the Kobalte popper): fixed under the
  * anchor with a 4px gutter, flipping to the other side when there is no
@@ -21,6 +21,10 @@ export const createMenuPosition = (
   content: () => HTMLElement | undefined,
   placement: () => MenuPlacement,
   gutter = 4,
+  /** Once per opening, when the content first has its place and is visible —
+   * the moment focus can be moved into it (an element that is still
+   * `visibility: hidden` refuses focus). */
+  onPlaced?: () => void,
 ): void => {
   createEffect(open, (isOpen) => {
     if (!isOpen) return;
@@ -28,6 +32,7 @@ export const createMenuPosition = (
     const contentEl = content();
     if (anchorEl === undefined || contentEl === undefined) return;
     contentEl.style.visibility = "hidden";
+    let placed = false;
     const update = () => {
       void computePosition(anchorEl, contentEl, {
         placement: placement(),
@@ -50,6 +55,10 @@ export const createMenuPosition = (
         contentEl.style.left = `${Math.round(x)}px`;
         contentEl.style.top = `${Math.round(y)}px`;
         contentEl.style.visibility = "visible";
+        if (!placed) {
+          placed = true;
+          onPlaced?.();
+        }
       });
     };
     update();

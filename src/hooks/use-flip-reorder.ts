@@ -14,9 +14,9 @@ export const settleRowAnimations = (
   for (const el of Array.from(
     container.querySelectorAll<HTMLElement>(itemSelector),
   )) {
-    const get = el.getAnimations;
-    if (typeof get !== "function") continue;
-    for (const animation of get.call(el)) {
+    // jsdom has no Web Animations: the method itself may be missing
+    if (typeof el.getAnimations !== "function") continue;
+    for (const animation of el.getAnimations()) {
       if ("transitionProperty" in animation) continue;
       animation.cancel();
     }

@@ -77,7 +77,9 @@ let sockets: StubSocket[] = [];
 // import cannot give (the address would be frozen at the first test).
 const loadRun = async () => {
   vi.resetModules();
-  return import("~/lib/run-client");
+  const ws = await import("~/lib/ws");
+  const { createRunClient } = await import("~/lib/run-client");
+  return { ...ws, createRunClient };
 };
 
 afterEach(() => {

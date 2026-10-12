@@ -378,12 +378,6 @@
   }
 }
 
-.runHint {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
 .runId {
   margin: 0;
   color: var(--color-text-muted);
@@ -650,4 +644,44 @@
     border: none;
     border-top: 1px solid var(--color-border);
   }
+}
+
+// What is wrong with the stack, above the run controls' result area: errors
+// block a run, warnings do not.
+.runFindings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.runFindingsTitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+// A tab that does not scroll itself: the panel does, and nothing inside needs to
+// know how tall it is. The gutter is left to appear only when there is
+// something to scroll — a reserved one would narrow every such tab on a phone.
+.tabScroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  > * {
+    flex: none;
+  }
+}
+
+// the settings tab: one labelled control per row
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }

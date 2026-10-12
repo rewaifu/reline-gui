@@ -1,4 +1,5 @@
 import { createEffect, createSignal } from "solid-js";
+import { storage } from "~/lib/storage";
 import {
   LAYOUT_STORAGE_KEY,
   MIN_MIDDLE_WIDTH,
@@ -17,10 +18,12 @@ export interface LayoutState {
   hidden: Record<ColumnKey, boolean>;
 }
 
-export const DEFAULT_LAYOUT: LayoutState = {
+const DEFAULT_LAYOUT: LayoutState = {
   left: 260,
   right: 380,
-  hidden: { left: false, middle: false, right: false },
+  // the outline of the stack is a second view of it: closed until asked for,
+  // the stack itself carries every control a large config needs
+  hidden: { left: true, middle: false, right: false },
 };
 
 export const COLUMN_KEYS: readonly ColumnKey[] = [
@@ -41,29 +44,24 @@ const readNumber = (value: unknown, fallback: number, min: number) =>
     : fallback;
 
 const loadLayout = (): LayoutState => {
-  try {
-    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<LayoutState> & {
-        hidden?: Partial<Record<ColumnKey, boolean>>;
-      };
-      const hidden = { ...DEFAULT_LAYOUT.hidden, ...parsed.hidden };
-      // never restore an empty workspace
-      if (COLUMN_KEYS.some((key) => !hidden[key])) {
-        return {
-          left: readNumber(parsed.left, DEFAULT_LAYOUT.left, MIN_SIDE_WIDTH),
-          right: readNumber(
-            parsed.right,
-            DEFAULT_LAYOUT.right,
-            MIN_RIGHT_WIDTH,
-          ),
-          hidden,
-        };
-      }
-    }
-  } catch {
-    // corrupted storage — fall through to defaults
+  const stored = storage.getJson(LAYOUT_STORAGE_KEY);
+  if (typeof stored === "object" && stored !== null) {
+    const parsed = stored as Partial<LayoutState> & {
+      hidden?: Partial<Record<ColumnKey, boolean>>;
+    };
+    // the stack is never hidden: it is where the toolbar and every control live
+    const hidden = {
+      ...DEFAULT_LAYOUT.hidden,
+      ...parsed.hidden,
+      middle: false,
+    };
+    return {
+      left: readNumber(parsed.left, DEFAULT_LAYOUT.left, MIN_SIDE_WIDTH),
+      right: readNumber(parsed.right, DEFAULT_LAYOUT.right, MIN_RIGHT_WIDTH),
+      hidden,
+    };
   }
+  // corrupted or missing storage falls through to defaults
   return { ...DEFAULT_LAYOUT, hidden: { ...DEFAULT_LAYOUT.hidden } };
 };
 
@@ -93,11 +91,8 @@ export const createColumnsLayout = () => {
     (json) => {
       clearTimeout(saveTimer);
       saveTimer = window.setTimeout(() => {
-        try {
-          localStorage.setItem(LAYOUT_STORAGE_KEY, json);
-        } catch {
-          // storage full or unavailable — layout just won't persist
-        }
+        // storage full or unavailable — layout just won't persist
+        storage.set(LAYOUT_STORAGE_KEY, json);
       }, 300);
       return () => clearTimeout(saveTimer);
     },
@@ -116,14 +111,13 @@ export const createColumnsLayout = () => {
         : { ...state, right: next };
     });
 
-  const toggleHidden = (key: ColumnKey) =>
-    setLayout((state) => {
-      const hidden = { ...state.hidden, [key]: !state.hidden[key] };
-      const visible = COLUMN_KEYS.filter((column) => !hidden[column]);
-      // at least one column has to stay on screen
-      if (visible.length === 0) return state;
-      return { ...state, hidden };
-    });
+  /** Show or hide a side panel. The stack stays: it holds the toolbar that
+   * brings the others back. */
+  const toggleHidden = (key: ResizableSide) =>
+    setLayout((state) => ({
+      ...state,
+      hidden: { ...state.hidden, [key]: !state.hidden[key] },
+    }));
 
   const startResize = (side: ResizableSide, event: PointerEvent) => {
     const handle = event.currentTarget;

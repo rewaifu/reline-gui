@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NodesContext, NodesDispatchContext } from "~/context/contexts";
 import { createNodesDispatch } from "~/context/reducer";
 import { NodesList } from "~/components/nodes-list/nodes-list";
-import { createDefaultNodes } from "~/constants";
+import { createDefaultNodes } from "~/lib/nodes";
 
 /** Rapid re-drop while the previous FLIP animation is still in flight.
  * WAAPI transforms shift getBoundingClientRect, so an insertion slot measured

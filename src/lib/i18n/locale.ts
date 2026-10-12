@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { storage } from "~/lib/storage";
 
 /** The languages the UI ships. The type is deliberately narrow: every
  * dictionary is keyed by it, so a third language stays a type error until its
@@ -15,14 +16,9 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 const STORAGE_KEY = "reline-web:locale";
 
 const stored = (): Locale | undefined => {
-  if (typeof localStorage === "undefined") return undefined;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw === "ru" || raw === "en" ? raw : undefined;
-  } catch {
-    // storage blocked (private mode, disabled cookies) — detect per session
-    return undefined;
-  }
+  // blocked storage (private mode) reads as nothing: detect per session
+  const raw = storage.get(STORAGE_KEY);
+  return raw === "ru" || raw === "en" ? raw : undefined;
 };
 
 /** Stored choice first, then the browser's languages. Russian is the default
@@ -50,10 +46,6 @@ export { locale };
  * `locale()` through `t()`, so nothing else has to be invalidated by hand. */
 export const setLocale = (next: Locale): void => {
   setLocaleSignal(next);
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, next);
-  } catch {
-    // storage unavailable — the choice lives for this session
-  }
+  // storage unavailable — the choice lives for this session
+  storage.set(STORAGE_KEY, next);
 };

@@ -30,6 +30,16 @@
     border-color: var(--color-success);
   }
 
+  // a finding about this node: an inset edge stripe, so it never fights the
+  // hover / selected border colours it sits next to
+  &[data-diagnostics="error"] {
+    box-shadow: inset 3px 0 0 var(--color-danger);
+  }
+
+  &[data-diagnostics="warn"] {
+    box-shadow: inset 3px 0 0 var(--color-warning);
+  }
+
   &.selected {
     border-color: var(--color-primary);
     // background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-strong));
@@ -181,9 +191,9 @@
   }
 }
 
-// Phone-only wrapper for the enable switch: it is a status control among
-// buttons, so it takes the same slot rhythm and swallows the taps that would
-// otherwise select or collapse the card underneath it.
+// Wrapper for the enable switch: it is a status control among buttons, so it
+// takes the same slot rhythm and swallows the taps that would otherwise select
+// or collapse the card underneath it.
 .enable {
   display: inline-flex;
   flex: none;
@@ -250,4 +260,8 @@
 
     max-width: 40%;
   }
+}
+
+.findings {
+  padding: var(--space-2) var(--space-3) 0;
 }

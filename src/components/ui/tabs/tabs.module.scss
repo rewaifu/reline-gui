@@ -7,28 +7,31 @@
   min-height: 0;
 }
 
-.list {
+// the tabs and the burger menu for the ones that do not fit share one row
+.strip {
+  position: relative;
   display: flex;
   flex: none;
+  align-items: flex-start;
   gap: var(--space-1);
   margin-bottom: var(--space-2);
-  // too narrow for all labels → scroll sideways instead of breaking labels
-  overflow-x: auto;
-  scrollbar-width: none;
+}
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
+.list {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--space-1);
+  overflow: hidden;
 }
 
 .trigger {
   display: inline-flex;
-  // grow from the content basis: wide labels get proportionally more room,
-  // narrow ones don't balloon — and min-width keeps text from clipping
-  flex: 1 1 auto;
+  // natural width, never squeezed: the fit is computed from it
+  flex: none;
   align-items: center;
   justify-content: center;
-  min-width: max-content;
   padding: var(--space-1) 10px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -57,6 +60,32 @@
   &[data-active] {
     border-color: var(--color-border);
     background: var(--color-surface);
+  }
+
+  // in the burger menu: out of the flow (the row has no gap for it) but still
+  // laid out, so its natural width can be measured
+  &[data-overflow] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+}
+
+// same height as the tabs: the select's own square size gives way
+.strip > .burger {
+  flex: none;
+  align-self: stretch;
+  height: auto;
+  margin-left: auto;
+
+  &[data-idle] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    pointer-events: none;
+    visibility: hidden;
   }
 }
 

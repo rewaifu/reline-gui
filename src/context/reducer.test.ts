@@ -144,4 +144,32 @@ describe("reducer: uid is the only identity", () => {
       expect(nodes[0].options).toMatchObject({ filter: "slinear4" });
     });
   });
+  it("SWAP turns an orphan node into a defined type, and refuses an undefined one", () => {
+    const orphan: StackNode = {
+      uid: "o1",
+      type: "acme.gone",
+      options: { keep: "me" },
+      collapsed: false,
+    };
+    withStore(
+      ({ nodes, dispatch }) => {
+        dispatch({
+          type: NodesActionType.SWAP,
+          payload: { uid: "o1", nodeType: "acme.also-gone" },
+        });
+        flush();
+        // swapping to a type with no definition would invent options: no-op
+        expect(nodes[0].type).toBe("acme.gone");
+        expect(nodes[0].options).toEqual({ keep: "me" });
+        dispatch({
+          type: NodesActionType.SWAP,
+          payload: { uid: "o1", nodeType: NodeType.LEVEL },
+        });
+        flush();
+        expect(nodes[0].type).toBe(NodeType.LEVEL);
+        expect(nodes[0].options).toMatchObject({ high_output: 255 });
+      },
+      [orphan],
+    );
+  });
 });

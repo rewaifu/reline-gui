@@ -11,38 +11,11 @@
   color: var(--color-text);
 }
 
-.topbar {
-  @include surface(var(--radius-lg));
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: none;
-  gap: var(--space-3);
-  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
-  min-height: 32px;
-}
-
-.logo {
-  @include truncate;
-
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-}
-
 .viewToggles {
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--space-2);
-}
-
-// Language switcher: one button, pushed to the right end of the bar so the
-// panel toggles keep the edge they had before it existed. The row is
-// `space-between`, and the auto margin is what groups the two of them on the
-// right instead of spreading the bar's children apart.
-.localeToggle {
-  margin-left: auto;
 }
 
 .toggle {
@@ -122,9 +95,14 @@
   display: none;
 }
 
+// The gap between two columns is the handle. At rest a thin line sits in its
+// middle (a handle you have to hover to discover is a handle nobody finds); once
+// the pointer is over the gap the line follows its height — `--handle-y`, set by
+// the workspace — so it points at where the hand is, and stays there through a
+// drag. Accent while hovered, focused or dragged.
 .splitter {
-  display: flex;
-  align-items: center;
+  position: relative;
+  display: block;
   width: 10px;
   cursor: col-resize;
   touch-action: none;
@@ -132,15 +110,24 @@
 
   &::after {
     content: "";
+    position: absolute;
+    left: 50%;
+    // kept inside the gap: the line is 72px at most, so half of it is the margin
+    top: clamp(36px, var(--handle-y, 50%), calc(100% - 36px));
     width: 2px;
     height: 48px;
     border-radius: 999px;
-    background: transparent;
-    transition: background var(--transition-fast);
+    background: var(--color-border-strong);
+    transform: translate(-50%, -50%);
+    transition:
+      background var(--transition-fast),
+      height var(--transition-fast);
   }
 
   &:hover::after,
-  &:focus-visible::after {
+  &:focus-visible::after,
+  &:active::after {
+    height: 72px;
     background: var(--color-primary);
   }
 
@@ -166,10 +153,6 @@
     padding: var(--space-3);
   }
 
-  .topbar {
-    flex-wrap: wrap;
-  }
-
   .columns {
     @include scroll-y;
 
@@ -177,8 +160,14 @@
     gap: var(--space-3);
   }
 
-  .column {
+  // `:not(.flex)` matches the 1200px rule's specificity, or the side columns
+  // keep their desktop width and sit left-aligned in the stack
+  .column,
+  .column:not(.flex) {
     width: auto;
+    // stacked, a column takes the container's width: the side columns' minimum
+    // (330px) would push a 320px phone's panel past the edge
+    min-width: 0;
     min-height: 40vh;
 
     &:first-child {
@@ -201,15 +190,6 @@
     --nav-h: calc(var(--touch-min) + 2 * var(--space-1) + 1px);
 
     padding: var(--space-2);
-  }
-
-  .topbar {
-    min-height: 36px;
-    padding: var(--space-1) var(--space-3);
-  }
-
-  .logo {
-    font-size: var(--font-size-lg);
   }
 
   .viewToggles {

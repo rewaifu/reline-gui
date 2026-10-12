@@ -1,15 +1,48 @@
 import { type StoreSetter } from "solid-js";
-import { type NodesAction, NodesActionType } from "~/types/actions";
-import { DEFAULT_NODE_OPTIONS, OPTION_KEY } from "~/constants";
+import {
+  type AnyAction,
+  type NodesAction,
+  NodesActionType,
+} from "~/types/actions";
+import { notifyObservers, storeActions } from "~/context/actions";
+import { defaultOptions } from "~/lib/nodes";
 import { sanitizeNode, sanitizeNodes } from "~/lib/node-shape";
+import { pipeline } from "~/lib/pipeline/hooks";
 import { withFreshUids } from "~/lib/uid";
 import type { StackNode } from "~/types/node";
 
 export type NodesSetter = StoreSetter<StackNode[]>;
 
-/** Pure store transitions — persistence is observed in `App`, not here. */
+const BUILTIN: ReadonlySet<string> = new Set(Object.values(NodesActionType));
+
+/**
+ * Store transitions — persistence is observed in `App`, not here.
+ *
+ * Every action takes the same road: the `store.action` hooks may rewrite or
+ * refuse it, then it is applied (the editor's own by `processAction`, a
+ * plugin's by the reducer it registered), then observers hear about it. An
+ * action that throws while being applied — a plugin's reducer, a hook that
+ * returned a malformed payload — is recorded and dropped; it must not take the
+ * caller (an event handler, a microtask) down with it.
+ */
 export const createNodesDispatch = (setNodes: NodesSetter) => {
-  return (action: NodesAction) => processAction(setNodes, action);
+  return (action: AnyAction) => {
+    const accepted = pipeline.filter("store.action", action);
+    if (accepted === null) return;
+    try {
+      if (BUILTIN.has(accepted.type))
+        processAction(setNodes, accepted as NodesAction);
+      else {
+        const reducer = storeActions.get(accepted.type);
+        if (reducer === undefined) return;
+        setNodes((state) => reducer(state, accepted.payload));
+      }
+    } catch (error) {
+      pipeline.report("store.reducer", accepted.type, error);
+      return;
+    }
+    notifyObservers(accepted);
+  };
 };
 
 const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
@@ -23,8 +56,14 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
         // merge in place: assigning state[index] = payload would swap the item
         // reference, and <For> (keyed by reference) would remount the whole
         // card — every keystroke dropped input focus
-        const { uid: _uid, options, ...rest } = payload;
+        const { uid: _uid, options, ext, ...rest } = payload;
         if (options !== undefined) Object.assign(state[index].options, options);
+        // plugin data merges per plugin id, like options per key: one plugin
+        // writing its slot must not wipe another's
+        if (ext !== undefined) {
+          state[index].ext ??= {};
+          Object.assign(state[index].ext, ext);
+        }
         Object.assign(state[index], rest);
       });
       break;
@@ -66,23 +105,40 @@ const processAction = (setNodes: NodesSetter, action: NodesAction): void => {
       // replace the type in place: uid, position and enabled stay, options
       // reset to the new type's defaults — mixing option bags across types
       // would leave fields the new form never reads
-      const optionKey = OPTION_KEY[payload.nodeType];
-      if (optionKey === undefined) break;
+      const fresh = defaultOptions(payload.nodeType);
+      if (fresh === undefined) break;
       setNodes((state) => {
         const index = state.findIndex((node) => node.uid === payload.uid);
         if (index === -1) return;
         // keyed index writes, not a replaced array: signals rc needs the
         // fine-grained path (see ADD above)
         state[index].type = payload.nodeType;
-        state[index].options = structuredClone(DEFAULT_NODE_OPTIONS[optionKey]);
+        state[index].options = fresh;
       });
       break;
     }
 
+    case NodesActionType.NORMALIZE:
+      setNodes((state) => {
+        for (const node of state) {
+          if (node.type !== payload) continue;
+          // the same check any node of this type gets at the door; merged in
+          // place for the reason CHANGE is (the card must not remount)
+          const fresh = sanitizeNode({
+            type: node.type,
+            options: node.options,
+          });
+          if (fresh !== undefined) Object.assign(node.options, fresh.options);
+        }
+      });
+      break;
+
     case NodesActionType.IMPORT: {
       // imports are the most untrusted input there is: presets, pasted configs
       // and legacy files all land here
-      const nodes = sanitizeNodes(payload);
+      // a plugin may migrate what an import carries first (renamed types, old
+      // option shapes); the built-in check still runs on whatever it returns
+      const nodes = sanitizeNodes(pipeline.apply("import.sanitize", payload));
       if (nodes.length === 0) break;
       setNodes(() => withFreshUids(nodes));
       break;

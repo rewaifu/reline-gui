@@ -109,3 +109,44 @@ describe("createWatchdog", () => {
     }
   });
 });
+
+describe("onHealthy", () => {
+  it("fires once, after consecutive ticks in which the DOM kept up", () => {
+    let shown = "";
+    let healthy = 0;
+    const watchdog = createWatchdog({
+      beat: () => {
+        shown = String(Number(shown || 0) + 1);
+        return shown;
+      },
+      rendered: () => shown,
+      onStall: () => {},
+      onHealthy: () => {
+        healthy += 1;
+      },
+      healthyTicks: 3,
+    });
+    // tick 1 only writes the token; every later tick finds it followed
+    for (let i = 0; i < 3; i += 1) watchdog.tick();
+    expect(healthy).toBe(0);
+    watchdog.tick();
+    expect(healthy).toBe(1);
+    for (let i = 0; i < 5; i += 1) watchdog.tick();
+    expect(healthy).toBe(1);
+  });
+
+  it("is not reached by a page whose DOM stopped following", () => {
+    let healthy = 0;
+    const watchdog = createWatchdog({
+      beat: () => "x",
+      rendered: () => "frozen",
+      onStall: () => {},
+      onHealthy: () => {
+        healthy += 1;
+      },
+      healthyTicks: 2,
+    });
+    for (let i = 0; i < 6; i += 1) watchdog.tick();
+    expect(healthy).toBe(0);
+  });
+});

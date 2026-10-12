@@ -1,18 +1,9 @@
-import type { StackNode } from "~/types/node";
+import type { NodeOptions, StackNode } from "~/types/node";
 import { createSignal } from "solid-js";
-import {
-  NodeType,
-  ReaderNodeMode,
-  WriterNodeFormat,
-  DType,
-  TilerType,
-  FilterType,
-  ResizeType,
-  CvtType,
-} from "~/types/enums";
-import { createDefaultNodes } from "~/constants";
+import { NodeType, ReaderNodeMode, DType, FilterType } from "~/types/enums";
+import { createDefaultNodes, createNode } from "~/lib/nodes";
 import type { LocalText } from "~/lib/i18n";
-import { newUid } from "~/lib/uid";
+import { storage } from "~/lib/storage";
 
 export interface ConfigPreset {
   id: string;
@@ -24,28 +15,20 @@ export interface ConfigPreset {
   description: LocalText;
   nodes: StackNode[];
 }
-const reader = (mode: ReaderNodeMode): StackNode => ({
-  uid: newUid(),
-  type: NodeType.FOLDER_READER,
-  options: {
-    path: "/content/drive/MyDrive/raws",
-    recursive: false,
-    mode,
-    unarchive: false,
-  },
-  collapsed: true,
-});
+/** A stock node: the type's own defaults with only what the preset changes.
+ * No option lists of its own — a copy of the defaults here once drifted from
+ * the real ones, and a preset is exactly where nobody would look. */
+const stock = (type: string, changes: NodeOptions = {}): StackNode => {
+  const node = createNode(type);
+  if (node === undefined) throw new Error(`stock preset: unknown node ${type}`);
+  Object.assign(node.options, changes);
+  return node;
+};
 
-const writer = (): StackNode => ({
-  uid: newUid(),
-  type: NodeType.FOLDER_WRITER,
-  options: {
-    path: "/content/drive/MyDrive/raws/output",
-    format: WriterNodeFormat.PNG,
-    clean_before: false,
-  },
-  collapsed: true,
-});
+const reader = (mode: ReaderNodeMode): StackNode =>
+  stock(NodeType.FOLDER_READER, { mode });
+
+const writer = (): StackNode => stock(NodeType.FOLDER_WRITER);
 
 const MODEL_BASE = "https://bucket.yor.ovh/torch_models";
 
@@ -57,53 +40,20 @@ const upscale = (
   dtype: DType = DType.F32,
   size = 896,
   url?: string,
-): StackNode => ({
-  uid: newUid(),
-  type: NodeType.UPSCALE,
-  options: {
-    is_own_model: false,
+): StackNode =>
+  stock(NodeType.UPSCALE, {
     model,
     model_url: url ?? `${MODEL_BASE}/${model}.tar.xz`,
     dtype,
-    tiler: TilerType.EXACT,
     exact_tiler_size: size,
-    allow_cpu_upscale: false,
-  },
-  collapsed: true,
-});
+  });
 
-const resize = (filter: FilterType = FilterType.SLINEAR4): StackNode => ({
-  uid: newUid(),
-  type: NodeType.RESIZE,
-  options: {
-    resize_type: ResizeType.BY_WIDTH,
-    width: 2000,
-    filter,
-    spread: true,
-    spread_size: 2800,
-  },
-  collapsed: true,
-});
+const resize = (filter: FilterType = FilterType.SLINEAR4): StackNode =>
+  stock(NodeType.RESIZE, { filter });
 
-const gray2020 = (): StackNode => ({
-  uid: newUid(),
-  type: NodeType.CVT_COLOR,
-  options: { cvt_type: CvtType.RGB2Gray2020 },
-  collapsed: true,
-});
+const gray2020 = (): StackNode => stock(NodeType.CVT_COLOR);
 
-const level = (): StackNode => ({
-  uid: newUid(),
-  type: NodeType.LEVEL,
-  options: {
-    low_input: 0,
-    high_input: 253,
-    low_output: 0,
-    high_output: 255,
-    gamma: 1,
-  },
-  collapsed: true,
-});
+const level = (): StackNode => stock(NodeType.LEVEL);
 
 export const CONFIG_PRESETS: ConfigPreset[] = [
   {
@@ -163,21 +113,13 @@ const USER_PRESETS_KEY = "reline-web:presets";
 const HIDDEN_STOCK_KEY = "reline-web:hiddenStock";
 
 const readList = (key: string): string[] => {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
+  const stored = storage.getJson(key);
+  return Array.isArray(stored) ? (stored as string[]) : [];
 };
 
-export const loadUserPresets = (): ConfigPreset[] => {
-  try {
-    const raw = localStorage.getItem(USER_PRESETS_KEY);
-    return raw ? (JSON.parse(raw) as ConfigPreset[]) : [];
-  } catch {
-    return [];
-  }
+const loadUserPresets = (): ConfigPreset[] => {
+  const stored = storage.getJson(USER_PRESETS_KEY);
+  return Array.isArray(stored) ? (stored as ConfigPreset[]) : [];
 };
 
 const [userPresets, setUserPresets] =
@@ -195,12 +137,12 @@ export const allPresets = (): ConfigPreset[] => [
 export const hiddenStockCount = (): number => hiddenStock().length;
 
 export const restoreStockPresets = () => {
-  localStorage.removeItem(HIDDEN_STOCK_KEY);
+  storage.remove(HIDDEN_STOCK_KEY);
   setHiddenStock([]);
 };
 
 const writeUserPresets = (list: ConfigPreset[]) =>
-  localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(list));
+  storage.setJson(USER_PRESETS_KEY, list);
 
 export const saveUserPreset = (
   name: string,
@@ -229,7 +171,7 @@ export const deletePreset = (id: string) => {
     return;
   }
   const hidden = Array.from(new Set([...hiddenStock(), id]));
-  localStorage.setItem(HIDDEN_STOCK_KEY, JSON.stringify(hidden));
+  storage.setJson(HIDDEN_STOCK_KEY, hidden);
   setHiddenStock(hidden);
 };
 

@@ -2,29 +2,23 @@
  * live inside a select are the raw wire strings and are never translated. */
 
 export const ru = {
-  app: {
-    switchLanguage: "Переключить на {language}",
-  },
   ui: {
     select: "Выберите…",
+    moreTabs: "Другие вкладки",
+    noMatches: "Ничего не найдено",
     openOptions: "Открыть список",
     increase: "Увеличить {label}",
     decrease: "Уменьшить {label}",
-    single: "значение",
-    list: "список",
   },
 };
 
 export const en: typeof ru = {
-  app: {
-    switchLanguage: "Switch to {language}",
-  },
   ui: {
     select: "Select…",
+    moreTabs: "More tabs",
+    noMatches: "Nothing found",
     openOptions: "Open options",
     increase: "Increase {label}",
     decrease: "Decrease {label}",
-    single: "single",
-    list: "list",
   },
 };

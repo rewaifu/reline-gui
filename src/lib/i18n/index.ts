@@ -1,7 +1,9 @@
 import { locale } from "./locale";
+import { pluginDictionary } from "./plugin-dict";
 import { en, ru, type Messages } from "./messages";
 
 export { locale, setLocale, LOCALE_NAMES, type Locale } from "./locale";
+export { pluginDictionary } from "./plugin-dict";
 
 /** Dotted path to a leaf of the dictionary (`"form.upscale.model"`). Keys are
  * checked at compile time, so a typo never reaches the screen as `undefined`. */
@@ -25,14 +27,22 @@ export interface MessageDescriptor {
   readonly params?: MessageParams;
 }
 
-export type LocalText = MessageKey | MessageDescriptor | RawText;
+/** A line from a plugin's own words (`pluginDictionary`), found by plugin id and
+ * key at render time, so it follows the language like any other. */
+export interface PluginText {
+  readonly plugin: string;
+  readonly key: string;
+  readonly params?: MessageParams;
+}
+
+export type LocalText = MessageKey | MessageDescriptor | RawText | PluginText;
 
 /** Values for `{name}` placeholders. A plain string is used verbatim (server
  * text, a URL, a name); pass a descriptor or `raw(...)` when the value itself
  * must be translated. */
 export type MessageParams = Record<
   string,
-  string | number | RawText | MessageDescriptor
+  string | number | RawText | MessageDescriptor | PluginText
 >;
 
 const walk = (dict: Messages, key: string): string | undefined =>
@@ -74,6 +84,12 @@ export const t = (key: MessageKey, params?: MessageParams): string => {
 
 export const raw = (value: string): RawText => ({ raw: value });
 
+export const pluginText = (
+  plugin: string,
+  key: string,
+  params?: MessageParams,
+): PluginText => ({ plugin, key, params });
+
 export const message = (
   key: MessageKey,
   params?: MessageParams,
@@ -87,4 +103,9 @@ export const render = (value: LocalText): string =>
     ? t(value)
     : "raw" in value
       ? value.raw
-      : t(value.key, value.params);
+      : "plugin" in value
+        ? interpolate(
+            pluginDictionary.lookup(value.plugin, value.key),
+            value.params,
+          )
+        : t(value.key, value.params);

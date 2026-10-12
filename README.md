@@ -1,76 +1,149 @@
-## Solid `basic` template
+# Reline Web
 
-`bare` plus the app floors most projects want: `@solidjs/router` with file-system routes, per-page titles via `@solidjs/meta`, and a `vitest` test suite.
+**English** · [Русский](README.ru.md)
 
-**Deployment contract:** still zero server dependencies — `vite build` emits a purely static site; deploy `dist/client` to any static host.
+A browser editor for **Reline image-processing pipelines**. You build a chain of nodes — read a
+folder, upscale with a neural model, sharpen, screentone, resize, level, convert colour, write the
+result — check it, and run it on a Reline runner over WebSocket. Nothing is processed in the
+browser: the page is a static site that edits a JSON config and talks to the runner.
 
-## How it works
+- **Node stack.** Add, drag to reorder, enable/disable, rename, swap a node's type, fold. A large
+  config stays manageable: a toolbar with fold-all and a searchable "+" menu, an optional outline
+  panel.
+- **Per-node forms and guides.** Every node has a form with ranges, selects and path autocomplete
+  (folders and weights come from the runner, upscale models from the model database) and a guide
+  in Russian and English.
+- **Live diagnostics.** The config is validated as you edit; a node with a problem is marked and
+  a run with an error is blocked.
+- **Presets and JSON.** Stock presets (Default, Mangascale, Default color, Heavy color), your own
+  presets, and a Code tab to read, edit, copy, import and export the config. Older flat configs
+  import and are migrated.
+- **Runs.** Start, watch phases, speed and ETA, stop, reconnect and resume a run that is still going
+  on the runner. See [WS_API.md](WS_API.md) for the protocol.
+- **Plugins.** Install a plugin by link: new node types, UI, pipeline hooks, runner methods. A
+  verified catalog ships with the editor. See [docs/PLUGINS.en.md](docs/PLUGINS.en.md).
+- **Russian and English** interface; works on a phone (two panels and a bottom switcher).
+- **Fails softly.** A crash screen keeps your nodes; a watchdog catches a frozen reactive system;
+  `?plugins=off` starts without plugins.
 
-There is no `index.html` and no mount file. `@solidjs/vite-plugin`'s turnkey mode (`start: true` in `vite.config.ts`) generates the entries around two conventions:
+## Quick start
 
-- **`src/App.tsx`** — the app, router included. The `<Router>` wraps a shared nav and a `<Loading>` boundary; its routes come from the file system (below).
-- **`src/Document.tsx`** — the document shell, the new `index.html`. Site-wide head tags go here; it is compiled only into the prerendered static shell and adds **zero client-side JS**. Per-page head tags (`<Title>` from `@solidjs/meta`) live in the route modules.
-
-## File-system routing
-
-The `fileRoutes()` plugin (from `filesystem-routing/vite`) scans `src/routes` and exposes the result as the `virtual:file-routes` module, which `@solidjs/router/fs` turns into router routes inside `src/App.tsx`. You edit files under `src/routes`; the route table follows:
-
-- `index.tsx` is `/`, `users/[id].tsx` is `/users/:id`, `[...404].tsx` catches everything else.
-- Pairing `users.tsx` with the `users/` directory makes it a layout wrapping every page inside.
-- A module is a page when it has a **default export** (a file without one is not a route), and may export a `route` config object — `src/routes/users/[id].tsx` uses `preload` to start its data fetch as navigation begins.
-
-Every route is code-split automatically; navigating loads only that page's module.
-
-## Data loading
-
-`src/routes/users/[id].tsx` shows the data pattern: a `query()` (from `@solidjs/router`) over a plain `fetch`, read through a memo. The surrounding `<Loading>` boundary in `App.tsx` shows its fallback until the promise settles, and `query()` caches by key so preload and render share one request. Swap the static `/users.json` for any API endpoint.
-
-## Testing
-
-`vitest` runs component tests in jsdom via `@solidjs/testing-library` — add `*.test.tsx` files next to what they test. See `src/components/Counter.test.tsx` for the pattern; note Solid 2.0 batches DOM updates, so tests call `flush()` after firing events before asserting on the DOM.
-
-## Usage
-
-Those templates dependencies are maintained via [pnpm](https://pnpm.io) via `pnpm up -Lri`.
-
-This is the reason you see a `pnpm-lock.yaml`. That being said, any package manager will work. This file can be safely be removed once you clone a template.
+Requirements: Node.js ≥ 24 and [pnpm](https://pnpm.io) 12 (the exact version is pinned in
+`package.json`).
 
 ```bash
-$ npm install # or pnpm install or yarn install
+pnpm install
+pnpm dev          # http://localhost:3000
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+The editor needs a runner to execute anything. Point it at one with the `api` query parameter:
 
-## Available Scripts
+```
+http://localhost:3000/?api=ws://127.0.0.1:8000/run
+```
 
-In the project directory, you can run:
+(`http(s)://` is rewritten to `ws(s)://`; without the parameter the address from the Run tab, then
+`ws://127.0.0.1:8000/run`, is used.) Editing, presets and import/export work without a runner.
 
-### `npm run dev` or `npm start`
+### Scripts
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+| Command               | What it does                                                      |
+| --------------------- | ----------------------------------------------------------------- |
+| `pnpm dev`            | Vite dev server on port 3000                                      |
+| `pnpm build`          | Static site into `dist/client` (relative paths: any static host)  |
+| `pnpm serve`          | Serve the production build locally                                |
+| `pnpm lint`           | `oxlint --type-aware --type-check` (Solid rules included)         |
+| `pnpm typecheck`      | `tsc --noEmit`                                                    |
+| `pnpm test`           | Vitest (jsdom)                                                    |
+| `pnpm format`         | `oxfmt`                                                           |
+| `pnpm plugin:build`   | Build the Config sequence plugin and refresh the plugin catalog   |
+| `pnpm plugin:pin`     | Publish the no-build example plugin to `public/plugins/examples/` |
+| `pnpm plugin:catalog` | Rebuild `public/plugins/index.json`                               |
+| `pnpm sdk:exports`    | Regenerate the Solid export list the plugin SDK relies on         |
 
-The page will reload if you make edits.<br>
+Before calling a change done, run `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build`.
 
-### `npm run build`
+## Configs
 
-Builds the static production site to `dist/client`, routes code-split.
+A config is a JSON object with a node list; each node has a `type` and `options`:
 
-### `npm run serve`
+```json
+{
+  "nodes": [
+    {
+      "type": "folder_reader",
+      "options": { "path": "/data/raws", "mode": "gray", "recursive": false }
+    },
+    {
+      "type": "upscale",
+      "options": {
+        "model": "4x_dwtp_ds_moesr_v2",
+        "dtype": "F32",
+        "tiler": "exact"
+      }
+    },
+    {
+      "type": "folder_writer",
+      "options": { "path": "/data/out", "format": "png" }
+    }
+  ]
+}
+```
 
-Serves the production build locally.
+Built-in node types: `folder_reader`, `upscale`, `sharp`, `resize`, `screentone`, `level`,
+`cvt_color`, `hyst_norm`, `noise`, `folder_writer`. The editor keeps extra UI state (the "use a model
+from the database" flag, node names, plugin data) out of what the runner receives: the **Code** tab
+shows exactly what will be sent.
 
-### `npm test`
+### Models
 
-Runs the test suite.
+Upscale models that are not your own are picked from the model database,
+[`https://mdb.yor.ovh/v1/files`](https://mdb.yor.ovh/v1/files). The list is cached in the browser
+for six hours; picking a model adds a download step to the run, and the upscale node keeps only the
+model's bare name.
 
-## The `ssr` flip
+## Plugins
 
-Streaming SSR is one boolean: add `ssr: true` next to `start: true` in `vite.config.ts`. `src/App.tsx`, `src/Document.tsx`, and the routes carry over unchanged — `<HydrationScript />` is already in place in the Document (in client mode it is stripped from the static shell).
+The **Plugins** tab installs a plugin from a link to its `plugin.json`, or from the built-in
+**Verified plugins** catalog (collapsed, with search). The editor shows the plugin's permissions and
+code hash before anything is installed. The catalog is `public/plugins/index.json`, generated from
+the manifests in `public/plugins/*/`.
 
-## Growing out of `basic`
+To write one, start with [docs/PLUGINS.en.md](docs/PLUGINS.en.md) (Russian:
+[docs/PLUGINS.ru.md](docs/PLUGINS.ru.md)). Examples: `examples/sequence` (in the catalog: run several
+configs one after another) and `examples/writer-suffix` (a sandboxed worker plugin, not in the
+catalog).
 
-- **A server** (data loading via server functions, mutations, sessions, API routes) is the `fullstack` template — same structure, more floors.
-- Want less? The `bare` template is the same shape without the router.
+## Project layout
 
-## This project was created with the [Solid CLI](https://github.com/solidjs-community/solid-cli)
+```
+src/
+  App.tsx, Document.tsx      app root and the prerendered document shell
+  routes/workspace/          the three-column workspace (outline · stack · settings)
+  components/                node cards, forms, settings tabs, plugin UI, UI kit (components/ui)
+  context/                   node store: reducer, actions, bridge for plugins
+  hooks/                     drag reorder, columns layout, node actions
+  lib/
+    convert/, nodes/         node registry and config <-> UI conversion
+    pipeline/                stage hooks: import, validate, export, run, ws, store
+    ws/, run-client.ts       WebSocket hub and the run client
+    plugins/                 manifest, loader, runtime, catalog, worker host
+    i18n/                    ru/en dictionaries
+  instructions/{ru,en}/      per-node guides (Markdown)
+  nodes/                     the built-in node definitions
+sdk/                         plugin SDK (definePlugin, Vite helper)
+examples/                    example plugins
+public/plugins/              published plugins and the catalog
+docs/                        plugin guide (en, ru)
+WS_API.md                    runner protocol
+AGENTS.md                    instructions for AI agents working on the repo
+```
+
+## For contributors and AI agents
+
+[AGENTS.md](AGENTS.md) lists the commands, the architecture invariants that are easy to break (node
+identity, deferred writes in Solid 2, the plugin boundary) and the project skills in `.omp/skills/`.
+
+## License
+
+MIT

@@ -1,0 +1,58 @@
+@use "../../../styles/mixins" as *;
+
+.content {
+  @include popover;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 260px;
+  max-width: calc(100vw - 16px);
+  max-height: min(360px, var(--menu-available-height, 360px));
+  padding: var(--space-1);
+  overflow: hidden;
+}
+
+.search {
+  @include field;
+
+  flex: none;
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+}
+
+.listbox {
+  @include scroll-y;
+
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+
+  &[data-highlighted] {
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+@media (pointer: coarse) {
+  .item {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-min);
+  }
+}

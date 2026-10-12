@@ -11,15 +11,15 @@ otherwise the config is not valid.
   - `png` — lossless (default).
   - `jpeg` — smaller files, with losses.
 - **PSD** (switch) — after writing, compose a layered PSD per image into the
-  `psd` subfolder: the source file becomes the background, the processed one
-  the layer on top. Off — no postprocess.
+  `psd` subfolder: the processed file is the canvas (never scaled or clipped),
+  the source file goes on top, fitted per the fit method. Off — no postprocess.
 - **Delete originals after PSD** (switch, shown while PSD is on) — the flat
   files a PSD was composed from are removed. Only `.psd` files stay behind.
 - **Clean folder before run** (switch) — the output folder is emptied entirely
   before the run starts (a `cleandir` preprocessor), so stale files cannot mix
   with the new ones.
-- **Fit method** (select) — how the processed layer lands on the background
-  canvas (the canvas is always the background's size):
+- **Fit method** (select) — how the source layer lands on the processed
+  canvas (the canvas is always the processed file's size):
   - `original` — as is, no scaling.
   - `fit` — fit inside entirely, aspect kept.
   - `cover` — fill the canvas, aspect kept, excess cropped.

@@ -1,163 +1,114 @@
 import * as v from "valibot";
-import { NodeType, PureNodeType } from "~/types/enums";
-import type {
-  NodeOptions,
-  PureConfig,
-  PureNode,
-  PureNodeOptions,
-  PurePostprocessNodeOptions,
-  StackNode,
+import { PureNodeType } from "~/types/enums";
+import {
+  asOptionsBag,
+  type NodeOptions,
+  type PureConfig,
+  type PureNode,
+  type PurePostprocessNodeOptions,
+  type StackNode,
 } from "~/types/node";
 import { psdPostprocessOptionsSchema } from "~/types/options/postprocess";
-
-import {
-  convertHalftoneToStack,
-  convertScreentoneToPure,
-} from "~/lib/convert/halftone";
-import {
-  convertResizeToPure,
-  convertResizeToStack,
-} from "~/lib/convert/resize";
-import {
-  convertUpscaleToPure,
-  convertUpscaleToStack,
-} from "~/lib/convert/upscale";
+import { nodeRegistry } from "~/lib/nodes";
+import { pipeline } from "~/lib/pipeline/hooks";
+import type {
+  LegacyMigration,
+  StackImportContext,
+  StackImportOptions,
+} from "~/lib/nodes/types";
 import { DEFAULT_COLLAPSED } from "~/constants";
 import { ensureUids } from "~/lib/uid";
 import { modelKey } from "~/lib/convert/model-name";
-import {
-  convertFolderReaderToPure,
-  convertFolderReaderToStack,
-} from "~/lib/convert/folder-reader";
-import {
-  convertFolderWriterToPure,
-  convertFolderWriterToStack,
-} from "~/lib/convert/folder-writer";
 
-export type ConvertToPureFunction = (
-  nodes: StackNode[],
-  index: number,
-  preprocess: PureNode[],
-  postprocess: PureNode[],
-) => [PureNode[], number];
+export type { LegacyMigration, StackImportContext, StackImportOptions };
 
-/** Import context: models downloaded by the preprocess section (name →
- * mdb url, undefined for legacy downloads that carry no link). */
-export interface StackImportContext {
-  downloadedModels: ReadonlyMap<string, string | undefined>;
-  unarchivedPaths: ReadonlySet<string>;
-  cleanedPaths: ReadonlySet<string>;
-  /** Writer output path → its psd_postprocess entry (paths are the stable
-   * identity: uids are reminted on every import). */
-  postprocessByParent: ReadonlyMap<string, PurePostprocessNodeOptions>;
-  /** Model name → download link, from the loaded model database. */
-  urlOf: (name: string) => string | undefined;
-  /** Accumulates what a legacy config needed rewritten on import. */
-  migration: LegacyMigration;
+/** A node that could not be serialised. The node still goes out — as it is, so
+ * copying the config never drops it — and the caller decides what to tell the
+ * user (the run refuses to start on one). */
+export interface ConvertIssue {
+  uid: string;
+  type: string;
+  message: string;
 }
 
-/** What a legacy (flat, pre-preprocess) config needed rewritten. Empty for
- * a current config — the caller uses it to tell the user what changed. */
-export interface LegacyMigration {
-  /** model names a legacy inline `download` node asked for */
-  downloads: string[];
-  /** archives a legacy inline `unarchive` node referred to (`<dir>.zip`) */
-  unarchives: string[];
-  /** models rewritten from the legacy mounted path to the bare mdb name */
-  models: { from: string; to: string }[];
-}
+/** Wire types of the helper sections. They dissolve into flags of the node
+ * that owns them on import and never become stack nodes of their own. */
+const DISSOLVED: ReadonlySet<string> = new Set([
+  PureNodeType.DOWNLOAD,
+  PureNodeType.UNARCHIVE,
+  PureNodeType.CLEANDIR,
+]);
 
-export interface StackImportOptions {
-  /** Download link of a model name — legacy configs carry names only, the
-   * link lives in the remote model database (see `model-db.ts`). */
-  urlOf?: (name: string) => string | undefined;
-  /** Called once when the input was a legacy config that got migrated. */
-  onLegacy?: (migration: LegacyMigration) => void;
-}
-/** A node as the converters build it — uid is not yet minted; identity is
- * assigned once per import in `convertPureList`. */
-type StackNodeDraft = Omit<StackNode, "uid">;
+/** What a node with no converter of its own serialises to, and what a node
+ * whose converter threw falls back to: its options, untouched. */
+const passthrough = (node: StackNode): PureNode => ({
+  type: nodeRegistry.get(node.type)?.pureType ?? node.type,
+  options: { ...node.options },
+});
 
-export type ConvertToStackFunction = (
-  nodes: PureNode[],
-  index: number,
-  ctx: StackImportContext,
-) => [StackNodeDraft[], number];
-
-const convertEqualsToPure: ConvertToPureFunction = (nodes, index) => {
-  const node = nodes[index];
-  const result = {
-    type: node.type as unknown as PureNodeType,
-    options: node.options as PureNodeOptions,
-  };
-  return [[result], index + 1];
-};
-
-const convertEqualsToStack: ConvertToStackFunction = (nodes, index) => {
-  const node = nodes[index];
-  const result = {
-    type: node.type as unknown as NodeType,
-    options: node.options as NodeOptions,
-    collapsed: DEFAULT_COLLAPSED,
-  };
-  return [[result], index + 1];
-};
-
-const convertToPureMapper: Record<NodeType, ConvertToPureFunction> = {
-  [NodeType.UPSCALE]: convertUpscaleToPure,
-  [NodeType.RESIZE]: convertResizeToPure,
-  [NodeType.SCREENTONE]: convertScreentoneToPure,
-  [NodeType.CVT_COLOR]: convertEqualsToPure,
-  [NodeType.FOLDER_READER]: convertFolderReaderToPure,
-  [NodeType.FOLDER_WRITER]: convertFolderWriterToPure,
-  [NodeType.LEVEL]: convertEqualsToPure,
-  [NodeType.SHARP]: convertEqualsToPure,
-  [NodeType.HYST_NORM]: convertEqualsToPure,
-  [NodeType.NOISE]: convertEqualsToPure,
-};
-
-const convertToStackMapper: Partial<
-  Record<PureNodeType, ConvertToStackFunction>
-> = {
-  [PureNodeType.UPSCALE]: convertUpscaleToStack,
-  [PureNodeType.RESIZE]: convertResizeToStack,
-  [PureNodeType.HALFTONE]: convertHalftoneToStack,
-  [PureNodeType.CVT_COLOR]: convertEqualsToStack,
-  [PureNodeType.FOLDER_READER]: convertFolderReaderToStack,
-  [PureNodeType.FOLDER_WRITER]: convertFolderWriterToStack,
-  [PureNodeType.LEVEL]: convertEqualsToStack,
-  [PureNodeType.SHARP]: convertEqualsToStack,
-  [PureNodeType.HYST_NORM]: convertEqualsToStack,
-  [PureNodeType.NOISE]: convertEqualsToStack,
-};
-
-export const convertToPure = (nodes: StackNode[]): PureConfig => {
+/**
+ * Stack → wire config. Without `onIssue` a node that cannot be serialised
+ * throws (tests, strict callers); with it the failure is reported and the node
+ * is written through unchanged, so this never throws for node data and is safe
+ * inside a memo — an exception there halts Solid's whole reactive system.
+ */
+export const convertToPure = (
+  nodes: readonly StackNode[],
+  onIssue?: (issue: ConvertIssue) => void,
+): PureConfig => {
   const config: PureNode[] = [];
   const preprocess: PureNode[] = [];
   const postprocess: PureNode[] = [];
-  for (let i = 0; i < nodes.length;) {
-    const [converted, nextIndex] = convertToPureMapper[nodes[i].type](
-      nodes,
-      i,
-      preprocess,
-      postprocess,
-    );
+  for (const node of nodes) {
+    // helper entries a node adds are kept aside until it converted cleanly:
+    // a half-serialised node must not leave orphaned helpers behind
+    const own = { preprocess: [] as PureNode[], postprocess: [] as PureNode[] };
+    let converted: PureNode[];
+    try {
+      const def = nodeRegistry.get(node.type);
+      converted = def?.toPure ? def.toPure(node, own) : [passthrough(node)];
+    } catch (error) {
+      if (onIssue === undefined) throw error;
+      onIssue({
+        uid: node.uid,
+        type: node.type,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      converted = [passthrough(node)];
+      own.preprocess.length = 0;
+      own.postprocess.length = 0;
+    }
+    // a plugin may reshape what this node produced (the failed node's
+    // passthrough included — it is still what goes out)
+    converted = pipeline.apply("toPure.node", converted, node);
     // keep UI-only state on the head pure node of the group (API ignores it)
-    const pureNode = nodes[i];
     if (converted[0]) {
       const meta: PureNode["meta"] = {};
-      if (pureNode.name) meta.name = pureNode.name;
-      if (pureNode.enabled === false) meta.disabled = true;
-      if (meta.name !== undefined || meta.disabled) converted[0].meta = meta;
+      if (node.name) meta.name = node.name;
+      if (node.enabled === false) meta.disabled = true;
+      if (node.ext !== undefined && Object.keys(node.ext).length > 0)
+        meta.ext = { ...node.ext };
+      if (meta.name !== undefined || meta.disabled || meta.ext !== undefined)
+        converted[0].meta = meta;
     }
     config.push(...converted);
-    i = nextIndex;
+    preprocess.push(...own.preprocess);
+    postprocess.push(...own.postprocess);
   }
-  return {
-    nodes: config,
-    preprocess: dedupeDownloads(preprocess),
-    postprocess,
-  };
+  return pipeline.apply(
+    "toPure.config",
+    { nodes: config, preprocess: dedupeDownloads(preprocess), postprocess },
+    nodes,
+  );
+};
+
+/** `convertToPure` that reports instead of throwing. */
+export const exportConfig = (
+  nodes: readonly StackNode[],
+): { config: PureConfig; issues: ConvertIssue[] } => {
+  const issues: ConvertIssue[] = [];
+  const config = convertToPure(nodes, (issue) => issues.push(issue));
+  return { config, issues };
 };
 
 /**
@@ -168,13 +119,14 @@ const dedupeDownloads = (preprocess: PureNode[]): PureNode[] => {
   const byName = new Map<string, PureNode>();
   const rest: PureNode[] = [];
   for (const node of preprocess) {
-    if (node.type !== PureNodeType.DOWNLOAD || !("name" in node.options)) {
+    const name = node.options.name;
+    if (node.type !== PureNodeType.DOWNLOAD || typeof name !== "string") {
       rest.push(node);
       continue;
     }
-    const existing = byName.get(node.options.name);
+    const existing = byName.get(name);
     if (!existing) {
-      byName.set(node.options.name, node);
+      byName.set(name, node);
       continue;
     }
     // merge owners: both parents reference this single preprocessor
@@ -200,33 +152,40 @@ const importContext = (
   const unarchivedPaths = new Set<string>();
   const cleanedPaths = new Set<string>();
   const postprocessByParent = new Map<string, PurePostprocessNodeOptions>();
+  const helpers = new Map<string, PureNode[]>();
   const migration: LegacyMigration = {
     downloads: [],
     unarchives: [],
     models: [],
   };
   const urlOf = options.urlOf ?? ((): undefined => undefined);
+  const noteHelper = (node: PureNode): void => {
+    const list = helpers.get(node.type) ?? [];
+    list.push(node);
+    helpers.set(node.type, list);
+  };
   const absorb = (list: readonly PureNode[], legacy: boolean): void => {
     for (const node of list) {
-      if (node.type === PureNodeType.DOWNLOAD && "name" in node.options) {
-        const name = modelKey(node.options.name);
+      const { name, url, path } = node.options;
+      if (node.type === PureNodeType.DOWNLOAD && typeof name === "string") {
+        const key = modelKey(name);
         // a legacy entry has no link of its own: it comes from the database
-        downloadedModels.set(name, node.options.url ?? urlOf(name));
-        if (legacy) migration.downloads.push(name);
+        downloadedModels.set(key, typeof url === "string" ? url : urlOf(key));
+        if (legacy) migration.downloads.push(key);
       } else if (
         node.type === PureNodeType.UNARCHIVE &&
-        "path" in node.options
+        typeof path === "string"
       ) {
         // strip the ".zip" the reader appended on export; legacy entries
         // point at the directory the archive unpacks into
-        const dir = node.options.path.replace(/\.zip$/, "");
+        const dir = path.replace(/\.zip$/, "");
         unarchivedPaths.add(dir);
         if (legacy) migration.unarchives.push(`${dir}.zip`);
       } else if (
         node.type === PureNodeType.CLEANDIR &&
-        "path" in node.options
+        typeof path === "string"
       ) {
-        cleanedPaths.add(node.options.path);
+        cleanedPaths.add(path);
       }
     }
   };
@@ -245,11 +204,16 @@ const importContext = (
   absorb(preprocess ?? [], false);
   absorb(nodes, true);
   absorbPost(postprocess ?? []);
+  // a plugin's helpers are read back by wire type; the built-ins above are
+  // already folded into the maps
+  for (const node of preprocess ?? []) noteHelper(node);
+  for (const node of postprocess ?? []) noteHelper(node);
   return {
     downloadedModels,
     unarchivedPaths,
     cleanedPaths,
     postprocessByParent,
+    helpers,
     urlOf,
     migration,
   };
@@ -259,24 +223,27 @@ const convertPureList = (
   nodes: PureNode[],
   ctx: StackImportContext,
 ): StackNode[] => {
-  const result: StackNodeDraft[] = [];
-  for (let i = 0; i < nodes.length;) {
+  const result: Omit<StackNode, "uid">[] = [];
+  for (const pure of nodes) {
     // preprocess nodes dissolve into parent flags, they never become stack nodes
-    const converter = convertToStackMapper[nodes[i].type];
-    if (!converter) {
-      i += 1;
-      continue;
-    }
-    // postprocess entries dissolve into the writer flags like preprocess
-    // entries do — they never become stack nodes
-    const [converted, nextIndex] = converter(nodes, i, ctx);
-    const stackSource = nodes[i];
-    if (converted[0]) {
-      if (stackSource.meta?.name) converted[0].name = stackSource.meta.name;
-      if (stackSource.meta?.disabled) converted[0].enabled = false;
-    }
-    result.push(...converted);
-    i = nextIndex;
+    if (DISSOLVED.has(pure.type)) continue;
+    const def = nodeRegistry.byPureType(pure.type);
+    // a wire type no definition claims is kept as an orphan node carrying its
+    // options verbatim: dropping it would silently delete part of the pipeline
+    const type = def?.type ?? pure.type;
+    const options: NodeOptions = def?.fromPure
+      ? def.fromPure(pure, ctx)
+      : { ...asOptionsBag(pure.options) };
+    const node: Omit<StackNode, "uid"> = {
+      type,
+      options,
+      collapsed: DEFAULT_COLLAPSED,
+    };
+    if (pure.meta?.name) node.name = pure.meta.name;
+    if (pure.meta?.disabled) node.enabled = false;
+    const ext = asOptionsBag(pure.meta?.ext);
+    if (ext !== undefined && Object.keys(ext).length > 0) node.ext = { ...ext };
+    result.push(node);
   }
   // converters emit bare nodes — identity is minted here, once per import;
   // the draft's only gap vs StackNode is the uid ensureUids assigns below

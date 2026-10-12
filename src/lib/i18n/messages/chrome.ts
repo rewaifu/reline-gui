@@ -9,6 +9,12 @@ export const ru = {
       middle: "Стек",
       right: "Настройки",
     },
+    stack: {
+      summary: "Нод: {count} · включено: {on}",
+      collapseAll: "Свернуть все ноды",
+      expandAll: "Развернуть все ноды",
+      togglePanel: "Панель «{label}»",
+    },
     resizeColumn: "Изменить ширину: {label}",
     reorderTitle: "Перетащите или нажмите ↑ / ↓",
     reorder: "Изменить порядок ноды",
@@ -23,6 +29,7 @@ export const ru = {
     swapNamed: "Заменить {name}",
     swapPick: "Тип ноды",
     addNode: "Добавить ноду",
+    searchNode: "Найти ноду…",
     /* Shown by the error boundary around the workspace. Solid 2 halts the
      * whole reactive system on an uncaught error, so this screen is the
      * difference between "one form broke" and "every input on the page is
@@ -41,6 +48,7 @@ export const ru = {
         "Страница открыта, но ни один элемент не отвечает: внутренняя ошибка остановила обновления. Ноды сохранены — перезагрузите страницу, и если это повторится, пришлите ошибку ниже.",
       lastError: "Последняя ошибка:",
       copyError: "Скопировать отчёт",
+      disablePlugins: "Выключить плагины и перезагрузить",
     },
   },
 };
@@ -52,6 +60,12 @@ export const en: typeof ru = {
       left: "Nodes",
       middle: "Stack",
       right: "Settings",
+    },
+    stack: {
+      summary: "{count} nodes · {on} enabled",
+      collapseAll: "Collapse all nodes",
+      expandAll: "Expand all nodes",
+      togglePanel: "“{label}” panel",
     },
     resizeColumn: "Resize: {label}",
     reorderTitle: "Drag, or press ↑ / ↓",
@@ -67,6 +81,7 @@ export const en: typeof ru = {
     swapNamed: "Swap {name}",
     swapPick: "Node type",
     addNode: "Add node",
+    searchNode: "Find a node…",
     crash: {
       title: "The interface broke",
       hint: "Your nodes are saved. Restart the interface — if it keeps happening, send the error text below.",
@@ -79,6 +94,7 @@ export const en: typeof ru = {
         "The page is open, but nothing on it reacts: an internal error stopped the updates. Your nodes are saved — reload the page, and if it happens again, send the error below.",
       lastError: "Last error:",
       copyError: "Copy the report",
+      disablePlugins: "Turn plugins off and reload",
     },
   },
 };

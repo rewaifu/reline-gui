@@ -4,6 +4,10 @@
 
 export const ru = {
   form: {
+    orphan:
+      "Тип ноды «{type}» не определён в этой сборке (плагин выключен?). Настройки сохранены как есть и уйдут в конфиг без изменений.",
+    noForm: "У ноды «{type}» нет формы настроек.",
+    broken: "Форма настроек этой ноды не отрисовалась. Опции сохранены.",
     folder_reader: {
       path: "Путь к папке",
       mode: "Режим",
@@ -87,6 +91,11 @@ export const ru = {
 
 export const en: typeof ru = {
   form: {
+    orphan:
+      "Node type “{type}” is not defined in this build (plugin turned off?). Its options are kept as they are and go into the config unchanged.",
+    noForm: "Node “{type}” has no settings form.",
+    broken:
+      "The settings form of this node failed to render. Its options are kept.",
     folder_reader: {
       path: "Path to folder",
       mode: "Mode",

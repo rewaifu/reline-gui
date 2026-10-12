@@ -5,7 +5,10 @@
     "jsxImportSource": "@solidjs/web",
     "target": "ESNext",
 
-    "paths": { "~/*": ["./src/*"] },
+    "paths": {
+      "~/*": ["./src/*"],
+      "@reline/plugin-sdk": ["./sdk/index.ts"]
+    },
 
     // Modules
     "allowSyntheticDefaultImports": true,

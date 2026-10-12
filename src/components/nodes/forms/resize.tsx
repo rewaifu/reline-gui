@@ -11,6 +11,7 @@ import {
 import type { ResizeNodeOptions, ResizeSizeParam } from "~/types/options";
 import { RESIZE_MODE_PARAMS as MODE_PARAMS } from "~/types/options/resize";
 import { t } from "~/lib/i18n";
+import { storage } from "~/lib/storage";
 import styles from "./forms.module.scss";
 
 type FormProps = { node: StackNode };
@@ -18,13 +19,10 @@ type FormProps = { node: StackNode };
 const STASH_KEY = "reline-web:resize-stash";
 
 const readStash = (): Partial<Record<ResizeSizeParam, number>> => {
-  try {
-    return JSON.parse(localStorage.getItem(STASH_KEY) ?? "{}") as Partial<
-      Record<ResizeSizeParam, number>
-    >;
-  } catch {
-    return {};
-  }
+  const stored = storage.getJson(STASH_KEY);
+  return typeof stored === "object" && stored !== null && !Array.isArray(stored)
+    ? (stored as Partial<Record<ResizeSizeParam, number>>)
+    : {};
 };
 
 export const ResizeForm: Component<FormProps> = (props) => {
@@ -39,7 +37,7 @@ export const ResizeForm: Component<FormProps> = (props) => {
       const value = current[key];
       if (value !== undefined) stash[key] = value;
     }
-    localStorage.setItem(STASH_KEY, JSON.stringify(stash));
+    storage.setJson(STASH_KEY, stash);
     // clear every size param, then put back the ones the new mode owns —
     // Object.assign in the reducer overwrites with undefined, which the
     // serializer drops from the node options

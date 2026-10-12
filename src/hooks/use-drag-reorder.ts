@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from "solid-js";
-import { settleRowAnimations } from "~/instructions/hooks/use-flip-reorder";
+import { settleRowAnimations } from "~/hooks/use-flip-reorder";
 
 export interface DragHandlers {
   onPointerDown: (e: PointerEvent) => void;

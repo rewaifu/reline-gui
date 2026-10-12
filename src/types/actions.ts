@@ -8,6 +8,8 @@ export enum NodesActionType {
   MOVE = "MOVE",
   IMPORT = "IMPORT",
   SWAP = "SWAP",
+  /** Re-read the options of every node of a type through its (new) definition. */
+  NORMALIZE = "NORMALIZE",
 }
 interface AddNodeActionType {
   type: NodesActionType.ADD;
@@ -45,10 +47,27 @@ interface SwapNodeActionType {
   payload: { uid: string; nodeType: NodeType };
 }
 
+interface NormalizeNodesActionType {
+  type: NodesActionType.NORMALIZE;
+  /** The node type whose nodes are re-checked. */
+  payload: string;
+}
+
 export type NodesAction =
   | AddNodeActionType
   | DeleteNodeActionType
   | ChangeNodeActionType
   | MoveNodeActionType
   | ImportNodeActionType
-  | SwapNodeActionType;
+  | SwapNodeActionType
+  | NormalizeNodesActionType;
+
+/** An action a plugin defines (`storeActions.define`). Its `type` must not
+ * collide with the editor's own, so plugins namespace theirs (`acme.sorter:sort`). */
+export interface PluginAction {
+  type: string;
+  payload?: unknown;
+}
+
+/** Anything the store accepts: the editor's actions and plugins'. */
+export type AnyAction = NodesAction | PluginAction;

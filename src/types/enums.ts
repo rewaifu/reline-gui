@@ -9,18 +9,25 @@ export enum WriterNodeFormat {
   JPEG = "jpeg",
 }
 
-export enum NodeType {
-  FOLDER_READER = "folder_reader",
-  FOLDER_WRITER = "folder_writer",
-  UPSCALE = "upscale",
-  SHARP = "sharp",
-  RESIZE = "resize",
-  SCREENTONE = "screentone",
-  LEVEL = "level",
-  CVT_COLOR = "cvt_color",
-  HYST_NORM = "hyst_norm",
-  NOISE = "noise",
-}
+/**
+ * Ids of the nodes this build ships. Not an enum on purpose: the set of node
+ * types is open (the registry in `~/lib/nodes` is the source of truth, and a
+ * plugin adds its own), so a node's `type` is a plain string and these are only
+ * the names the app's own code uses for its built-ins.
+ */
+export const NodeType = {
+  FOLDER_READER: "folder_reader",
+  FOLDER_WRITER: "folder_writer",
+  UPSCALE: "upscale",
+  SHARP: "sharp",
+  RESIZE: "resize",
+  SCREENTONE: "screentone",
+  LEVEL: "level",
+  CVT_COLOR: "cvt_color",
+  HYST_NORM: "hyst_norm",
+  NOISE: "noise",
+} as const;
+export type NodeType = string;
 
 export enum PureNodeType {
   LEVEL = "level",

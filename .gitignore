@@ -1,29 +1,21 @@
+# build output
 dist
-.wrangler
-.output
-.vercel
-.netlify
-.vinxi
-app.config.timestamp_*.js
-
-# Environment
-.env
-.env*.local
 
 # dependencies
 /node_modules
 
-# IDEs and editors
+# environment
+.env
+.env*.local
+
+# editors
 /.idea
 .project
 .classpath
 *.launch
 .settings/
 
-# Temp
-gitignore
-
-# System Files
+# system files
 .DS_Store
 Thumbs.db
 

@@ -7,7 +7,7 @@ import {
   type Component,
 } from "solid-js";
 import { Portal } from "@solidjs/web";
-import { NODE_ORDER, nodeLabel } from "~/components/nodes/registry";
+import { nodeLabel, nodeMenuEntries, type NodeMenuEntry } from "~/lib/nodes";
 import { Icon } from "~/components/ui/icon";
 import { createDismissOnOutside } from "~/components/ui/create-dismiss-on-outside";
 import { createMenuPosition } from "~/components/ui/menu-position";
@@ -47,14 +47,13 @@ export const NodeSwap: Component<NodeSwapProps> = (props) => {
   );
 
   // the current type is meaningless as a replacement
-  const candidates = () =>
-    NODE_ORDER.filter((type) => type !== props.node.type).map(nodeLabel);
+  const candidates = () => nodeMenuEntries(props.node.type);
 
   const matches = createMemo(() => {
     const q = query().trim().toLowerCase();
     const all = candidates();
     if (q === "") return all;
-    return all.filter((label) => label.toLowerCase().includes(q));
+    return all.filter((entry) => entry.text.toLowerCase().includes(q));
   });
 
   const openMenu = () => {
@@ -69,13 +68,11 @@ export const NodeSwap: Component<NodeSwapProps> = (props) => {
     btnEl?.focus();
   };
 
-  const swap = (label: string | undefined) => {
-    if (label === undefined) return;
-    const type = NODE_ORDER.find((candidate) => nodeLabel(candidate) === label);
-    if (type === undefined || type === props.node.type) return;
+  const swap = (entry: NodeMenuEntry | undefined) => {
+    if (entry === undefined || entry.type === props.node.type) return;
     dispatch({
       type: NodesActionType.SWAP,
-      payload: { uid: props.node.uid, nodeType: type },
+      payload: { uid: props.node.uid, nodeType: entry.type },
     });
     setOpen(false);
   };
@@ -163,7 +160,7 @@ export const NodeSwap: Component<NodeSwapProps> = (props) => {
               class={styles.list}
             >
               <For each={matches()}>
-                {(label, index) => (
+                {(entry, index) => (
                   <li>
                     <button
                       id={`${props.node.uid}-swap-list-${index()}`}
@@ -174,9 +171,9 @@ export const NodeSwap: Component<NodeSwapProps> = (props) => {
                       class={styles.item}
                       onPointerDown={(e) => e.preventDefault()}
                       onPointerMove={() => setActive(index())}
-                      onClick={() => swap(label)}
+                      onClick={() => swap(entry)}
                     >
-                      {label}
+                      {entry.text}
                     </button>
                   </li>
                 )}

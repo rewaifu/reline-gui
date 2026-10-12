@@ -61,6 +61,85 @@ Rules that keep keyed rendering cheap (measured before/after in the 2026-09-10 r
 Never compare `props.selectedUid() === node.uid` inside every row (that is O(n) per click —
 the diagnostics code for it is `HUGE_FAN_OUT`).
 
+## Node types are an open registry (`src/lib/nodes`)
+
+`NodeType` is a const of the built-in ids and `type NodeType = string` — **not an enum**; the set of
+types is open (plugins add their own). Everything that is "per node type" lives in one `NodeDef`
+(`src/lib/nodes/types.ts`): `defaults()` (a factory — never a shared object), `schema` (valibot),
+`normalize`, `Form`, `doc`, `toPure`/`fromPure`, `prepare` (pre-run hook). Built-ins are defined in
+`src/nodes/builtin.ts` (data + converters) and get their forms from `src/nodes/builtin-ui.ts`
+(imported by `NodeOptionsForm`) — through the same `nodeRegistry.define/patch/hide` a plugin uses.
+Import the registry from `~/lib/nodes` (it registers the built-ins); `~/lib/nodes/registry` alone is empty.
+
+- Adding a node = one `NodeDef` + its form + i18n keys + guide. No enum member, no mapper tables.
+- **Orphans**: a node whose type has no definition is kept with its options verbatim and exported as
+  it came (`sanitizeNode`, `convertToStack`, `convertToPure`); `NodeOptionsForm` shows a note. Never
+  drop an unknown type — that deletes part of a pipeline whose plugin is merely off.
+- `sanitizeNode` merges defaults, runs `normalize`, then resets each field the schema rejects to its
+  default (`repairOptions`). `convertToPure(nodes, onIssue)` never throws when given `onIssue`
+  (use `exportConfig`) — it is called inside a memo, where a throw halts the reactive system. A node
+  that fails is written through unchanged and reported; the run refuses to start on any issue.
+- Registry writes use `createSignal(…, { ownedWrite: true })`: plugins define types from inside their
+  own reactive root.
+- All `localStorage` access goes through `src/lib/storage.ts` (`get/set/remove/getJson/setJson`).
+
+## Pipeline stages and diagnostics (`src/lib/pipeline`)
+
+`pipeline.use(stage, fn, {id, before, after})` — stages `import.parse`, `import.sanitize`, `validate`,
+`toPure.node`, `toPure.config`, `beforeRun` (the only async one), `export.serialize`, `ws.send`,
+`ws.receive`. The runner treats every hook as untrusted: throw / wrong shape / hang / a promise in a
+sync stage is caught, recorded in `pipeline.failures()` and skipped; three strikes switch the hook
+off (`reenable`). `apply`, `collect`, `applyAsync` and `frame` never throw, which is what makes them
+safe inside a memo. Hook results are checked with valibot (`ACCEPTS` in `hooks.ts`).
+
+`analyze(nodes)` (`src/lib/config.ts`) is the one pass that serialises _and_ validates; App owns the
+memo and provides it as `AnalysisContext` — Code tab, node cards (`data-diagnostics`, inset edge
+stripe, `DiagnosticList`) and Run tab read it, nobody re-serialises. A finding is a `Diagnostic`
+(`code`, `severity`, `message: LocalText`, `uid?`, `path?`); built-in rules live in
+`pipeline/validate.ts`, a node type adds its own through `NodeDef.validate`. **Errors refuse a run**
+(`RunTab.connect` re-analyses after `prepare`, journals each reason, sends nothing); warnings do not.
+A node the schema already flags is not reported again as `node.convert`. The starter stack and every
+stock preset must stay free of findings (`validate.test.ts` — it caught `sharp.diapason_*` being
+`min 0` while the form and the default use `-1`).
+
+## Plugins (`src/lib/plugins`, `sdk/`; author-facing docs: `docs/PLUGINS.en.md` / `docs/PLUGINS.ru.md`; the AI skill for writing plugins is `reline-plugin-author`)
+
+A plugin = ES module + `plugin.json` (id, caps, `integrity` sha384, `sandbox`). Installed **by link to the
+manifest**, after a consent card (`PluginsTab`); the registry lives in `localStorage`
+(`reline-web:plugins`), verified code is cached (`reline-web:plugin-code:<id>`) and imported from a Blob —
+never re-fetched from its URL after the hash check. `?plugin=<url>` only opens the card; nothing installs on
+sight. Pieces:
+
+- `loader.ts` (fetch + policy: https or loopback, pin required except loopback, origin allow-list
+  `reline-web:plugins:allow`, size limits), `store.ts` (persisted list; reads answer from a plain variable —
+  **a signal write is deferred in Solid 2, so `put` then `get` through the signal returned the old list**; the
+  same pattern is in `i18n/plugin-dict.ts` and the node/UI registries: Map/array + a `revision` signal),
+  `runtime.ts` (activate/deactivate/boot, per-plugin `createRoot` + disposer list, 5 s activate timeout, late
+  registrations after teardown are undone), `api.ts` (`createPluginApi`: namespaces exist only for granted
+  caps; names must carry the plugin id — node types `<id>.x`, actions `<id>:x`, WS `x.<id>.x`, hook ids
+  `<id>:…`; `ws.*`/`store.action` stages need the `ws`/`store` cap), `worker-host.ts` (sandbox tier: Web
+  Worker, `pipeline` cap only, `beforeRun` only — the one async stage).
+- `caps` are **consent information, not a sandbox** for the `page` tier; only `sandbox: "worker"` is enforced.
+- Recovery: `?plugins=off`; boot flag `reline-web:plugins:booting` written by `start()`, cleared by the
+  watchdog's `onHealthy` (3 ticks the DOM followed) or `pagehide`; a flag found on the next start switches
+  those plugins off (`disabledReason: "crash"`); the halt overlay offers "disable plugins and reload".
+- UI registry (`lib/ui/registry.ts`, typed by `SlotContext` / `OverrideProps`): `<Slot name>` and
+  `overridable(id, Base)` wrap each contribution in `Errored` (an override falls back to the component under
+  it); panel tabs are registered like plugin tabs (`config-panel/builtin-tabs.ts`, orders 10–50). **`ConfigPanel`'s
+  `active` must stay a memo**: `value` is read inside the Kobalte panel's children, and a plain function re-ran
+  them — remounting the open tab and dropping its state — on every registry change.
+- Store: `createNodesDispatch` runs `store.action` hooks → reducer (builtin or `storeActions`) → observers; a
+  throwing reducer/hook is recorded (`pipeline.report`), never propagated. `StackNode.ext` (per plugin id)
+  travels as `meta.ext`. `bindStore` (called in `App`) lets non-component code reach the stack, and re-checks
+  orphan nodes (`NORMALIZE`) when their type gets defined.
+- Example plugins: `examples/sequence` (built with `relinePlugin()` → `public/plugins/sequence`, contract test
+  `examples/sequence/sequence.test.tsx` runs the real source against the real API), `examples/writer-suffix`
+  (worker tier, pinned by `scripts/pin-plugin.mjs` into `public/plugins/examples/` — **not in the catalog**). `public/plugins/**` is excluded from oxfmt/oxlint — the hash
+  pins bytes; CI rebuilds and `git diff --exit-code`s it. After a Solid upgrade run `pnpm sdk:exports`.
+- Tests that need a fresh module graph use `vi.resetModules()` + stubbed `localStorage`; jsdom cannot import Blob
+  URLs or make Workers — use `setModuleLoader` / `setWorkerFactory`. `@solidjs/testing-library` does not
+  auto-clean (no globals): call `cleanup()` in `afterEach`.
+
 ## Untrusted nodes and the reactive halt
 
 - **Solid 2 halts the ENTIRE reactive system on an uncaught error** inside a
@@ -99,7 +178,7 @@ CHANNELS[default]` in `screentone.tsx`): an unknown member returns `undefined`
   `CodeTab` was a `STRICT_READ_UNTRACKED` warning until wrapped in `untrack(...)` — use it
   for deliberate one-time snapshots instead of leaving the warning.
 - **Don't hand Kobalte a reactive value its body reads.** `ComboboxBase` reads `options`
-  where it cannot track; passing a memo (`createMemo(() => NODE_ORDER.map(...))`) warned,
+  where it cannot track; passing a memo (`createMemo(() => nodeMenuEntries().map(...))`) warned,
   passing a module-level array does not.
 - **Async continuations capture props they need** before the first `await`/`.then`
   (see `PathRow.lookup`/`onBlur`): untracked reads there are lint warnings and hide bugs.
@@ -206,7 +285,7 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
     reintroduce either.
 - `Ui*` = Kobalte-backed control wrapper (`UiSelect`, `UiCombobox`, `UiSwitch`, `UiTabs`,
   `UiSlider`); plain names = static primitives (`Input`, `Label`, `Icon`). Wording comes from
-  the dictionaries — see **i18n** below. Node names are `NODE_DEFS[type].labelKey` rendered
+  the dictionaries — see **i18n** below. Node names are `nodeRegistry.get(type).label` rendered
   through `nodeLabel(type)`; nothing matches a node by its display name.
 - Icons come from `src/components/ui/icon.tsx` (inline Tabler paths, 24×24 grid, stroke 2) —
   never a text glyph: `⤓` and `↓` in one toolbar were indistinguishable at 16px and only
@@ -216,9 +295,16 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
   `PATHS` when its last use goes — `IconName` is derived from it, so a stale entry is silently
   dead weight. Text buttons with a leading symbol (`▶ Запустить`, `■ Стоп`) are labels, not
   icon-only controls, and may stay.
-- Heartbeat/echo constants live in `src/lib/ws-protocol.ts` — both WS clients
-  (`run-client`, `ls-client`) must import them so interval/timeout cannot drift.
-  Long-lived timers are always cleared on settle (request timeouts, echo, stop watchdog).
+- **One transport layer, `src/lib/ws/`** (import from `~/lib/ws`): `openConnection` is one socket —
+  MessagePack envelope (`codec.ts`), the heartbeat (`protocol.ts`: echo 5 s / silence 15 s) and
+  the `ws.send` / `ws.receive` plugin stages; no reconnect, no request matching. Policies sit on
+  top: `run-client.ts` owns a connection per run and its own resume FSM (`status` → `attach`,
+  never a second `start`); `createHub` / `wsHub` is the shared lazy connection (`ls`, plugin calls)
+  with `request` (matched by id + reply method, queued while connecting, typed `WsRequestError`),
+  `call` (declared methods, `wsMethods.define`, valibot-checked request and reply), `on` (pushes)
+  and `open`. Never open a `WebSocket` or `encode`/`decode` anywhere else, and never copy the echo
+  logic. `WebSocket` is looked up at call time (tests stub the global). Long-lived timers are
+  always cleared on settle (request timeouts, echo, stop watchdog).
 - The run protocol is `WS_API.md` (repo root, shared with the Python runner). Two rules
   there were paid for in bugs: `start.d.pipeline` is a **MessagePack structure**
   (`convertToPure(nodes)`), never a JSON string — a double-encoded config; and a failed run
@@ -228,7 +314,7 @@ upstream in the kobalte fork. To attribute a warning, patch `console.warn` via
   relative config paths against them (absolute or already-under-root paths are left alone, so
   old configs keep working). The client sends `{pipeline}` and nothing else — no `root`/
   `models` in `start`, no `root` in `ls`. The run tab has exactly one setting: the address.
-- That address lives in `src/lib/run-client.ts` as a module signal both clients read
+- That address lives in `src/lib/ws/endpoint.ts` as a module signal both clients read
   (`endpoint()`, `setEndpoint()`): every keystroke is stored at once, `run` and `ls` dial the
   same value, an edit closes the `ls` socket still pointing at the previous host, and the
   first edit drops `?api=` from the URL so a shared link cannot override what was typed.
@@ -289,9 +375,10 @@ Rules that the implementation depends on:
   «Тайлинг», «Нижний вход»), and the EN guide mirrors it with the EN label. When a label and a
   guide disagree, the guide wins and the label moves: fixing the label alone leaves the doc
   lying, fixing the doc alone leaves the UI lying.
-- Never match or compare a node by its display name: `NODE_DEFS[type].labelKey` +
-  `nodeLabel(type)`, and `useAddNode(type: NodeType)` takes the type. The old
-  `Object.values(NODE_DEFS).find(d => d.label === label)` broke the moment labels localised.
+- Never match or compare a node by its display name: `nodeRegistry.get(type).label` +
+  `nodeLabel(type)`, and `useAddNode(type: NodeType)` takes the type. Menus resolve a picked
+  text back through `nodeMenuEntries()` (the same list the text came from; two types with one
+  label are told apart as `Label (type)`), never by `find(nodeLabel(t) === text)`.
 - Text that is stored (the run journal) keeps a **key**, not formatted text: `RunMessage.text`
   is `LocalText`, so lines written in Russian re-read in English after a switch (`render()`);
   server text goes through `raw()` and is never looked up as a key. Same for preset
@@ -304,17 +391,59 @@ Rules that the implementation depends on:
   `/content/drive/MyDrive/raws`, `/content/models/...`, `1, 2, 3`. A placeholder that is
   wording (`Add node`, `Model name`) is a key like any other label.
 - `<html lang>` follows the switcher from an App effect; the prerendered shell ships
-  `lang="ru"` (the shell cannot know the visitor). The switcher is ONE button in the top
-  bar: it shows the language it switches **to** (`EN` while the UI is Russian — the label is
-  a two-letter code so the 320px bar still fits), carries `LOCALE_NAMES` in the `title` and
-  `t("app.switchLanguage", { language })` in the `aria-label`. It sits just left of the
-  panel toggles with `margin-left: auto`: the toggles keep the right edge they had before
-  the switcher existed (verified at 1400px: toggles end at the bar's inner edge, no
-  horizontal overflow).
+  `lang="ru"` (the shell cannot know the visitor). The language is chosen in the **Settings** panel tab
+  (`components/config-panel/tabs/settings-tab.tsx`, a `UiSelect` over `LOCALE_NAMES`) — the right column is where
+  preferences live; there is no switch in the toolbar.
 - Tests: `setLocale()` is an ordinary signal write, so a test that reads a message in the same
   tick needs `flush()` from `solid-js` — `src/lib/i18n/i18n.test.ts` and
   `run-format.test.ts` both wrap it in a `use(locale)` helper. `i18n.test.ts` also asserts the
   two dictionaries have identical key sets and no empty strings.
+
+## Workspace layout (no top bar)
+
+There is no bar across the window. `StackToolbar` (`components/stack-toolbar`) is the first row _inside_ the
+stack panel: left outline toggle (desktop only), `N nodes · M enabled`, fold-all/unfold-all (one button, the icon
+shows the next action); the **`+` add-node button** (`AddNode`, the overridable `AddNodeMenu`: an icon button that opens a `UiSearchMenu` — a
+popover whose search field takes focus as it opens; `createMenuPosition`'s `onPlaced` is the moment focus can move);
+right: the `topbar` plugin slot, settings toggle (desktop only). The left outline has the same `+` in its header.
+Everything a large config needs lives on the stack itself: every card has the enable switch (all widths). Card
+header, left to right: drag handle, enable switch, rename, name — then plugin slot, swap, delete, fold chevron.
+Popover components can be tested in jsdom only with `@floating-ui/dom` mocked (its autoUpdate spins on zero-size boxes). The node outline (left column) is a second view, **closed
+by default** (`DEFAULT_LAYOUT.hidden.left`); the stack is never hidden (`hidden.middle` is forced `false` on load,
+`toggleHidden` takes only `left`/`right`). The layout is stored under `reline-web:layout:v2` — bump the suffix when a
+default changes, or stored layouts keep the old one. A phone keeps its fixed bottom switcher (rendered only
+when `phone()`), so the toolbar has no panel toggles there.
+
+### Plugin catalog & UI kit
+
+`public/plugins/index.json` is generated (`pnpm plugin:catalog`, also run by `plugin:build`/`plugin:pin`) from the
+`plugin.json` files; `catalog.test.ts` fails when it drifts from manifests or code hashes. The catalog section is closed by default, loads
+on first open and has a search (`searchCatalog`); it sits below the installed list. Descriptions: `description` +
+optional `descriptions: {ru,en}`, read through `pluginDescription(source, locale())`. A panel tab registered by a plugin
+gets `scroll: true` (the panel scrolls it); host tabs that scroll themselves leave it off. `onSettled`/effect callbacks
+must not read reactive values (STRICT_READ_UNTRACKED): wrap in `untrack` or read in the compute; persist big stores from
+a revision counter, not `JSON.stringify(store)` in an effect (HUGE_FAN_IN). Puppeteer's console type for `console.warn` is
+`warn`, not `warning` — filter on both or you will miss them. `lib/plugins/catalog.ts`
+reads it (valibot schema, manifest links resolved against the catalog URL); `CatalogSection` in the Plugins tab
+fills the URL field and calls `pluginRuntime.preview(url, pin)` — `pin` must equal the manifest's integrity or the
+install is refused. A plugin's panel is built from `api.ui.kit` (`Button`, `IconButton`, `Switch`, `Input`,
+`Icon` — host components), never its own `<button>`/checkbox styling. Icon-only buttons take `label` (aria-label + title).
+
+### Column splitter
+
+The 10px gap between columns is the handle: a 2px line, horizontally centred, `--handle-y` (set from
+`onPointerMove`, removed on a hover-leave without buttons) puts it at the pointer's height — it stays there through a
+drag because the pointer is captured. Visible at rest (`--color-border-strong`), accent + taller on hover/focus/drag.
+
+### Tab strip overflow
+
+`UiTabs` is one row, never wrapped or scrolled sideways. Tabs that do not fit go into a burger `UiSelect`
+(`variant="icon"`, `itemLabel`) at the row's end; the selected tab always stays on the row (`fitTabs` in
+`components/ui/tabs/fit.ts`, pure + tested). Every tab stays mounted: the overflowed ones get `data-overflow` +
+`disabled` (out of flow, `visibility:hidden`, skipped by arrow keys) so their natural widths stay measurable;
+the idle burger is `position:absolute` for the same reason. Re-fit runs from a `ResizeObserver` (strip + tabs)
+and an effect on selection/labels (language). Tabs have natural width — never give them `flex-grow`, the
+measurement would include the growth.
 
 ## Phones & touch
 
@@ -329,12 +458,12 @@ Three widths are supported and they are _not_ the same rule:
 - The phone branch is `PHONE_QUERY = "(max-width: 700px), (pointer: coarse) and (max-height: 500px)"` in
   `workspace.tsx` and the **same query text** must stay in `workspace.module.scss` — `createMediaQuery`
   (`src/hooks/use-media-query.ts`) drives the JS side: `shown()` returns one column, `hidden(key)` becomes
-  "not the active panel", the bottom nav calls `setPhonePanel` instead of `toggleHidden`, and the toggles are
-  never `disabled` there (a switcher always has exactly one active item).
+  "not the active panel", the bottom nav calls `setPhonePanel`, and its buttons are never `disabled` (a switcher always has
+  exactly one active item).
 - A phone shows **two** panels — `PHONE_COLUMN_KEYS = ["middle", "right"]`: the node list is a second view of
   the same stack, so it is dropped and what was unique to it moved onto the stack panel, phone-only, driven by
   a `phone` prop (never by CSS alone):
-  - `AddNodeMenu` pinned **below** the stack scroller (never inside it — adding a node must not need a scroll);
+  - the `+` add-node button in the stack toolbar (always on screen, never inside the scroller);
   - the enable switch in the node card header (`useToggleEnabled` from `src/hooks/use-node-actions.ts`, shared
     with the node list so the "never disable the last enabled node" rule cannot drift);
   - delete out of the always-visible header (a stray thumb used to cost a node) and into the expanded card as a
@@ -360,7 +489,7 @@ Three widths are supported and they are _not_ the same rule:
   the row at that index); `from`/`to` for the reducer are computed at drop.
 - Verification that actually proves a phone layout (headless): `page.setViewport({width, height, isMobile: true,
 hasTouch: true})` — `browser.open({viewport})` drops `isMobile`/`hasTouch`, so `(pointer: coarse)` stays
-  false and every coarse rule silently does not apply. Clear `reline-web:layout` before the sweep, or hidden
+  false and every coarse rule silently does not apply. Clear `reline-web:layout:v2` before the sweep, or hidden
   columns from an earlier run make "no page scroll / one column" pass for the wrong reason.
 
 ## Remote model list (mdb)
@@ -368,7 +497,7 @@ hasTouch: true})` — `browser.open({viewport})` drops `isMobile`/`hasTouch`, so
 `src/lib/model-db.ts` keeps the list in memory for the whole session:
 
 - `preloadModelNames()` runs once from `App` (`onSettled`) and seeds the index from the
-  `reline-web:mdb` localStorage copy (87 entries ≈ 9.5 KB), refreshing only when that copy is
+  `reline-web:mdb:v2` localStorage copy (87 entries ≈ 9.5 KB), refreshing only when that copy is
   older than `CACHE_TTL_MS` (6 h). Cold start = exactly **one** `files.json` request, in the
   background; after that a session never refetches (`modelNames()` returns the in-memory array).
 - `modelsLoaded()` / `modelUrl(name)` read the index synchronously; `modelNames()` is the async

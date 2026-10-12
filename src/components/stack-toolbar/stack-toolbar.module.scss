@@ -1,0 +1,68 @@
+.toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.summary {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// plugin contributions, the language switch and the right panel toggle stay
+// together at the end, whatever the summary does
+.end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tool {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text);
+    background: var(--color-surface-raised);
+  }
+
+  // pressed = the panel is open: a border and a surface, not only a hue
+  &[aria-pressed="true"] {
+    color: var(--color-text);
+    background: var(--color-surface-strong);
+    border-color: var(--color-border-strong);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  @media (pointer: coarse) {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+}

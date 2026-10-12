@@ -30,7 +30,6 @@ export const ru = {
     reconnected: "Соединение восстановлено",
     recovered: "Прогон найден, продолжение с места обрыва",
     reattached: "Подключено к прогону, кадры идут",
-    gone: "Прогон {run} на сервере не найден — он завершился или сервер перезапущен",
     nothingToRecover: "На сервере нет активного прогона",
     reconnectFailed:
       "Переподключиться не удалось · {url} — прогон продолжается на сервере. Узнайте run_id через GET /health и нажмите «Продолжить»",
@@ -39,10 +38,16 @@ export const ru = {
     accepted: "Запуск принят сервером",
     cancelledEarly: "Отменено до подключения",
     noStopAck: "Сервер не подтвердил остановку",
-    ls: {
-      noAnswer: "ls: нет ответа от сервера",
-      addressChanged: "ls: адрес изменён",
-      closed: "ls: соединение закрыто",
+    refused: "Запуск отменён: ошибок в конфиге — {count}",
+    prepareFailed: "Не удалось подготовить ноду «{node}»: {detail}",
+    ws: {
+      timeout: "{method}: нет ответа от сервера",
+      closed: "{method}: соединение закрыто",
+      addressChanged: "{method}: адрес изменён",
+      badAddress: "{method}: некорректный адрес",
+      unknownMethod: "{method}: метод не объявлен",
+      badRequest: "{method}: некорректный запрос — {detail}",
+      badReply: "{method}: некорректный ответ — {detail}",
     },
     duration: {
       seconds: "{value} с",
@@ -92,7 +97,6 @@ export const en: typeof ru = {
     reconnected: "Connection restored",
     recovered: "Run found, resuming where it dropped",
     reattached: "Attached to the run, frames are coming",
-    gone: "Run {run} is not on the server — it finished or the server restarted",
     nothingToRecover: "No active run on the server",
     reconnectFailed:
       "Could not reconnect · {url} — the run continues on the server. Get its run_id from GET /health and press “Resume”",
@@ -101,10 +105,16 @@ export const en: typeof ru = {
     accepted: "The server accepted the run",
     cancelledEarly: "Cancelled before connecting",
     noStopAck: "The server did not confirm the stop",
-    ls: {
-      noAnswer: "ls: no answer from the server",
-      addressChanged: "ls: address changed",
-      closed: "ls: connection closed",
+    refused: "Run cancelled: errors in the config — {count}",
+    prepareFailed: "Could not prepare node “{node}”: {detail}",
+    ws: {
+      timeout: "{method}: no answer from the server",
+      closed: "{method}: connection closed",
+      addressChanged: "{method}: address changed",
+      badAddress: "{method}: malformed address",
+      unknownMethod: "{method}: method is not declared",
+      badRequest: "{method}: malformed request — {detail}",
+      badReply: "{method}: malformed reply — {detail}",
     },
     duration: {
       seconds: "{value} s",
