@@ -41,7 +41,8 @@ pnpm sdk:exports         # regenerate sdk/host-exports.json after a Solid update
 ```
 
 A change is done only when `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build` pass and the
-changed behaviour was exercised (a test, or the browser for UI). Do not run the whole suite to check
+changed behaviour was exercised (a test, or the browser for UI). Test files run isolated (vitest default): a suite must not
+depend on another file having run first — CI has no timing cache and orders files differently. Do not run the whole suite to check
 one thing — run the specific test first.
 
 Long-running processes (`pnpm dev`) must run as named background services and be stopped by PID.

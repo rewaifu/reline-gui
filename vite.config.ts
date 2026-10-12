@@ -33,9 +33,6 @@ export default defineConfig(({ command }) => ({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./vitest-setup.ts"],
-    // test files share one module graph: much faster, and the suites that need
-    // a clean slate reset modules themselves (`vi.resetModules`)
-    isolate: false,
   },
   build: {
     target: "esnext",
