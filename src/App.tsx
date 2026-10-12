@@ -12,7 +12,7 @@ import {
 } from "solid-js";
 import { sanitizeNodes } from "~/lib/node-shape";
 import { storage } from "~/lib/storage";
-import { preloadModelNames } from "~/lib/model-db";
+import { seedModelNames } from "~/lib/model-db";
 import { STORAGE_KEY } from "~/constants";
 import { createDefaultNodes } from "~/lib/nodes";
 import { locale } from "~/lib/i18n";
@@ -63,12 +63,11 @@ const App: Component = () => {
   let beats = 0;
   let probe: HTMLSpanElement | undefined;
 
-  // Warm the remote model index once, in the background: model completion and
-  // name resolution read it synchronously, so the first focus on a model field
-  // no longer waits for the network (and the legacy-config import can look up
-  // download links right away).
+  // Seed the model index from the localStorage copy: model completion and name
+  // resolution read it synchronously, so a reload completes at once. The runner
+  // is not dialled for it here — it is asked when the list is first needed.
   onSettled(() => {
-    void preloadModelNames();
+    seedModelNames();
     // after the stack is bound and the watchdog below is about to run: a plugin
     // that halts the page is caught by it, and the next start skips that plugin
     void pluginRuntime.start();

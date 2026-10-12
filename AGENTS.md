@@ -90,8 +90,9 @@ Never `pkill -f`. Never start a second dev server without checking the first one
 - The catalog (`public/plugins/index.json`) is generated; `catalog.test.ts` fails if it drifts.
 - Plugin UI uses `api.ui.kit`, not hand-drawn controls.
 
-**Models**: the upscale model list comes from `https://mdb.yor.ovh/v1/files` (`src/lib/model-db.ts`;
-payload validated with valibot, cached in `reline-web:mdb:v2` for 6 h).
+**Models**: the upscale model list is asked from the **runner** (`models` WS method, see `WS_API.md`); the runner
+fetches `https://mdb.yor.ovh/v1/files` itself (`src/lib/model-db.ts` on the web side; reply validated with valibot,
+cached in `reline-web:mdb:v2` for 6 h). The page never dials the runner just to load it.
 
 ## UI verification
 

@@ -98,9 +98,10 @@ shows exactly what will be sent.
 ### Models
 
 Upscale models that are not your own are picked from the model database,
-[`https://mdb.yor.ovh/v1/files`](https://mdb.yor.ovh/v1/files). The list is cached in the browser
-for six hours; picking a model adds a download step to the run, and the upscale node keeps only the
-model's bare name.
+[`https://mdb.yor.ovh/v1/files`](https://mdb.yor.ovh/v1/files). The **runner** fetches and keeps
+the list (the `models` method), so whether the database is reachable depends on where the runner
+lives, not on the visitor's network; the browser caches the answer for six hours. Picking a model
+adds a download step to the run, and the upscale node keeps only the model's bare name.
 
 ## Plugins
 

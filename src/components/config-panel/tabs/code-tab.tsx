@@ -148,8 +148,8 @@ export const CodeTab: Component = () => {
   /** Parses and dispatches a config, migrating the pre-preprocess format on
    * the way: a legacy one names its models by path and keeps the download /
    * unarchive nodes inside the pipeline, so their links have to come from the
-   * model database — wait for it before parsing (warm from the startup
-   * preload, and instant while the localStorage copy is fresh). */
+   * model list — wait for it before parsing (instant while the
+   * localStorage copy is fresh, otherwise the runner is asked). */
   const importConfig = async (
     text: string,
     success: (migration: LegacyMigration | undefined) => LocalText[],

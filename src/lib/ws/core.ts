@@ -18,3 +18,24 @@ wsMethods.define({
   }),
   response: LsReply,
 });
+
+/** The `models` method: the runner's copy of the model database (the runner
+ * fetches and keeps it, so whether the database is reachable is a property of
+ * where the runner lives, not of the browser). Only `name` and `url` of each
+ * entry are read; `stale` says the runner could not refresh and served an
+ * older copy. */
+export const ModelsReply = v.object({
+  files: v.array(
+    v.object({ name: v.string(), url: v.pipe(v.string(), v.url()) }),
+  ),
+  fetched_at: v.optional(v.number()),
+  stale: v.optional(v.boolean(), false),
+});
+
+wsMethods.define({
+  name: "models",
+  request: v.object({ refresh: v.optional(v.boolean()) }),
+  response: ModelsReply,
+  // the runner may have to ask the database first (its own timeout is 15 s)
+  timeoutMs: 25_000,
+});

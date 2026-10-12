@@ -1,12 +1,15 @@
 import * as v from "valibot";
 import { storage } from "~/lib/storage";
+import { wsHub } from "~/lib/ws";
+import { ModelsReply } from "~/lib/ws/core";
 
-/** Remote model database (mdb.yor.ovh): the non-own-model picker completes
- * against these entries; the download link goes into the Download
- * preprocessor, the upscale keeps only the bare name. The endpoint lists the
- * files of the model bucket; only `name` and `url` of each are used. */
-const MODELS_ENDPOINT = "https://mdb.yor.ovh/v1/files";
-
+/** The model database: the non-own-model picker completes against these
+ * entries; the download link goes into the Download preprocessor, the upscale
+ * keeps only the bare name. The list comes from the **runner** (`models`
+ * method, WS_API.md): the runner fetches and keeps it, so who can reach the
+ * database is decided by where the runner lives, not by the visitor's network.
+ * Nothing here dials the runner on its own at page load — it is asked when the
+ * list is first needed. */
 /** The list changes slowly: a warm copy in localStorage lets a reload
  * complete model names without touching the network at all. */
 // v2: the list moved to another endpoint with other download links — a copy
@@ -19,11 +22,6 @@ export interface MdbModel {
   url: string;
 }
 
-const ModelFilesSchema = v.array(
-  v.object({ name: v.string(), url: v.pipe(v.string(), v.url()) }),
-);
-type ModelFile = v.InferOutput<typeof ModelFilesSchema>[number];
-
 interface MdbCache {
   at: number;
   models: MdbModel[];
@@ -32,10 +30,12 @@ interface MdbCache {
 /** In-memory index: the app reads it synchronously (completion, legacy config
  * migration). Undefined until the localStorage cache or a fetch fills it. */
 let models: MdbModel[] | undefined;
+/** When `models` was fetched (or cached, for a seeded copy). */
+let loadedAt: number | undefined;
 /** In-flight fetch; a rejection clears it, so the next call retries. */
 let inflight: Promise<MdbModel[]> | undefined;
 
-const normalize = (files: readonly ModelFile[]): MdbModel[] =>
+const normalize = (files: readonly MdbModel[]): MdbModel[] =>
   files
     .map((f) => ({ name: f.name, url: f.url }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -61,32 +61,38 @@ const writeCache = (all: MdbModel[]): void => {
   } satisfies MdbCache);
 };
 
-/** The whole database is fetched once per session and kept in memory: the
- * completion list used to refetch it on the first interaction, which showed
- * up as a lag exactly when a model was being picked. */
+/** Asks the runner for the list. Concurrent callers share one request; a
+ * failure (no runner, an old runner without `models`, a broken reply) rejects
+ * and leaves the index as it was, so the next call tries again. */
 const fetchModels = (): Promise<MdbModel[]> => {
-  inflight ??= fetch(MODELS_ENDPOINT)
-    .then((r) => {
-      if (!r.ok) throw new Error(`mdb: ${r.status}`);
-      return r.json() as Promise<unknown>;
-    })
-    .then((json) => {
+  inflight ??= wsHub
+    .call("models", {})
+    .then((reply) => {
       // a changed or broken payload is an error, not an empty list
-      const all = normalize(v.parse(ModelFilesSchema, json));
+      const all = normalize(v.parse(ModelsReply, reply).files);
       models = all;
+      loadedAt = Date.now();
       writeCache(all);
       return all;
     })
-    .catch((err: unknown) => {
-      // a failed fetch must not poison the index — retry on the next call
+    .finally(() => {
       inflight = undefined;
-      throw err;
     });
   return inflight;
 };
 
-export const modelNames = (): Promise<MdbModel[]> =>
-  models === undefined ? fetchModels() : Promise.resolve(models);
+const isStale = (): boolean =>
+  loadedAt === undefined || Date.now() - loadedAt >= CACHE_TTL_MS;
+
+/** The model list. Served from memory; a copy past the TTL is served as it is
+ * and refreshed behind the caller, so completion never waits for the runner
+ * once it has had a list. With no list yet it asks the runner. */
+export const modelNames = (): Promise<MdbModel[]> => {
+  if (models === undefined) return fetchModels();
+  // the stale copy is good enough to answer with; a failed refresh changes nothing
+  if (isStale()) void fetchModels().catch(() => undefined);
+  return Promise.resolve(models);
+};
 
 /** True once the index can be read synchronously. */
 export const modelsLoaded = (): boolean => models !== undefined;
@@ -100,19 +106,28 @@ export const modelUrl = (name: string): string | undefined => {
   return index.find((m) => m.name.toLowerCase() === query)?.url;
 };
 
-/** Startup warm-up (called from the app root): seeds the index from the
- * localStorage cache — a reload completes instantly — and refreshes it in the
- * background when that copy is older than the TTL. Never rejects. */
-export const preloadModelNames = async (): Promise<void> => {
+/** Fills the index from the localStorage copy, without any network: a reload
+ * completes model names at once. Called when the app starts — the runner is
+ * not dialled until someone needs the list. */
+export const seedModelNames = (): void => {
+  if (models !== undefined) return;
   const cached = readCache();
-  if (cached !== undefined && cached.models.length > 0) {
-    models ??= cached.models;
-    if (Date.now() - cached.at < CACHE_TTL_MS) return;
-  }
+  if (cached === undefined || cached.models.length === 0) return;
+  models = cached.models;
+  loadedAt = cached.at;
+};
+
+/** Makes the index as complete as it can be before a caller reads it
+ * synchronously (the legacy-config import looks download links up): seeds
+ * from the localStorage copy and asks the runner when that copy is missing or
+ * old. Never rejects — an import without links is better than no import. */
+export const preloadModelNames = async (): Promise<void> => {
+  seedModelNames();
+  if (!isStale()) return;
   try {
     await fetchModels();
   } catch {
-    // offline / CDN hiccup: the caller falls back to what is already loaded
+    // no runner, or one that does not know `models`: use what is loaded
   }
 };
 

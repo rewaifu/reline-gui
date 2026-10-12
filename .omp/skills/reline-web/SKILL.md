@@ -494,15 +494,18 @@ hasTouch: true})` — `browser.open({viewport})` drops `isMobile`/`hasTouch`, so
 
 ## Remote model list (mdb)
 
-`src/lib/model-db.ts` keeps the list in memory for the whole session:
+The list comes from the **runner** (`models` method, `WS_API.md`); the runner fetches
+`https://mdb.yor.ovh/v1/files`, keeps a disk copy and refreshes it, so reachability is the deployment's
+property, not the visitor's. `src/lib/model-db.ts` keeps it in memory for the whole session:
 
-- `preloadModelNames()` runs once from `App` (`onSettled`) and seeds the index from the
-  `reline-web:mdb:v2` localStorage copy (87 entries ≈ 9.5 KB), refreshing only when that copy is
-  older than `CACHE_TTL_MS` (6 h). Cold start = exactly **one** `files.json` request, in the
-  background; after that a session never refetches (`modelNames()` returns the in-memory array).
+- `seedModelNames()` runs from `App` (`onSettled`) and fills the index from the `reline-web:mdb:v2` localStorage
+  copy with **no network** — the page must not dial the runner (a public page probing `127.0.0.1`) before anyone
+  needs the list. `modelNames()` asks the runner when nothing is loaded, and serves a copy older than
+  `CACHE_TTL_MS` (6 h) while refreshing behind the caller. `preloadModelNames()` (seed + ask when missing or old,
+  never rejects) is for the legacy-config import, which needs download links synchronously.
 - `modelsLoaded()` / `modelUrl(name)` read the index synchronously; `modelNames()` is the async
-  view. A failed fetch clears the in-flight promise so the next call retries — never cache a
-  rejection.
+  view. A failed request clears the in-flight promise so the next call retries — never cache a
+  rejection. A reply is validated with `ModelsReply` (`lib/ws/core.ts`); another shape is an error.
 - Model completion must never wait on the network: `PathRow` skips its 250 ms debounce when
   `source === "mdb" && modelsLoaded()` (measured focus → populated list: ~5 ms vs a fetch plus
   250 ms before). Keep the debounce for `ls` sources — it exists to spare the runner.
